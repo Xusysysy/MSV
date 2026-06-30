@@ -103,6 +103,7 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                         isDark = isDark,
                         contentUri = state.currentPageUri,
                         prevUri = state.prevPageUri,
+                        nextUri = state.nextPageUri,
                         zoom = state.zoom,
                         panOffsetX = state.panOffsetX,
                         panOffsetY = state.panOffsetY,

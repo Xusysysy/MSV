@@ -4,7 +4,10 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
+import android.os.ParcelFileDescriptor
 import android.util.LruCache
+import java.io.File as JFile
+import kotlin.math.min
 
 class PdfPageRenderer(private val context: Context) {
 
@@ -18,23 +21,40 @@ class PdfPageRenderer(private val context: Context) {
 
     fun open(uri: Uri): Int {
         close()
-        val fd = context.contentResolver.openFileDescriptor(uri, "r") ?: return 0
-        renderer = PdfRenderer(fd)
-        currentUri = uri
-        pageCount = renderer!!.pageCount
-        return pageCount
+        val fd: ParcelFileDescriptor? = if (uri.scheme == "file") {
+            try {
+                ParcelFileDescriptor.open(JFile(uri.path!!), ParcelFileDescriptor.MODE_READ_ONLY)
+            } catch (_: Exception) { null }
+        } else {
+            try {
+                context.contentResolver.openFileDescriptor(uri, "r")
+            } catch (_: Exception) { null }
+        }
+        if (fd == null) return 0
+        try {
+            renderer = PdfRenderer(fd)
+            currentUri = uri
+            pageCount = renderer!!.pageCount
+            return pageCount
+        } catch (_: Exception) {
+            try { fd.close() } catch (_: Exception) {}
+            return 0
+        }
     }
 
-    fun renderPage(pageIndex: Int, width: Int, height: Int, zoom: Float = 1f): Bitmap? {
+    fun renderPage(pageIndex: Int, viewportW: Int, viewportH: Int, zoom: Float = 1f): Bitmap? {
         val r = renderer ?: return null
         if (pageIndex !in 0 until pageCount) return null
 
-        val key = "$pageIndex-${width}-${height}-$zoom"
+        val key = "$pageIndex-${viewportW}-${viewportH}-$zoom"
         cache.get(key)?.let { return it }
 
         val page = r.openPage(pageIndex)
-        val renderWidth = (width * zoom).toInt().coerceAtLeast(1)
-        val renderHeight = (height * zoom).toInt().coerceAtLeast(1)
+        val pw = page.width.toFloat()
+        val ph = page.height.toFloat()
+        val scale = min(viewportW / pw, viewportH / ph) * zoom
+        val renderWidth = (pw * scale).toInt().coerceAtLeast(1)
+        val renderHeight = (ph * scale).toInt().coerceAtLeast(1)
         val bitmap = Bitmap.createBitmap(renderWidth, renderHeight, Bitmap.Config.ARGB_8888)
         page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
         page.close()

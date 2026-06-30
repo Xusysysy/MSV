@@ -19,8 +19,9 @@ data class ViewerState(
     val fileName: String = "",
     val currentPageUri: Uri? = null,
     val prevPageUri: Uri? = null,
-    val viewportWidth: Int = 1080,
-    val viewportHeight: Int = 1920
+    val nextPageUri: Uri? = null,
+    val viewportWidth: Int = 0,
+    val viewportHeight: Int = 0
 )
 
 sealed class Mode {

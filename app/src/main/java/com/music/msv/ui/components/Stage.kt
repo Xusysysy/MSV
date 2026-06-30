@@ -2,11 +2,12 @@ package com.music.msv.ui.components
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
@@ -29,7 +30,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.input.pointer.pointerInput
@@ -45,14 +45,14 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 private val PAPER_SHADOW_ELEVATION = 6.dp
-private const val SWIPE_THRESHOLD = 0.25f
-private const val SWIPE_VELOCITY_THRESHOLD = 800f
+private const val SWIPE_THRESHOLD = 0.3f
 
 @Composable
 fun Stage(
     isDark: Boolean,
     contentUri: Any?,
     prevUri: Any?,
+    nextUri: Any?,
     zoom: Float,
     panOffsetX: Float,
     panOffsetY: Float,
@@ -75,11 +75,15 @@ fun Stage(
     val shadowColor = if (isDark) Color(0x33000000) else Color(0x20000000)
     var stageSize by remember { mutableStateOf(IntSize.Zero) }
     var currentZoom by remember { mutableFloatStateOf(zoom) }
-    var dragAccumulator by remember { mutableFloatStateOf(0f) }
+    var dragOffset by remember { mutableFloatStateOf(0f) }
+    var isDragging by remember { mutableStateOf(false) }
 
-    val dragProgress by animateFloatAsState(
-        targetValue = dragAccumulator,
-        animationSpec = tween(100)
+    val animatedOffset by animateFloatAsState(
+        targetValue = if (isDragging) dragOffset else 0f,
+        animationSpec = if (isDragging) tween(0) else spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMediumLow
+        )
     )
 
     val isZoomed = zoom > 1.01f || abs(panOffsetX) > 1f || abs(panOffsetY) > 1f
@@ -101,19 +105,22 @@ fun Stage(
                     }
                 }
             }
-            .pointerInput(isZoomed) {
-                if (!isZoomed) {
+            .pointerInput(isZoomed, stageSize) {
+                if (!isZoomed && stageSize.width > 0) {
                     detectHorizontalDragGestures(
                         onDragEnd = {
                             val threshold = stageSize.width * SWIPE_THRESHOLD
-                            if (abs(dragAccumulator) > threshold) {
-                                if (dragAccumulator < 0) onSwipeLeft() else onSwipeRight()
+                            if (abs(animatedOffset) > threshold) {
+                                if (animatedOffset < 0) onSwipeLeft() else onSwipeRight()
                             }
-                            dragAccumulator = 0f
+                            isDragging = false
                         },
-                        onDragCancel = { dragAccumulator = 0f },
+                        onDragCancel = { isDragging = false },
                         onHorizontalDrag = { _, dragAmount ->
-                            dragAccumulator += dragAmount
+                            if (!isDragging) isDragging = true
+                            val newOffset = dragOffset + dragAmount
+                            val maxDrag = stageSize.width.toFloat()
+                            dragOffset = newOffset.coerceIn(-maxDrag, maxDrag)
                         }
                     )
                 }
@@ -132,6 +139,55 @@ fun Stage(
                 )
             }
     ) {
+        val peekProgress = (abs(animatedOffset) / stageSize.width.toFloat()).coerceIn(0f, 1f)
+
+        if (!isZoomed && peekProgress > 0.01f && stageSize.width > 0) {
+            val peekDir = if (animatedOffset < 0) 1 else -1
+            val peekUri = if (animatedOffset < 0) nextUri else prevUri
+
+            if (peekUri != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(4.dp)
+                ) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(peekUri)
+                            .build(),
+                        contentDescription = "peek page",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            }
+
+            val stackAlpha = (peekProgress * 0.4f).coerceAtMost(0.4f)
+            val stacks = minOf(
+                if (animatedOffset < 0) pageCount - currentPage - 1 else currentPage,
+                5
+            ).coerceAtLeast(0)
+            if (stacks > 0) {
+                Box(
+                    modifier = Modifier
+                        .align(if (animatedOffset < 0) Alignment.CenterEnd else Alignment.CenterStart)
+                        .alpha(stackAlpha)
+                ) {
+                    for (i in 0 until stacks) {
+                        Box(
+                            modifier = Modifier
+                                .offset(x = (peekDir * i * 2).dp)
+                                .width(3.dp)
+                                .alpha(0.3f - i * 0.05f)
+                                .shadow(1.dp)
+                                .background(shadowColor)
+                        )
+                    }
+                }
+            }
+        }
+
+        val currentOffsetX = animatedOffset.roundToInt()
         AnimatedContent(
             targetState = contentUri,
             transitionSpec = {
@@ -147,6 +203,7 @@ fun Stage(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(4.dp)
+                        .offset { IntOffset(currentOffsetX, 0) }
                 ) {
                     AsyncImage(
                         model = ImageRequest.Builder(LocalContext.current)
@@ -162,18 +219,7 @@ fun Stage(
             }
         }
 
-        if (!isZoomed && pageCount > 1 && dragAccumulator != 0f) {
-            val fraction = (dragProgress / stageSize.width).coerceIn(-0.5f, 0.5f)
-            val peekAlpha = abs(fraction) * 0.4f
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .offset { IntOffset((fraction * stageSize.width * 0.3f).roundToInt(), 0) }
-                    .alpha(peekAlpha)
-            )
-        }
-
-        if (!isZoomed && pageCount > 1) {
+        if (!isZoomed && abs(animatedOffset) < 1f && pageCount > 1) {
             val pageStack = minOf(pageCount - currentPage - 1, 5).coerceAtLeast(0)
             if (pageStack > 0) {
                 Box(

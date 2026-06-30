@@ -191,22 +191,23 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         loadJob = viewModelScope.launch(Dispatchers.IO) {
             val currentUri: Uri? = when (state.mode) {
                 is Mode.Image -> imageUris.getOrNull(targetPage)
-                is Mode.Pdf -> {
-                    val bmp = pdfRenderer.renderPage(targetPage, vw, vh, state.zoom)
-                    if (bmp != null) {
-                        val cachedFile = java.io.File(
-                            getApplication<Application>().cacheDir,
-                            "page_$targetPage.png"
-                        )
-                        bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 90, cachedFile.outputStream())
-                        bmp.recycle()
-                        Uri.fromFile(cachedFile)
-                    } else null
-                }
+                is Mode.Pdf -> renderPageToCache(targetPage, vw, vh, state.zoom)
                 else -> null
             }
             _uiState.update { it.copy(currentPageUri = currentUri) }
         }
+    }
+
+    private fun renderPageToCache(pageIndex: Int, vw: Int, vh: Int, zoom: Float): Uri? {
+        if (vw <= 0 || vh <= 0) return null
+        val bmp = pdfRenderer.renderPage(pageIndex, vw, vh, zoom) ?: return null
+        val cachedFile = java.io.File(
+            getApplication<Application>().cacheDir,
+            "page_$pageIndex.png"
+        )
+        bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 90, cachedFile.outputStream())
+        bmp.recycle()
+        return Uri.fromFile(cachedFile)
     }
 
     private fun preloadAdjacentPages() {
@@ -215,20 +216,30 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         val cp = state.currentPage
         val vw = state.viewportWidth
         val vh = state.viewportHeight
+        if (vw <= 0 || vh <= 0) return
         viewModelScope.launch(Dispatchers.IO) {
             val prev = (cp - 1).coerceAtLeast(0)
             val next = (cp + 1).coerceAtMost(state.pageCount - 1)
-            if (prev != cp) pdfRenderer.renderPage(prev, vw, vh, state.zoom)
-            if (next != cp) pdfRenderer.renderPage(next, vw, vh, state.zoom)
+            var prevUri: Uri? = null
+            var nextUri: Uri? = null
+            if (prev != cp) {
+                prevUri = renderPageToCache(prev, vw, vh, state.zoom)
+            }
+            if (next != cp) {
+                nextUri = renderPageToCache(next, vw, vh, state.zoom)
+            }
+            _uiState.update { it.copy(prevPageUri = prevUri, nextPageUri = nextUri) }
         }
     }
 
     private fun updateViewportSize(width: Int, height: Int) {
         if (width <= 0 || height <= 0) return
         val state = _uiState.value
+        val changed = state.viewportWidth != width || state.viewportHeight != height
         _uiState.update { it.copy(viewportWidth = width, viewportHeight = height) }
-        if (state.viewportWidth != width || state.viewportHeight != height) {
+        if (changed) {
             loadCurrentPage()
+            preloadAdjacentPages()
         }
     }
 
