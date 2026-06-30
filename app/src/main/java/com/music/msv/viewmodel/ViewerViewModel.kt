@@ -218,10 +218,10 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         val vh = state.viewportHeight
         if (vw <= 0 || vh <= 0) return
         viewModelScope.launch(Dispatchers.IO) {
-            val prev = (cp - 1).coerceAtLeast(0)
-            val next = (cp + 1).coerceAtMost(state.pageCount - 1)
             var prevUri: Uri? = null
             var nextUri: Uri? = null
+            val prev = (cp - 1).coerceAtLeast(0)
+            val next = (cp + 1).coerceAtMost(state.pageCount - 1)
             if (prev != cp) {
                 prevUri = renderPageToCache(prev, vw, vh, state.zoom)
             }
@@ -229,6 +229,13 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 nextUri = renderPageToCache(next, vw, vh, state.zoom)
             }
             _uiState.update { it.copy(prevPageUri = prevUri, nextPageUri = nextUri) }
+
+            for (offset in 2..3) {
+                val pp = (cp - offset).coerceAtLeast(0)
+                val nn = (cp + offset).coerceAtMost(state.pageCount - 1)
+                if (pp != cp) pdfRenderer.renderPage(pp, vw, vh, state.zoom)
+                if (nn != cp) pdfRenderer.renderPage(nn, vw, vh, state.zoom)
+            }
         }
     }
 
