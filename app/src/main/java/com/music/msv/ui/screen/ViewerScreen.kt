@@ -40,7 +40,6 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.music.msv.data.model.Mode
 import com.music.msv.data.model.ViewerEvent
-import com.music.msv.ui.components.BottomFooter
 import com.music.msv.ui.components.EmptyView
 import com.music.msv.ui.components.LoadingOverlay
 import com.music.msv.ui.components.Stage
@@ -70,32 +69,36 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
     var showResetDialog by remember { mutableStateOf(false) }
 
     val isDark = state.isDarkTheme
-    val shellBg = if (isDark) Color(0xFF141824) else Color(0xFFE8ECF5)
-    val shellBorder = if (isDark) Color(0x1AFFFFFF) else Color(0x141A2230)
     val shade = if (isDark) Color(0x5C05080E) else Color(0x99E4E8F3)
     val appBg = if (isDark) Color(0xFF0F1220) else Color(0xFFDFE6F5)
+
+    val isViewing = state.mode != Mode.Idle
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(appBg)
-            .padding(16.dp)
+            .then(if (!isViewing) Modifier.padding(16.dp) else Modifier)
     ) {
-        // Shell
+        // Shell for idle mode, plain container for viewing
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .shadow(24.dp, RoundedCornerShape(28.dp))
-                .clip(RoundedCornerShape(28.dp))
-                .background(shellBg)
-                .border(1.dp, shellBorder, RoundedCornerShape(28.dp))
+                .then(
+                    if (!isViewing) {
+                        Modifier
+                            .shadow(24.dp, RoundedCornerShape(28.dp))
+                            .clip(RoundedCornerShape(28.dp))
+                            .background(if (isDark) Color(0xFF141824) else Color(0xFFE8ECF5))
+                            .border(1.dp, if (isDark) Color(0x1AFFFFFF) else Color(0x141A2230), RoundedCornerShape(28.dp))
+                    } else Modifier
+                )
         ) {
             when (state.mode) {
                 Mode.Idle -> {
                     EmptyView(isDark = isDark, onUploadClick = openFilePicker)
                 }
                 else -> {
-                    // Stage
                     Stage(
                         isDark = isDark,
                         contentUri = state.currentPageUri,
@@ -105,6 +108,8 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                         panOffsetY = state.panOffsetY,
                         showUI = state.showUI,
                         isGoingForward = state.isGoingForward,
+                        pageCount = state.pageCount,
+                        currentPage = state.currentPage,
                         onEdgeLeftTap = { viewModel.onEvent(ViewerEvent.PrevPage) },
                         onEdgeRightTap = { viewModel.onEvent(ViewerEvent.NextPage) },
                         onCenterTap = { viewModel.onEvent(ViewerEvent.ToggleUI) },
@@ -112,10 +117,12 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                         onZoomChange = { viewModel.onEvent(ViewerEvent.SetZoom(it)) },
                         onPanChange = { dx, dy -> viewModel.onEvent(ViewerEvent.PanBy(dx, dy)) },
                         onSwipeLeft = { viewModel.onEvent(ViewerEvent.NextPage) },
-                        onSwipeRight = { viewModel.onEvent(ViewerEvent.PrevPage) }
+                        onSwipeRight = { viewModel.onEvent(ViewerEvent.PrevPage) },
+                        onViewportSizeChanged = { w, h ->
+                            viewModel.onEvent(ViewerEvent.UpdateViewportSize(w, h))
+                        }
                     )
 
-                    // Loading overlay
                     AnimatedVisibility(
                         visible = state.isLoading,
                         enter = fadeIn(),
@@ -126,21 +133,20 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                 }
             }
 
-            // TopBar
             AnimatedVisibility(
-                visible = state.showUI && state.mode != Mode.Idle,
+                visible = state.showUI && isViewing,
                 enter = slideInVertically { -it } + fadeIn(),
                 exit = slideOutVertically { -it } + fadeOut(),
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .padding(horizontal = if (isViewing) 8.dp else 16.dp, vertical = 8.dp)
             ) {
                 TopBar(
                     isDark = isDark,
                     fileName = state.fileName,
                     currentPage = state.currentPage + 1,
                     pageCount = state.pageCount,
-                    showPageNav = state.mode != Mode.Idle,
+                    showPageNav = isViewing,
                     onUploadClick = openFilePicker,
                     onPageJumpClick = {
                         pageInput = (state.currentPage + 1).toString()
@@ -152,22 +158,6 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                 )
             }
 
-            // Footer
-            AnimatedVisibility(
-                visible = state.showUI && state.mode != Mode.Idle,
-                enter = slideInVertically { it } + fadeIn(),
-                exit = slideOutVertically { it } + fadeOut(),
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 18.dp)
-            ) {
-                BottomFooter(
-                    isDark = isDark,
-                    statusMessage = state.statusMessage
-                )
-            }
-
-            // Thumbnail panel
             AnimatedVisibility(
                 visible = state.showThumbnails && state.pageCount > 0,
                 enter = slideInHorizontally { it / 3 } + fadeIn(),
@@ -179,16 +169,13 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                         isDark = isDark,
                         pageCount = state.pageCount,
                         currentPage = state.currentPage,
-                        getThumbnailUri = { page ->
-                            state.currentPageUri // TODO: generate thumbnails
-                        },
-                        onPageSelected = { page -> viewModel.onEvent(ViewerEvent.GoToPage(page)) },
+                        getThumbnailUri = { state.currentPageUri },
+                        onPageSelected = { viewModel.onEvent(ViewerEvent.GoToPage(it)) },
                         onClose = { viewModel.onEvent(ViewerEvent.ToggleThumbnails) }
                     )
                 }
             }
 
-            // Shade backdrop for thumbnails
             if (state.showThumbnails && state.pageCount > 0) {
                 Box(
                     modifier = Modifier
@@ -200,7 +187,6 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
             }
         }
 
-        // Page jump dialog
         if (showPageDialog) {
             AlertDialog(
                 onDismissRequest = { showPageDialog = false },
@@ -231,7 +217,6 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
             )
         }
 
-        // Reset confirmation dialog
         if (showResetDialog) {
             AlertDialog(
                 onDismissRequest = { showResetDialog = false },

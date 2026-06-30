@@ -17,6 +17,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -76,6 +77,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             ViewerEvent.PrevPage -> goToPage(_uiState.value.currentPage - 1)
             is ViewerEvent.SetZoom -> setZoom(event.zoom)
             is ViewerEvent.PanBy -> panBy(event.dx, event.dy)
+            is ViewerEvent.UpdateViewportSize -> updateViewportSize(event.width, event.height)
             ViewerEvent.ToggleUI -> toggleUI()
             ViewerEvent.ToggleThumbnails -> toggleThumbnails()
             ViewerEvent.ToggleTheme -> toggleTheme()
@@ -89,15 +91,24 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     private fun handleFilesSelected(uris: List<Uri>) {
         if (uris.isEmpty()) return
         fileRepo.takePersistablePermissions(uris)
-        val uri = uris.first()
-        val name = fileRepo.getFileName(uri)
+        viewModelScope.launch(Dispatchers.IO) {
+            val uri = uris.first()
+            val name = fileRepo.getFileName(uri)
+            val localUri = fileRepo.copyToLocal(uri, name) ?: uri
 
-        when {
-            fileRepo.isPdf(name) -> openPdf(uri, name)
-            fileRepo.isImage(name) -> openImages(uris, name)
-            else -> {
-                _uiState.update {
-                    it.copy(statusMessage = "不支持的文件类型", showThumbnails = false)
+            when {
+                fileRepo.isPdf(name) -> openPdf(localUri, name)
+                fileRepo.isImage(name) -> {
+                    val localUris = uris.mapIndexed { i, u ->
+                        val imgName = fileRepo.getFileName(u)
+                        fileRepo.copyToLocal(u, imgName) ?: u
+                    }
+                    openImages(localUris, name)
+                }
+                else -> {
+                    _uiState.update {
+                        it.copy(statusMessage = "不支持的文件类型", showThumbnails = false)
+                    }
                 }
             }
         }
@@ -175,11 +186,13 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         loadJob?.cancel()
         val state = _uiState.value
         val targetPage = state.currentPage
+        val vw = state.viewportWidth
+        val vh = state.viewportHeight
         loadJob = viewModelScope.launch(Dispatchers.IO) {
             val currentUri: Uri? = when (state.mode) {
                 is Mode.Image -> imageUris.getOrNull(targetPage)
                 is Mode.Pdf -> {
-                    val bmp = pdfRenderer.renderPage(targetPage, 1080, 1920, state.zoom)
+                    val bmp = pdfRenderer.renderPage(targetPage, vw, vh, state.zoom)
                     if (bmp != null) {
                         val cachedFile = java.io.File(
                             getApplication<Application>().cacheDir,
@@ -200,11 +213,22 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         val state = _uiState.value
         if (state.mode !is Mode.Pdf) return
         val cp = state.currentPage
+        val vw = state.viewportWidth
+        val vh = state.viewportHeight
         viewModelScope.launch(Dispatchers.IO) {
             val prev = (cp - 1).coerceAtLeast(0)
             val next = (cp + 1).coerceAtMost(state.pageCount - 1)
-            if (prev != cp) pdfRenderer.renderPage(prev, 1080, 1920, state.zoom)
-            if (next != cp) pdfRenderer.renderPage(next, 1080, 1920, state.zoom)
+            if (prev != cp) pdfRenderer.renderPage(prev, vw, vh, state.zoom)
+            if (next != cp) pdfRenderer.renderPage(next, vw, vh, state.zoom)
+        }
+    }
+
+    private fun updateViewportSize(width: Int, height: Int) {
+        if (width <= 0 || height <= 0) return
+        val state = _uiState.value
+        _uiState.update { it.copy(viewportWidth = width, viewportHeight = height) }
+        if (state.viewportWidth != width || state.viewportHeight != height) {
+            loadCurrentPage()
         }
     }
 
@@ -270,17 +294,29 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun restoreSession() {
         viewModelScope.launch {
-            sessionRepo.sessionFlow.collect { session ->
-                if (session != null && _uiState.value.mode == Mode.Idle) {
-                    val uris = session.uris.mapNotNull { Uri.parse(it) }
-                    if (session.mode == "pdf") {
-                        openPdf(uris.first(), session.fileName)
-                        goToPage(session.currentPage)
-                    } else if (session.mode == "image") {
-                        openImages(uris, session.fileName)
-                        goToPage(session.currentPage)
-                    }
-                }
+            val session = sessionRepo.sessionFlow.first()
+            if (session == null || _uiState.value.mode != Mode.Idle) return@launch
+
+            val uris = session.uris.mapNotNull { Uri.parse(it) }
+            if (uris.isEmpty()) return@launch
+
+            val accessible = try {
+                getApplication<Application>().contentResolver.openInputStream(uris.first())?.close()
+                true
+            } catch (_: Exception) { false }
+
+            if (!accessible) {
+                sessionRepo.clearSession()
+                _uiState.update { it.copy(statusMessage = "上次文件无法访问，请重新打开") }
+                return@launch
+            }
+
+            if (session.mode == "pdf") {
+                openPdf(uris.first(), session.fileName)
+                goToPage(session.currentPage)
+            } else if (session.mode == "image") {
+                openImages(uris, session.fileName)
+                goToPage(session.currentPage)
             }
         }
     }

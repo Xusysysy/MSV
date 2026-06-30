@@ -4,8 +4,12 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
+import java.io.File as JFile
 
 class FileRepository(private val context: Context) {
+
+    private val docsDir: JFile
+        get() = JFile(context.filesDir, "docs").also { it.mkdirs() }
 
     fun getFileName(uri: Uri): String {
         return try {
@@ -43,6 +47,24 @@ class FileRepository(private val context: Context) {
 
     fun takePersistablePermissions(uris: List<Uri>) {
         uris.forEach { takePersistablePermission(it) }
+    }
+
+    fun copyToLocal(uri: Uri, fileName: String): Uri? {
+        return try {
+            val dest = JFile(docsDir, fileName)
+            if (dest.exists()) return Uri.fromFile(dest)
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                dest.outputStream().use { output -> input.copyTo(output) }
+            }
+            Uri.fromFile(dest)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun getLocalFile(fileName: String): Uri? {
+        val file = JFile(docsDir, fileName)
+        return if (file.exists()) Uri.fromFile(file) else null
     }
 
     fun openInputStream(uri: Uri) = context.contentResolver.openInputStream(uri)

@@ -18,7 +18,9 @@ data class ViewerState(
     val isLoading: Boolean = false,
     val fileName: String = "",
     val currentPageUri: Uri? = null,
-    val prevPageUri: Uri? = null
+    val prevPageUri: Uri? = null,
+    val viewportWidth: Int = 1080,
+    val viewportHeight: Int = 1920
 )
 
 sealed class Mode {
@@ -34,6 +36,7 @@ sealed class ViewerEvent {
     data object PrevPage : ViewerEvent()
     data class SetZoom(val zoom: Float) : ViewerEvent()
     data class PanBy(val dx: Float, val dy: Float) : ViewerEvent()
+    data class UpdateViewportSize(val width: Int, val height: Int) : ViewerEvent()
     data object ToggleUI : ViewerEvent()
     data object ToggleThumbnails : ViewerEvent()
     data object ToggleTheme : ViewerEvent()
