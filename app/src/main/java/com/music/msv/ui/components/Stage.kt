@@ -1,11 +1,17 @@
 package com.music.msv.ui.components
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -17,6 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.IntSize
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
@@ -31,6 +38,7 @@ fun Stage(
     panOffsetX: Float,
     panOffsetY: Float,
     showUI: Boolean,
+    isGoingForward: Boolean,
     onEdgeLeftTap: () -> Unit,
     onEdgeRightTap: () -> Unit,
     onCenterTap: () -> Unit,
@@ -71,16 +79,25 @@ fun Stage(
                 )
             }
     ) {
-        if (contentUri != null) {
-            AsyncImage(
-                model = ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
-                    .data(contentUri)
-                    .crossfade(true)
-                    .build(),
-                contentDescription = "page",
-                contentScale = ContentScale.Fit,
-                modifier = Modifier.fillMaxSize()
-            )
+        AnimatedContent(
+            targetState = contentUri,
+            transitionSpec = {
+                val dir = if (isGoingForward) 1 else -1
+                (slideInHorizontally(tween(200)) { dir * it } + fadeIn(tween(120))) togetherWith
+                        (slideOutHorizontally(tween(200)) { -dir * it } + fadeOut(tween(120)))
+            }
+        ) { uri ->
+            if (uri != null) {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(uri)
+                        .crossfade(false)
+                        .build(),
+                    contentDescription = "page",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
         }
     }
 }

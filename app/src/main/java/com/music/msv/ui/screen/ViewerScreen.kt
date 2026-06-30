@@ -92,6 +92,7 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                         panOffsetX = state.panOffsetX,
                         panOffsetY = state.panOffsetY,
                         showUI = state.showUI,
+                        isGoingForward = state.isGoingForward,
                         onEdgeLeftTap = { viewModel.onEvent(ViewerEvent.PrevPage) },
                         onEdgeRightTap = { viewModel.onEvent(ViewerEvent.NextPage) },
                         onCenterTap = { viewModel.onEvent(ViewerEvent.ToggleUI) },

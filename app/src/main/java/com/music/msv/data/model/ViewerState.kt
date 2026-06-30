@@ -10,6 +10,7 @@ data class ViewerState(
     val panOffsetX: Float = 0f,
     val panOffsetY: Float = 0f,
     val isAnimating: Boolean = false,
+    val isGoingForward: Boolean = true,
     val showUI: Boolean = true,
     val showThumbnails: Boolean = false,
     val isDarkTheme: Boolean = true,

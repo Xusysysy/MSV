@@ -11,7 +11,8 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 
 object Animations {
-    const val PAGE_FLIP_MS = 160
+    const val PAGE_FLIP_MS = 200
+    const val PAGE_FADE_MS = 120
     const val UI_TOGGLE_MS = 280
     const val PANEL_SLIDE_MS = 220
     const val SHADE_FADE_MS = 180

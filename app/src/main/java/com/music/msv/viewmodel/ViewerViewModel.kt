@@ -1,7 +1,9 @@
 package com.music.msv.viewmodel
 
 import android.app.Application
+import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.music.msv.data.model.Mode
@@ -11,6 +13,7 @@ import com.music.msv.data.pdf.PdfPageRenderer
 import com.music.msv.data.repository.FileRepository
 import com.music.msv.data.repository.SessionRepository
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -28,9 +31,41 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     private var imageUris: List<Uri> = emptyList()
     private var pdfUri: Uri? = null
+    private var loadJob: Job? = null
 
     init {
         restoreSession()
+    }
+
+    fun handleShareIntent(intent: Intent?) {
+        if (intent == null || intent.action == Intent.ACTION_MAIN) return
+        val uris: List<Uri> = when (intent.action) {
+            Intent.ACTION_SEND -> {
+                val uri: Uri? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent.getParcelableExtra(Intent.EXTRA_STREAM)
+                }
+                uri?.let { listOf(it) } ?: emptyList()
+            }
+            Intent.ACTION_SEND_MULTIPLE -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM)
+                } ?: emptyList()
+            }
+            Intent.ACTION_VIEW -> {
+                intent.data?.let { listOf(it) } ?: emptyList()
+            }
+            else -> emptyList()
+        }
+        if (uris.isNotEmpty()) {
+            onEvent(ViewerEvent.FilesSelected(uris))
+            intent.action = Intent.ACTION_MAIN // mark as handled
+        }
     }
 
     fun onEvent(event: ViewerEvent) {
@@ -123,30 +158,32 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun goToPage(page: Int) {
         val state = _uiState.value
-        if (state.isAnimating || state.pageCount == 0) return
+        if (state.pageCount == 0) return
         val target = page.coerceIn(0, state.pageCount - 1)
-        if (target == state.currentPage) return
+        if (target == state.currentPage && !state.isAnimating) return
 
-        _uiState.update { it.copy(isAnimating = true, currentPage = target) }
+        _uiState.update {
+            it.copy(isGoingForward = target > state.currentPage, currentPage = target)
+        }
         loadCurrentPage()
         saveSession()
-        viewModelScope.launch {
-            kotlinx.coroutines.delay(160)
-            _uiState.update { it.copy(isAnimating = false) }
-        }
+        preloadAdjacentPages()
     }
 
     private fun loadCurrentPage() {
+        loadJob?.cancel()
         val state = _uiState.value
-        viewModelScope.launch(Dispatchers.IO) {
+        val targetPage = state.currentPage
+        loadJob = viewModelScope.launch(Dispatchers.IO) {
             val currentUri: Uri? = when (state.mode) {
-                is Mode.Image -> imageUris.getOrNull(state.currentPage)
+                is Mode.Image -> imageUris.getOrNull(targetPage)
                 is Mode.Pdf -> {
-                    val bmp = pdfRenderer.renderPage(state.currentPage, 1080, 1920, state.zoom)
-                    // Write bitmap to cache file for Coil
+                    val bmp = pdfRenderer.renderPage(targetPage, 1080, 1920, state.zoom)
                     if (bmp != null) {
-                        val fileName = "page_${state.currentPage}.png"
-                        val cachedFile = java.io.File(getApplication<android.app.Application>().cacheDir, fileName)
+                        val cachedFile = java.io.File(
+                            getApplication<Application>().cacheDir,
+                            "page_$targetPage.png"
+                        )
                         bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 90, cachedFile.outputStream())
                         bmp.recycle()
                         Uri.fromFile(cachedFile)
@@ -155,6 +192,18 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 else -> null
             }
             _uiState.update { it.copy(currentPageUri = currentUri) }
+        }
+    }
+
+    private fun preloadAdjacentPages() {
+        val state = _uiState.value
+        if (state.mode !is Mode.Pdf) return
+        val cp = state.currentPage
+        viewModelScope.launch(Dispatchers.IO) {
+            val prev = (cp - 1).coerceAtLeast(0)
+            val next = (cp + 1).coerceAtMost(state.pageCount - 1)
+            if (prev != cp) pdfRenderer.renderPage(prev, 1080, 1920, state.zoom)
+            if (next != cp) pdfRenderer.renderPage(next, 1080, 1920, state.zoom)
         }
     }
 
