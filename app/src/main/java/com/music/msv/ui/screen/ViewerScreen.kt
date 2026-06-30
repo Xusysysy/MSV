@@ -53,15 +53,20 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
         }
     }
 
+    val openFilePicker: () -> Unit = {
+        filePickerLauncher.launch(arrayOf("image/*", "application/pdf"))
+    }
+
     val isDark = state.isDarkTheme
     val shellBg = if (isDark) Color(0xFF141824) else Color(0xFFE8ECF5)
-    val shellBorder = if (isDark) Color(0x1AFFFFFF) else Color(0x14FFFFFF)
+    val shellBorder = if (isDark) Color(0x1AFFFFFF) else Color(0x141A2230)
     val shade = if (isDark) Color(0x5C05080E) else Color(0x99E4E8F3)
+    val appBg = if (isDark) Color(0xFF0F1220) else Color(0xFFDFE6F5)
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(if (isDark) Color(0xFF0F1220) else Color(0xFFDFE6F5))
+            .background(appBg)
             .padding(16.dp)
     ) {
         // Shell
@@ -75,7 +80,7 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
         ) {
             when (state.mode) {
                 Mode.Idle -> {
-                    EmptyView(isDark = isDark)
+                    EmptyView(isDark = isDark, onUploadClick = openFilePicker)
                 }
                 else -> {
                     // Stage
@@ -123,9 +128,7 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                     currentPage = state.currentPage + 1,
                     pageCount = state.pageCount,
                     showPageNav = state.mode != Mode.Idle,
-                    onUploadClick = {
-                        filePickerLauncher.launch(arrayOf("image/*", "application/pdf"))
-                    },
+                    onUploadClick = openFilePicker,
                     onPageNumberSubmit = { page -> viewModel.onEvent(ViewerEvent.GoToPage(page)) },
                     onThumbnailsClick = { viewModel.onEvent(ViewerEvent.ToggleThumbnails) },
                     onFullscreenClick = { viewModel.onEvent(ViewerEvent.ToggleTheme) },

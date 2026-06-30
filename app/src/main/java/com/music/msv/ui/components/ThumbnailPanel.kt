@@ -53,7 +53,7 @@ fun ThumbnailPanel(
     val itemBorder = if (isDark) Color(0x14FFFFFF) else Color(0x1A1A2230)
     val itemActiveBg = if (isDark) Color(0x148CC8FF) else Color(0x1F2F6AD9)
     val itemActiveBorder = if (isDark) Color(0x738CC8FF) else Color(0x662F6AD9)
-    val muted = if (isDark) Color(0xB8F5F7FF) else Color(0x9E1B2230)
+    val muted = if (isDark) Color(0xB8F5F7FF) else Color(0xD11B2230)
 
     Column(
         modifier = modifier
@@ -73,7 +73,7 @@ fun ThumbnailPanel(
                 modifier = Modifier
                     .size(34.dp)
                     .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.08f))
+                    .background(if (isDark) Color.White.copy(alpha = 0.08f) else Color(0xFF1B2230).copy(alpha = 0.08f))
                     .clickable { onClose() },
                 contentAlignment = Alignment.Center
             ) {

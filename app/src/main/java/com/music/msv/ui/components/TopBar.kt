@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -50,10 +51,11 @@ fun TopBar(
     val bg = if (isDark) Color(0x940A0E16) else Color(0xE0FFFFFF)
     val border = if (isDark) Color(0x1FFFFFFF) else Color(0x141A2230)
     val text = if (isDark) Color(0xFFF5F7FF) else Color(0xFF1B2230)
-    val muted = if (isDark) Color(0xB8F5F7FF) else Color(0x9E1B2230)
+    val muted = if (isDark) Color(0xB8F5F7FF) else Color(0xD11B2230)
     val divider = if (isDark) Color(0x1FFFFFFF) else Color(0x1F1A2230)
-    val ctrlBg = if (isDark) Color(0x0FFFFFFF) else Color(0x0F1A2230)
-    val ctrlBorder = if (isDark) Color(0x24FFFFFF) else Color(0x2E1A2230)
+    val ctrlBg = if (isDark) Color(0x0FFFFFFF) else Color(0x0A1A2230)
+    val ctrlBorder = if (isDark) Color(0x24FFFFFF) else Color(0x1A1A2230)
+    val accent = if (isDark) Color(0xFF8CC8FF) else Color(0xFF2F6AD9)
 
     var editing by remember { mutableStateOf(false) }
     var editText by remember { mutableStateOf("") }
@@ -64,32 +66,26 @@ fun TopBar(
             .clip(TopbarShape)
             .background(bg, TopbarShape)
             .border(1.dp, border, TopbarShape)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         // Upload button
-        Text(
-            text = "+ 打开文件",
-            color = text,
-            fontSize = 13.sp,
+        Row(
             modifier = Modifier
                 .clip(ButtonShape)
-                .background(ctrlBg, ButtonShape)
-                .border(1.dp, ctrlBorder, ButtonShape)
+                .background(accent)
+                .border(1.dp, accent, ButtonShape)
                 .clickable { onUploadClick() }
-                .padding(horizontal = 14.dp, vertical = 8.dp)
-        )
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text("+", color = if (isDark) Color(0xFF0F1220) else Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Text("打开文件", color = if (isDark) Color(0xFF0F1220) else Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        }
 
         if (showPageNav) {
-            // Divider
-            Spacer(
-                modifier = Modifier
-                    .width(1.dp)
-                    .height(22.dp)
-                    .background(divider)
-            )
-
             // Page number display
             Row(
                 modifier = Modifier
@@ -101,7 +97,8 @@ fun TopBar(
                         editText = currentPage.toString()
                     }
                     .padding(horizontal = 14.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 if (editing) {
                     BasicTextField(
@@ -134,11 +131,19 @@ fun TopBar(
                         Text("✓", color = text, fontSize = 12.sp)
                     }
                 } else {
-                    Text(text = currentPage.toString(), color = text, fontSize = 13.sp)
+                    Text(text = currentPage.toString(), color = text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     Text(text = "/", color = muted, fontSize = 13.sp)
-                    Text(text = pageCount.toString(), color = text, fontSize = 13.sp)
+                    Text(text = pageCount.toString(), color = muted, fontSize = 13.sp)
                 }
             }
+
+            // Divider
+            Spacer(
+                modifier = Modifier
+                    .width(1.dp)
+                    .height(22.dp)
+                    .background(divider)
+            )
         }
 
         // Spacer
@@ -161,39 +166,39 @@ fun TopBar(
             Text(
                 text = "▦",
                 color = text,
-                fontSize = 14.sp,
+                fontSize = 16.sp,
                 modifier = Modifier
                     .clip(ButtonShape)
                     .background(ctrlBg, ButtonShape)
                     .border(1.dp, ctrlBorder, ButtonShape)
                     .clickable { onThumbnailsClick() }
-                    .padding(horizontal = 14.dp, vertical = 8.dp)
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
             )
 
-            // Fullscreen / Theme button
+            // Theme toggle button
             Text(
-                text = "⛶",
+                text = if (isDark) "☀" else "☾",
                 color = text,
-                fontSize = 14.sp,
+                fontSize = 16.sp,
                 modifier = Modifier
                     .clip(ButtonShape)
                     .background(ctrlBg, ButtonShape)
                     .border(1.dp, ctrlBorder, ButtonShape)
                     .clickable { onFullscreenClick() }
-                    .padding(horizontal = 14.dp, vertical = 8.dp)
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
             )
 
             // Reset button
             Text(
-                text = "⟲",
+                text = "↺",
                 color = text,
-                fontSize = 14.sp,
+                fontSize = 16.sp,
                 modifier = Modifier
                     .clip(ButtonShape)
                     .background(ctrlBg, ButtonShape)
                     .border(1.dp, ctrlBorder, ButtonShape)
                     .clickable { onResetClick() }
-                    .padding(horizontal = 14.dp, vertical = 8.dp)
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
             )
         }
     }
