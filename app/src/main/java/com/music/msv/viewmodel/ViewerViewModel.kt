@@ -173,10 +173,15 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         val state = _uiState.value
         if (state.pageCount == 0) return
         val target = page.coerceIn(0, state.pageCount - 1)
-        if (target == state.currentPage && !state.isAnimating) return
+        if (target == state.currentPage) return
 
+        val adjacentUri = if (target > state.currentPage) state.nextPageUri else state.prevPageUri
         _uiState.update {
-            it.copy(isGoingForward = target > state.currentPage, currentPage = target)
+            it.copy(
+                isGoingForward = target > state.currentPage,
+                currentPage = target,
+                currentPageUri = adjacentUri ?: it.currentPageUri
+            )
         }
         loadCurrentPage()
         saveSession()
