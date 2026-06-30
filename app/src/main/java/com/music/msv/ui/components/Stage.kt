@@ -1,15 +1,8 @@
 package com.music.msv.ui.components
 
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -20,6 +13,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -44,6 +38,7 @@ import coil3.request.ImageRequest
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import kotlin.math.sign
 
 private val PAPER_SHADOW_ELEVATION = 6.dp
 private const val SWIPE_THRESHOLD = 0.30f
@@ -76,13 +71,39 @@ fun Stage(
     val shadowColor = if (isDark) Color(0x33000000) else Color(0x20000000)
     var stageSize by remember { mutableStateOf(IntSize.Zero) }
     var currentZoom by remember { mutableFloatStateOf(zoom) }
-    val offsetAnimatable = remember { Animatable(0f) }
+    val transition = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
     var rawDragOffset by remember { mutableFloatStateOf(0f) }
     var isDragging by remember { mutableStateOf(false) }
+    var isAnimFlip by remember { mutableStateOf(false) }
+    var pendingFlipDir by remember { mutableStateOf(0) }
 
     val isZoomed = zoom > 1.01f || abs(panOffsetX) > 1f || abs(panOffsetY) > 1f
-    val displayOffset = offsetAnimatable.value
+    val offset = transition.value
+    val vw = stageSize.width.toFloat()
+
+    LaunchedEffect(currentPage) {
+        if (isAnimFlip) {
+            transition.snapTo(0f)
+            isAnimFlip = false
+            pendingFlipDir = 0
+        }
+    }
+
+    fun animateFlip(dir: Int) {
+        if (isAnimFlip || stageSize.width <= 0) return
+        val targetNewPage = currentPage + dir
+        if (targetNewPage !in 0 until pageCount) return
+        isAnimFlip = true
+        pendingFlipDir = dir
+        scope.launch {
+            transition.animateTo(
+                -dir * vw,
+                tween(280, easing = FastOutSlowInEasing)
+            )
+            if (dir < 0) onSwipeLeft() else onSwipeRight()
+        }
+    }
 
     Box(
         modifier = modifier
@@ -101,147 +122,129 @@ fun Stage(
                     }
                 }
             }
-            .pointerInput(isZoomed, stageSize) {
-                if (!isZoomed && stageSize.width > 0) {
+            .pointerInput(isZoomed, isAnimFlip, stageSize) {
+                if (!isZoomed && !isAnimFlip && stageSize.width > 0) {
                     detectHorizontalDragGestures(
                         onDragEnd = {
-                            val sw = stageSize.width.toFloat()
-                            val threshold = sw * SWIPE_THRESHOLD
+                            val threshold = stageSize.width * SWIPE_THRESHOLD
                             val finalOffset = rawDragOffset
-                            if (abs(finalOffset) > threshold) {
-                                rawDragOffset = 0f
-                                isDragging = false
-                                scope.launch { offsetAnimatable.snapTo(0f) }
-                                if (finalOffset < 0) onSwipeLeft() else onSwipeRight()
+                            val dir = -finalOffset.sign.toInt()
+                            if (abs(finalOffset) > threshold && dir != 0) {
+                                val targetNewPage = currentPage + dir
+                                if (targetNewPage in 0 until pageCount) {
+                                    isAnimFlip = true
+                                    pendingFlipDir = dir
+                                    scope.launch {
+                                        transition.animateTo(
+                                            -dir * vw,
+                                            tween(200, easing = FastOutSlowInEasing)
+                                        )
+                                        if (dir < 0) onSwipeLeft() else onSwipeRight()
+                                    }
+                                } else {
+                                    scope.launch {
+                                        transition.animateTo(0f, tween(150))
+                                    }
+                                }
                             } else {
-                                isDragging = false
                                 scope.launch {
-                                    offsetAnimatable.animateTo(
-                                        0f,
-                                        spring(dampingRatio = 0.55f, stiffness = 350f)
-                                    )
+                                    transition.animateTo(0f, tween(160, easing = FastOutSlowInEasing))
                                 }
                             }
+                            rawDragOffset = 0f
+                            isDragging = false
                         },
                         onDragCancel = {
+                            rawDragOffset = 0f
                             isDragging = false
-                            scope.launch {
-                                offsetAnimatable.animateTo(
-                                    0f,
-                                    spring(dampingRatio = 0.55f, stiffness = 350f)
-                                )
-                            }
+                            scope.launch { transition.animateTo(0f, tween(150)) }
                         },
                         onHorizontalDrag = { _, dragAmount ->
                             if (!isDragging) isDragging = true
-                            val sw = stageSize.width.toFloat()
-                            rawDragOffset = (rawDragOffset + dragAmount).coerceIn(-sw, sw)
-                            scope.launch { offsetAnimatable.snapTo(rawDragOffset) }
+                            rawDragOffset = (rawDragOffset + dragAmount).coerceIn(-vw, vw)
+                            scope.launch { transition.snapTo(rawDragOffset) }
                         }
                     )
                 }
             }
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onTap = { offset ->
-                        val thirdWidth = stageSize.width / 3f
-                        when {
-                            offset.x < thirdWidth -> onEdgeLeftTap()
-                            offset.x > stageSize.width - thirdWidth -> onEdgeRightTap()
-                            else -> onCenterTap()
-                        }
-                    },
-                    onDoubleTap = { onDoubleTap() }
-                )
+            .pointerInput(isAnimFlip) {
+                if (!isAnimFlip && !isZoomed) {
+                    detectTapGestures(
+                        onTap = { pos ->
+                            val thirdWidth = stageSize.width / 3f
+                            if (pos.x < thirdWidth) {
+                                animateFlip(1)
+                            } else if (pos.x > stageSize.width - thirdWidth) {
+                                animateFlip(-1)
+                            } else {
+                                onCenterTap()
+                            }
+                        },
+                        onDoubleTap = { onDoubleTap() }
+                    )
+                }
             }
     ) {
-        val peekProgress = (abs(displayOffset) / stageSize.width.toFloat()).coerceIn(0f, 1f)
+        val currentOffset = offset.roundToInt()
 
-        if (!isZoomed && peekProgress > 0.01f && stageSize.width > 0) {
-            val peekDir = if (displayOffset < 0) 1 else -1
-            val peekUri = if (displayOffset < 0) nextUri else prevUri
-
-            if (peekUri != null) {
+        if (!isZoomed && vw > 0) {
+            if (prevUri != null) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(4.dp)
+                        .offset { IntOffset(currentOffset - vw.roundToInt(), 0) }
                 ) {
                     AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current)
-                            .data(peekUri)
-                            .build(),
-                        contentDescription = "peek page",
+                        model = ImageRequest.Builder(LocalContext.current).data(prevUri).build(),
+                        contentDescription = "prev",
                         contentScale = ContentScale.Fit,
                         modifier = Modifier.fillMaxSize()
                     )
                 }
             }
 
-            val stackAlpha = (peekProgress * 0.4f).coerceAtMost(0.4f)
-            val stacks = minOf(
-                if (displayOffset < 0) pageCount - currentPage - 1 else currentPage,
-                5
-            ).coerceAtLeast(0)
-            if (stacks > 0) {
-                Box(
-                    modifier = Modifier
-                        .align(if (displayOffset < 0) Alignment.CenterEnd else Alignment.CenterStart)
-                        .alpha(stackAlpha)
-                ) {
-                    for (i in 0 until stacks) {
-                        Box(
-                            modifier = Modifier
-                                .offset(x = (peekDir * i * 2).dp)
-                                .width(3.dp)
-                                .alpha(0.3f - i * 0.05f)
-                                .shadow(1.dp)
-                                .background(shadowColor)
-                        )
-                    }
-                }
-            }
-        }
-
-        val currentOffsetX = displayOffset.roundToInt()
-        AnimatedContent(
-            targetState = contentUri,
-            transitionSpec = {
-                val dir = if (isGoingForward) 1 else -1
-                (slideInHorizontally(tween(320, easing = FastOutSlowInEasing)) { dir * it } +
-                        fadeIn(tween(200, easing = FastOutSlowInEasing))) togetherWith
-                        (slideOutHorizontally(tween(260, easing = FastOutSlowInEasing)) { -dir * it } +
-                                fadeOut(tween(160)))
-            }
-        ) { uri ->
-            if (uri != null) {
+            if (nextUri != null) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(4.dp)
-                        .offset { IntOffset(currentOffsetX, 0) }
+                        .offset { IntOffset(currentOffset + vw.roundToInt(), 0) }
                 ) {
                     AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current)
-                            .data(uri)
-                            .build(),
-                        contentDescription = "page",
+                        model = ImageRequest.Builder(LocalContext.current).data(nextUri).build(),
+                        contentDescription = "next",
                         contentScale = ContentScale.Fit,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .shadow(PAPER_SHADOW_ELEVATION, RectangleShape)
+                        modifier = Modifier.fillMaxSize()
                     )
                 }
             }
         }
 
-        if (!isZoomed && abs(displayOffset) < 1f && pageCount > 1) {
+        if (contentUri != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(4.dp)
+                    .offset { IntOffset(currentOffset, 0) }
+            ) {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current).data(contentUri).build(),
+                    contentDescription = "page",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .shadow(PAPER_SHADOW_ELEVATION, RectangleShape)
+                )
+            }
+        }
+
+        if (!isZoomed && abs(offset) < 1f && pageCount > 1) {
             val pageStack = minOf(pageCount - currentPage - 1, 5).coerceAtLeast(0)
             if (pageStack > 0) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
-                        .padding(end = 0.dp)
                 ) {
                     for (i in 0 until pageStack) {
                         Box(
@@ -261,7 +264,6 @@ fun Stage(
                 Box(
                     modifier = Modifier
                         .align(Alignment.CenterStart)
-                        .padding(start = 0.dp)
                 ) {
                     for (i in 0 until prevStack) {
                         Box(

@@ -13,9 +13,9 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -36,7 +36,6 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.music.msv.data.model.Mode
 import com.music.msv.data.model.ViewerEvent
@@ -69,7 +68,6 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
     var showResetDialog by remember { mutableStateOf(false) }
 
     val isDark = state.isDarkTheme
-    val shade = if (isDark) Color(0x5C05080E) else Color(0x99E4E8F3)
     val appBg = if (isDark) Color(0xFF0F1220) else Color(0xFFDFE6F5)
 
     val isViewing = state.mode != Mode.Idle
@@ -181,9 +179,8 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(shade)
-                        .padding(end = 300.dp)
-                        .then(Modifier.offset { IntOffset.Zero })
+                        .clickable { viewModel.onEvent(ViewerEvent.ToggleThumbnails) }
+                        .padding(end = 280.dp)
                 )
             }
         }

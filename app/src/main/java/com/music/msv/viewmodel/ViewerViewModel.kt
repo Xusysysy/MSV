@@ -140,6 +140,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 }
                 loadCurrentPage()
                 saveSession()
+                preloadAdjacentPages()
             } catch (e: Exception) {
                 _uiState.update { it.copy(isLoading = false, statusMessage = "PDF 加载失败: ${e.message}") }
             }
@@ -212,30 +213,39 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun preloadAdjacentPages() {
         val state = _uiState.value
-        if (state.mode !is Mode.Pdf) return
         val cp = state.currentPage
-        val vw = state.viewportWidth
-        val vh = state.viewportHeight
-        if (vw <= 0 || vh <= 0) return
-        viewModelScope.launch(Dispatchers.IO) {
-            var prevUri: Uri? = null
-            var nextUri: Uri? = null
-            val prev = (cp - 1).coerceAtLeast(0)
-            val next = (cp + 1).coerceAtMost(state.pageCount - 1)
-            if (prev != cp) {
-                prevUri = renderPageToCache(prev, vw, vh, state.zoom)
-            }
-            if (next != cp) {
-                nextUri = renderPageToCache(next, vw, vh, state.zoom)
-            }
-            _uiState.update { it.copy(prevPageUri = prevUri, nextPageUri = nextUri) }
+        val pc = state.pageCount
+        when (state.mode) {
+            is Mode.Pdf -> {
+                val vw = state.viewportWidth
+                val vh = state.viewportHeight
+                if (vw <= 0 || vh <= 0) return
+                viewModelScope.launch(Dispatchers.IO) {
+                    var prevUri: Uri? = null
+                    var nextUri: Uri? = null
+                    val prev = (cp - 1).coerceAtLeast(0)
+                    val next = (cp + 1).coerceAtMost(pc - 1)
+                    if (prev != cp) prevUri = renderPageToCache(prev, vw, vh, state.zoom)
+                    if (next != cp) nextUri = renderPageToCache(next, vw, vh, state.zoom)
+                    _uiState.update { it.copy(prevPageUri = prevUri, nextPageUri = nextUri) }
 
-            for (offset in 2..3) {
-                val pp = (cp - offset).coerceAtLeast(0)
-                val nn = (cp + offset).coerceAtMost(state.pageCount - 1)
-                if (pp != cp) pdfRenderer.renderPage(pp, vw, vh, state.zoom)
-                if (nn != cp) pdfRenderer.renderPage(nn, vw, vh, state.zoom)
+                    for (offset in 2..3) {
+                        val pp = (cp - offset).coerceAtLeast(0)
+                        val nn = (cp + offset).coerceAtMost(pc - 1)
+                        if (pp != cp) pdfRenderer.renderPage(pp, vw, vh, state.zoom)
+                        if (nn != cp) pdfRenderer.renderPage(nn, vw, vh, state.zoom)
+                    }
+                }
             }
+            is Mode.Image -> {
+                _uiState.update {
+                    it.copy(
+                        prevPageUri = imageUris.getOrNull(cp - 1),
+                        nextPageUri = imageUris.getOrNull(cp + 1)
+                    )
+                }
+            }
+            else -> {}
         }
     }
 
