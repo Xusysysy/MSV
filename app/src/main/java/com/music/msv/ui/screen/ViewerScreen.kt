@@ -18,15 +18,24 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.music.msv.data.model.Mode
@@ -38,7 +47,6 @@ import com.music.msv.ui.components.Stage
 import com.music.msv.ui.components.ThumbnailPanel
 import com.music.msv.ui.components.TopBar
 import com.music.msv.viewmodel.ViewerViewModel
-import kotlin.math.roundToInt
 
 @Composable
 fun ViewerScreen(viewModel: ViewerViewModel) {
@@ -56,6 +64,10 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
     val openFilePicker: () -> Unit = {
         filePickerLauncher.launch(arrayOf("image/*", "application/pdf"))
     }
+
+    var showPageDialog by remember { mutableStateOf(false) }
+    var pageInput by remember { mutableStateOf("") }
+    var showResetDialog by remember { mutableStateOf(false) }
 
     val isDark = state.isDarkTheme
     val shellBg = if (isDark) Color(0xFF141824) else Color(0xFFE8ECF5)
@@ -130,10 +142,13 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                     pageCount = state.pageCount,
                     showPageNav = state.mode != Mode.Idle,
                     onUploadClick = openFilePicker,
-                    onPageNumberSubmit = { page -> viewModel.onEvent(ViewerEvent.GoToPage(page)) },
+                    onPageJumpClick = {
+                        pageInput = (state.currentPage + 1).toString()
+                        showPageDialog = true
+                    },
                     onThumbnailsClick = { viewModel.onEvent(ViewerEvent.ToggleThumbnails) },
                     onFullscreenClick = { viewModel.onEvent(ViewerEvent.ToggleTheme) },
-                    onResetClick = { viewModel.onEvent(ViewerEvent.Reset) }
+                    onResetClick = { showResetDialog = true }
                 )
             }
 
@@ -183,6 +198,55 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                         .then(Modifier.offset { IntOffset.Zero })
                 )
             }
+        }
+
+        // Page jump dialog
+        if (showPageDialog) {
+            AlertDialog(
+                onDismissRequest = { showPageDialog = false },
+                title = { Text("跳转页码") },
+                text = {
+                    OutlinedTextField(
+                        value = pageInput,
+                        onValueChange = {
+                            if (it.all { c -> c.isDigit() } && it.length <= 4) pageInput = it
+                        },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        placeholder = { Text("1 - ${state.pageCount}") }
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        val page = pageInput.toIntOrNull()
+                        if (page != null && page in 1..state.pageCount) {
+                            viewModel.onEvent(ViewerEvent.GoToPage(page - 1))
+                        }
+                        showPageDialog = false
+                    }) { Text("确定") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showPageDialog = false }) { Text("取消") }
+                }
+            )
+        }
+
+        // Reset confirmation dialog
+        if (showResetDialog) {
+            AlertDialog(
+                onDismissRequest = { showResetDialog = false },
+                title = { Text("确认重置") },
+                text = { Text("将关闭当前文件并清除记录，是否继续？") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        viewModel.onEvent(ViewerEvent.Reset)
+                        showResetDialog = false
+                    }) { Text("确定") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showResetDialog = false }) { Text("取消") }
+                }
+            )
         }
     }
 }

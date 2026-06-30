@@ -88,6 +88,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun handleFilesSelected(uris: List<Uri>) {
         if (uris.isEmpty()) return
+        fileRepo.takePersistablePermissions(uris)
         val uri = uris.first()
         val name = fileRepo.getFileName(uri)
 

@@ -17,27 +17,21 @@ class SessionRepository(private val context: Context) {
         private val KEY_CURRENT_PAGE = stringPreferencesKey("current_page")
         private val KEY_URIS = stringPreferencesKey("uris")
         private val KEY_FILE_NAME = stringPreferencesKey("file_name")
-        private val KEY_TIMESTAMP = longPreferencesKey("timestamp")
-        private const val SESSION_EXPIRY_MS = 24 * 60 * 60 * 1000L
     }
 
     data class SessionData(
         val mode: String,
         val currentPage: Int,
         val uris: List<String>,
-        val fileName: String,
-        val timestamp: Long
+        val fileName: String
     )
 
     val sessionFlow: Flow<SessionData?> = context.dataStore.data.map { prefs ->
-        val ts = prefs[KEY_TIMESTAMP] ?: return@map null
-        if (System.currentTimeMillis() - ts > SESSION_EXPIRY_MS) return@map null
         SessionData(
             mode = prefs[KEY_MODE] ?: return@map null,
             currentPage = prefs[KEY_CURRENT_PAGE]?.toIntOrNull() ?: 0,
             uris = prefs[KEY_URIS]?.split("|||") ?: return@map null,
-            fileName = prefs[KEY_FILE_NAME] ?: "",
-            timestamp = ts
+            fileName = prefs[KEY_FILE_NAME] ?: ""
         )
     }
 
@@ -52,7 +46,6 @@ class SessionRepository(private val context: Context) {
             prefs[KEY_CURRENT_PAGE] = currentPage.toString()
             prefs[KEY_URIS] = uris.joinToString("|||")
             prefs[KEY_FILE_NAME] = fileName
-            prefs[KEY_TIMESTAMP] = System.currentTimeMillis()
         }
     }
 
