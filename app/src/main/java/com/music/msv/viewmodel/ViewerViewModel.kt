@@ -33,6 +33,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     private var imageUris: List<Uri> = emptyList()
     private var pdfUri: Uri? = null
     private var loadJob: Job? = null
+    private val thumbnailCache = java.util.concurrent.ConcurrentHashMap<Int, Uri>()
 
     init {
         restoreSession()
@@ -90,6 +91,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun handleFilesSelected(uris: List<Uri>) {
         if (uris.isEmpty()) return
+        thumbnailCache.clear()
         fileRepo.takePersistablePermissions(uris)
         viewModelScope.launch(Dispatchers.IO) {
             val uri = uris.first()
@@ -280,7 +282,11 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun toggleThumbnails() {
-        _uiState.update { it.copy(showThumbnails = !it.showThumbnails) }
+        val show = !_uiState.value.showThumbnails
+        _uiState.update { it.copy(showThumbnails = show) }
+        if (show) {
+            preloadThumbnails()
+        }
     }
 
     private fun toggleTheme() {
@@ -295,6 +301,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         pdfRenderer.close()
         imageUris = emptyList()
         pdfUri = null
+        thumbnailCache.clear()
         _uiState.update {
             ViewerState(isDarkTheme = it.isDarkTheme)
         }
@@ -322,6 +329,34 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 uris = uris,
                 fileName = state.fileName
             )
+        }
+    }
+
+    fun getThumbnailUri(pageIndex: Int): Uri? = thumbnailCache[pageIndex]
+            ?: imageUris.getOrNull(pageIndex)
+
+    private fun preloadThumbnails() {
+        val state = _uiState.value
+        if (state.mode !is Mode.Pdf) return
+        if (state.pageCount == 0) return
+        _uiState.update { it.copy(thumbnailsLoading = true) }
+        viewModelScope.launch(Dispatchers.IO) {
+            for (i in 0 until state.pageCount) {
+                if (thumbnailCache.containsKey(i)) continue
+                val cachedFile = java.io.File(
+                    getApplication<Application>().cacheDir,
+                    "thumb_$i.png"
+                )
+                if (cachedFile.exists()) {
+                    thumbnailCache[i] = Uri.fromFile(cachedFile)
+                    continue
+                }
+                val bmp = pdfRenderer.renderThumbnail(i, 200) ?: continue
+                bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 80, cachedFile.outputStream())
+                bmp.recycle()
+                thumbnailCache[i] = Uri.fromFile(cachedFile)
+            }
+            _uiState.update { it.copy(thumbnailsLoading = false) }
         }
     }
 

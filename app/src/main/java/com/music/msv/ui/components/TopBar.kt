@@ -36,7 +36,7 @@ fun TopBar(
     onUploadClick: () -> Unit,
     onPageJumpClick: () -> Unit,
     onThumbnailsClick: () -> Unit,
-    onFullscreenClick: () -> Unit,
+    onThemeClick: () -> Unit,
     onResetClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -136,7 +136,7 @@ fun TopBar(
                     .clip(ButtonShape)
                     .background(ctrlBg, ButtonShape)
                     .border(1.dp, ctrlBorder, ButtonShape)
-                    .clickable { onFullscreenClick() },
+                    .clickable { onThemeClick() },
                 contentAlignment = Alignment.Center
             ) {
                 Text(

@@ -41,6 +41,7 @@ import com.music.msv.data.model.Mode
 import com.music.msv.data.model.ViewerEvent
 import com.music.msv.ui.components.EmptyView
 import com.music.msv.ui.components.LoadingOverlay
+import com.music.msv.ui.components.BottomFooter
 import com.music.msv.ui.components.Stage
 import com.music.msv.ui.components.ThumbnailPanel
 import com.music.msv.ui.components.TopBar
@@ -152,8 +153,22 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                         showPageDialog = true
                     },
                     onThumbnailsClick = { viewModel.onEvent(ViewerEvent.ToggleThumbnails) },
-                    onFullscreenClick = { viewModel.onEvent(ViewerEvent.ToggleTheme) },
+                    onThemeClick = { viewModel.onEvent(ViewerEvent.ToggleTheme) },
                     onResetClick = { showResetDialog = true }
+                )
+            }
+
+            AnimatedVisibility(
+                visible = state.showUI && isViewing,
+                enter = slideInVertically { it } + fadeIn(),
+                exit = slideOutVertically { it } + fadeOut(),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(horizontal = if (isViewing) 8.dp else 16.dp, vertical = 8.dp)
+            ) {
+                BottomFooter(
+                    isDark = isDark,
+                    statusMessage = state.statusMessage
                 )
             }
 
@@ -168,7 +183,7 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                         isDark = isDark,
                         pageCount = state.pageCount,
                         currentPage = state.currentPage,
-                        getThumbnailUri = { state.currentPageUri },
+                        getThumbnailUri = { viewModel.getThumbnailUri(it) },
                         onPageSelected = { viewModel.onEvent(ViewerEvent.GoToPage(it)) },
                         onClose = { viewModel.onEvent(ViewerEvent.ToggleThumbnails) }
                     )

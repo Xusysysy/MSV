@@ -1,7 +1,7 @@
 # CLAUDE.md
 
-**Repository**: https://github.com/Xusysysy/MSV.git
-
+**Repository1(Github)**: https://github.com/Xusysysy/MSV.git
+**Repository1(Gitee)**: https://gitee.com/lin-xiaochuan/msv.git
 Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
@@ -74,14 +74,14 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 喵APK 位置: app\build\outputs\apk\debug\app-debug.apk
 ```
 
-## 6. Auto Git Push After Build
+## 6. Auto Commit & Push (BOTH Platforms) After Every Change
 
-**When the user continues conversation after a build (with no explicit instruction to skip), first commit and push to preserve changes:**
+**After every change (any file modification), no matter how small, commit and push to BOTH `origin` (GitHub) and `gitee` (Gitee):**
 
-- If there are uncommitted changes, create a commit with a concise message summarizing the changes made in the previous turn.
-- Then run `git push`.
-- If the user explicitly says to skip or do something else first, follow that instead.
-- Never force push. If push fails (e.g., no remote, no permission), report the error and continue.
+- If there are uncommitted changes, create a commit with a concise message summarizing the changes.
+- Then run `git push origin` AND `git push gitee`.
+- Never force push. If push fails, report the error and continue.
+- Do not wait for the user to ask — this is automatic.
 
 ## 7. Build Environment
 

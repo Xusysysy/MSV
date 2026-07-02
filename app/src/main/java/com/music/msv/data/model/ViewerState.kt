@@ -21,7 +21,8 @@ data class ViewerState(
     val prevPageUri: Uri? = null,
     val nextPageUri: Uri? = null,
     val viewportWidth: Int = 0,
-    val viewportHeight: Int = 0
+    val viewportHeight: Int = 0,
+    val thumbnailsLoading: Boolean = false
 )
 
 sealed class Mode {

@@ -12,9 +12,8 @@ app/src/main/java/com/music/msv/
 │   │   ├── Type.kt              ← Type scale
 │   │   └── Shape.kt             ← Rounded shapes
 │   ├── components/
-│   │   ├── GlassSurface.kt      ← Shared glassmorphism surface
-│   │   ├── TopBar.kt            ← Top control bar
 │   │   ├── Stage.kt             ← Main viewport + gestures
+│   │   ├── TopBar.kt            ← Top control bar
 │   │   ├── Footer.kt            ← Status footer
 │   │   ├── EmptyView.kt         ← Idle landing page
 │   │   ├── ThumbnailPanel.kt    ← Slide-in thumbnail grid
@@ -30,9 +29,7 @@ app/src/main/java/com/music/msv/
 │   │   ├── FileRepository.kt    ← SAF file access
 │   │   └── SessionRepository.kt ← 24h DataStore persistence
 │   └── pdf/
-│       └── PdfRenderer.kt       ← Android PdfRenderer wrapper
-└── util/
-    └── Animations.kt            ← Animation constants & specs
+│       └── PdfPageRenderer.kt   ← Android PdfRenderer wrapper
 ```
 
 ## Key Decisions

@@ -85,7 +85,9 @@ class PdfPageRenderer(private val context: Context) {
     val pageWidth: Int get() {
         val r = renderer ?: return 0
         val page = r.openPage(0)
-        return page.width
+        val w = page.width
+        page.close()
+        return w
     }
 
     val pageHeight: Int get() {

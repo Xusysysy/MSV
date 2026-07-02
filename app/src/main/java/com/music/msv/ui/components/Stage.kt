@@ -114,7 +114,7 @@ fun Stage(
                 onViewportSizeChanged(it.width, it.height)
             }
             .pointerInput(Unit) {
-                if (currentIsZoomed) {
+                while (true) {
                     detectTransformGestures { _, pan, zoomChange, _ ->
                         currentZoom = (currentZoom * zoomChange).coerceIn(0.5f, 8f)
                         onZoomChange(currentZoom)
@@ -123,6 +123,7 @@ fun Stage(
                 }
             }
             .pointerInput(Unit) {
+                while (true) {
                 detectHorizontalDragGestures(
                     onDragEnd = {
                         if (currentIsZoomed || currentIsAnimFlip || vw <= 0) {
@@ -165,8 +166,10 @@ fun Stage(
                         scope.launch { transition.snapTo(rawDragOffset) }
                     }
                 )
+                }
             }
             .pointerInput(Unit) {
+                while (true) {
                 detectTapGestures(
                     onTap = { pos ->
                         if (currentIsAnimFlip || currentIsZoomed) return@detectTapGestures
@@ -183,6 +186,7 @@ fun Stage(
                     },
                     onDoubleTap = { onDoubleTap() }
                 )
+                }
             }
     ) {
         val currentOffset = offset.roundToInt()
