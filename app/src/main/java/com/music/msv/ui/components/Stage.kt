@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -87,13 +86,6 @@ fun Stage(
     val currentPageCount by rememberUpdatedState(pageCount)
     val currentPageIndex by rememberUpdatedState(currentPage)
 
-    LaunchedEffect(currentPage) {
-        if (isAnimFlip) {
-            transition.snapTo(0f)
-            isAnimFlip = false
-        }
-    }
-
     fun animateFlip(dir: Int) {
         if (isAnimFlip || vw <= 0) return
         val targetPage = currentPageIndex + dir
@@ -101,6 +93,8 @@ fun Stage(
         isAnimFlip = true
         scope.launch {
             transition.animateTo(-dir * vw, tween(280, easing = FastOutSlowInEasing))
+            transition.snapTo(0f)
+            isAnimFlip = false
             if (dir < 0) onSwipeLeft() else onSwipeRight()
         }
     }
@@ -113,8 +107,8 @@ fun Stage(
                 stageSize = it
                 onViewportSizeChanged(it.width, it.height)
             }
-            .pointerInput(Unit) {
-                while (true) {
+            .pointerInput(isZoomed) {
+                if (isZoomed) {
                     detectTransformGestures { _, pan, zoomChange, _ ->
                         currentZoom = (currentZoom * zoomChange).coerceIn(0.5f, 8f)
                         onZoomChange(currentZoom)
@@ -124,52 +118,53 @@ fun Stage(
             }
             .pointerInput(Unit) {
                 while (true) {
-                detectHorizontalDragGestures(
-                    onDragEnd = {
-                        if (currentIsZoomed || currentIsAnimFlip || vw <= 0) {
-                            rawDragOffset = 0f
-                            isDragging = false
-                            return@detectHorizontalDragGestures
-                        }
-                        val threshold = vw * SWIPE_THRESHOLD
-                        val finalOffset = rawDragOffset
-                        val dir = -finalOffset.sign.toInt()
-                        if (abs(finalOffset) > threshold && dir != 0) {
-                            val targetPage = currentPageIndex + dir
-                            if (targetPage in 0 until currentPageCount) {
-                                isAnimFlip = true
-                                scope.launch {
-                                    transition.animateTo(
-                                        -dir * vw,
-                                        tween(200, easing = FastOutSlowInEasing)
-                                    )
-                                    if (dir < 0) onSwipeLeft() else onSwipeRight()
+                    detectHorizontalDragGestures(
+                        onDragEnd = {
+                            if (currentIsZoomed || currentIsAnimFlip || vw <= 0) {
+                                rawDragOffset = 0f
+                                isDragging = false
+                                return@detectHorizontalDragGestures
+                            }
+                            val threshold = vw * SWIPE_THRESHOLD
+                            val finalOffset = rawDragOffset
+                            val dir = -finalOffset.sign.toInt()
+                            if (abs(finalOffset) > threshold && dir != 0) {
+                                val targetPage = currentPageIndex + dir
+                                if (targetPage in 0 until currentPageCount) {
+                                    isAnimFlip = true
+                                    scope.launch {
+                                        transition.animateTo(
+                                            -dir * vw,
+                                            tween(200, easing = FastOutSlowInEasing)
+                                        )
+                                        transition.snapTo(0f)
+                                        isAnimFlip = false
+                                        if (dir < 0) onSwipeLeft() else onSwipeRight()
+                                    }
+                                } else {
+                                    scope.launch { transition.animateTo(0f, tween(150)) }
                                 }
                             } else {
-                                scope.launch { transition.animateTo(0f, tween(150)) }
+                                scope.launch { transition.animateTo(0f, tween(160, easing = FastOutSlowInEasing)) }
                             }
-                        } else {
-                            scope.launch { transition.animateTo(0f, tween(160, easing = FastOutSlowInEasing)) }
+                            rawDragOffset = 0f
+                            isDragging = false
+                        },
+                        onDragCancel = {
+                            rawDragOffset = 0f
+                            isDragging = false
+                            scope.launch { transition.animateTo(0f, tween(150)) }
+                        },
+                        onHorizontalDrag = { _, dragAmount ->
+                            if (currentIsZoomed || currentIsAnimFlip) return@detectHorizontalDragGestures
+                            if (!isDragging) isDragging = true
+                            rawDragOffset = (rawDragOffset + dragAmount).coerceIn(-vw, vw)
+                            scope.launch { transition.snapTo(rawDragOffset) }
                         }
-                        rawDragOffset = 0f
-                        isDragging = false
-                    },
-                    onDragCancel = {
-                        rawDragOffset = 0f
-                        isDragging = false
-                        scope.launch { transition.animateTo(0f, tween(150)) }
-                    },
-                    onHorizontalDrag = { _, dragAmount ->
-                        if (currentIsZoomed || currentIsAnimFlip) return@detectHorizontalDragGestures
-                        if (!isDragging) isDragging = true
-                        rawDragOffset = (rawDragOffset + dragAmount).coerceIn(-vw, vw)
-                        scope.launch { transition.snapTo(rawDragOffset) }
-                    }
-                )
+                    )
                 }
             }
             .pointerInput(Unit) {
-                while (true) {
                 detectTapGestures(
                     onTap = { pos ->
                         if (currentIsAnimFlip || currentIsZoomed) return@detectTapGestures
@@ -186,7 +181,6 @@ fun Stage(
                     },
                     onDoubleTap = { onDoubleTap() }
                 )
-                }
             }
     ) {
         val currentOffset = offset.roundToInt()
