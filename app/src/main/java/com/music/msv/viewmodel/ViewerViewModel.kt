@@ -66,7 +66,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         }
         if (uris.isNotEmpty()) {
             onEvent(ViewerEvent.FilesSelected(uris))
-            intent.action = Intent.ACTION_MAIN // mark as handled
+            intent.action = Intent.ACTION_MAIN
         }
     }
 
@@ -127,6 +127,9 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 }
                 pdfUri = uri
                 imageUris = emptyList()
+                val pw = pdfRenderer.pageWidth.toFloat()
+                val ph = pdfRenderer.pageHeight.toFloat()
+                val ratio = pw / ph
                 _uiState.update {
                     it.copy(
                         mode = Mode.Pdf,
@@ -137,12 +140,17 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                         statusMessage = "已加载: $name",
                         zoom = 1f,
                         panOffsetX = 0f,
-                        panOffsetY = 0f
+                        panOffsetY = 0f,
+                        pageUris = emptyMap(),
+                        pageWidth = 0,
+                        pageHeight = 0,
+                        viewportWidth = 0,
+                        viewportHeight = 0
                     )
                 }
-                loadCurrentPage()
+                renderPageToCacheComputeSize(0, ratio)
+                preloadRange(0)
                 saveSession()
-                preloadAdjacentPages()
             } catch (e: Exception) {
                 _uiState.update { it.copy(isLoading = false, statusMessage = "PDF 加载失败: ${e.message}") }
             }
@@ -164,10 +172,14 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 statusMessage = "已加载: $name (${uris.size} 页)",
                 zoom = 1f,
                 panOffsetX = 0f,
-                panOffsetY = 0f
+                panOffsetY = 0f,
+                pageUris = uris.mapIndexed { i, u -> i to u }.toMap(),
+                pageWidth = 0,
+                pageHeight = 0,
+                viewportWidth = 0,
+                viewportHeight = 0
             )
         }
-        loadCurrentPage()
         saveSession()
     }
 
@@ -176,39 +188,78 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         if (state.pageCount == 0) return
         val target = page.coerceIn(0, state.pageCount - 1)
         if (target == state.currentPage) return
-
-        val adjacentUri = if (target > state.currentPage) state.nextPageUri else state.prevPageUri
-        _uiState.update {
-            it.copy(
-                isGoingForward = target > state.currentPage,
-                currentPage = target,
-                currentPageUri = adjacentUri ?: it.currentPageUri
-            )
-        }
-        loadCurrentPage()
+        _uiState.update { it.copy(currentPage = target) }
+        preloadRange(target)
         saveSession()
-        preloadAdjacentPages()
     }
 
-    private fun loadCurrentPage() {
-        loadJob?.cancel()
-        val state = _uiState.value
-        val targetPage = state.currentPage
-        val vw = state.viewportWidth
-        val vh = state.viewportHeight
-        loadJob = viewModelScope.launch(Dispatchers.IO) {
-            val currentUri: Uri? = when (state.mode) {
-                is Mode.Image -> imageUris.getOrNull(targetPage)
-                is Mode.Pdf -> renderPageToCache(targetPage, vw, vh, state.zoom)
+    private fun renderPageToCacheComputeSize(pageIndex: Int, ratio: Float) {
+        val vw = _uiState.value.viewportWidth
+        if (vw <= 0) return
+        val pageW = vw
+        val pageH = (vw / ratio).toInt()
+        val zoom = _uiState.value.zoom
+        viewModelScope.launch(Dispatchers.IO) {
+            val uri = when (_uiState.value.mode) {
+                is Mode.Pdf -> renderPage(pageIndex, pageW, pageH, zoom)
+                is Mode.Image -> imageUris.getOrNull(pageIndex)
                 else -> null
             }
-            _uiState.update { it.copy(currentPageUri = currentUri) }
+            if (uri != null) {
+                _uiState.update {
+                    it.copy(
+                        pageWidth = pageW,
+                        pageHeight = pageH,
+                        pageUris = it.pageUris + (pageIndex to uri)
+                    )
+                }
+            }
         }
     }
 
-    private fun renderPageToCache(pageIndex: Int, vw: Int, vh: Int, zoom: Float): Uri? {
-        if (vw <= 0 || vh <= 0) return null
-        val bmp = pdfRenderer.renderPage(pageIndex, vw, vh, zoom) ?: return null
+    private fun preloadRange(center: Int) {
+        val state = _uiState.value
+        val pc = state.pageCount
+        val total = state.pageCount
+        val vw = state.viewportWidth
+        if (vw <= 0) return
+        val pageW = state.pageWidth
+        val pageH = state.pageHeight
+        val zoom = state.zoom
+        viewModelScope.launch(Dispatchers.IO) {
+            val existing = state.pageUris
+            val newUris = mutableMapOf<Int, Uri>()
+            newUris.putAll(existing)
+            val range = ((center - 3).coerceAtLeast(0)..(center + 3).coerceAtMost(total - 1))
+            for (i in range) {
+                if (i in newUris) continue
+                val uri = when (state.mode) {
+                    is Mode.Pdf -> renderPage(i, pageW, pageH, zoom)
+                    is Mode.Image -> imageUris.getOrNull(i)
+                    else -> null
+                }
+                if (uri != null) newUris[i] = uri
+            }
+            if (pageW == 0 && state.mode is Mode.Pdf) {
+                val pw = pdfRenderer.pageWidth.toFloat()
+                val ph = pdfRenderer.pageHeight.toFloat()
+                val ratio = pw / ph
+                _uiState.update {
+                    it.copy(
+                        pageWidth = vw,
+                        pageHeight = (vw / ratio).toInt(),
+                        pageUris = newUris.toMap()
+                    )
+                }
+            } else {
+                _uiState.update { it.copy(pageUris = newUris.toMap()) }
+            }
+        }
+    }
+
+    private fun renderPage(pageIndex: Int, pageW: Int, pageH: Int, zoom: Float): Uri? {
+        if (pageW <= 0 || pageH <= 0) return null
+        val bmp = pdfRenderer.renderPage(pageIndex, pageW, pageH, zoom) ?: return null
         val cachedFile = java.io.File(
             getApplication<Application>().cacheDir,
             "page_$pageIndex.png"
@@ -218,52 +269,14 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         return Uri.fromFile(cachedFile)
     }
 
-    private fun preloadAdjacentPages() {
-        val state = _uiState.value
-        val cp = state.currentPage
-        val pc = state.pageCount
-        when (state.mode) {
-            is Mode.Pdf -> {
-                val vw = state.viewportWidth
-                val vh = state.viewportHeight
-                if (vw <= 0 || vh <= 0) return
-                viewModelScope.launch(Dispatchers.IO) {
-                    var prevUri: Uri? = null
-                    var nextUri: Uri? = null
-                    val prev = (cp - 1).coerceAtLeast(0)
-                    val next = (cp + 1).coerceAtMost(pc - 1)
-                    if (prev != cp) prevUri = renderPageToCache(prev, vw, vh, state.zoom)
-                    if (next != cp) nextUri = renderPageToCache(next, vw, vh, state.zoom)
-                    _uiState.update { it.copy(prevPageUri = prevUri, nextPageUri = nextUri) }
-
-                    for (offset in 2..3) {
-                        val pp = (cp - offset).coerceAtLeast(0)
-                        val nn = (cp + offset).coerceAtMost(pc - 1)
-                        if (pp != cp) pdfRenderer.renderPage(pp, vw, vh, state.zoom)
-                        if (nn != cp) pdfRenderer.renderPage(nn, vw, vh, state.zoom)
-                    }
-                }
-            }
-            is Mode.Image -> {
-                _uiState.update {
-                    it.copy(
-                        prevPageUri = imageUris.getOrNull(cp - 1),
-                        nextPageUri = imageUris.getOrNull(cp + 1)
-                    )
-                }
-            }
-            else -> {}
-        }
-    }
-
     private fun updateViewportSize(width: Int, height: Int) {
         if (width <= 0 || height <= 0) return
         val state = _uiState.value
         val changed = state.viewportWidth != width || state.viewportHeight != height
         _uiState.update { it.copy(viewportWidth = width, viewportHeight = height) }
-        if (changed) {
-            loadCurrentPage()
-            preloadAdjacentPages()
+        if (changed && state.pageWidth == 0 && state.mode != Mode.Idle) {
+            renderPageToCacheComputeSize(state.currentPage, 0.707f)
+            preloadRange(state.currentPage)
         }
     }
 
@@ -284,9 +297,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     private fun toggleThumbnails() {
         val show = !_uiState.value.showThumbnails
         _uiState.update { it.copy(showThumbnails = show) }
-        if (show) {
-            preloadThumbnails()
-        }
+        if (show) preloadThumbnails()
     }
 
     private fun toggleTheme() {
@@ -302,12 +313,8 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         imageUris = emptyList()
         pdfUri = null
         thumbnailCache.clear()
-        _uiState.update {
-            ViewerState(isDarkTheme = it.isDarkTheme)
-        }
-        viewModelScope.launch {
-            sessionRepo.clearSession()
-        }
+        _uiState.update { ViewerState(isDarkTheme = it.isDarkTheme) }
+        viewModelScope.launch { sessionRepo.clearSession() }
     }
 
     private fun saveSession() {
@@ -333,7 +340,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun getThumbnailUri(pageIndex: Int): Uri? = thumbnailCache[pageIndex]
-            ?: imageUris.getOrNull(pageIndex)
+        ?: imageUris.getOrNull(pageIndex)
 
     private fun preloadThumbnails() {
         val state = _uiState.value

@@ -1,5 +1,6 @@
 package com.music.msv.ui.components
 
+import android.net.Uri
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -10,7 +11,7 @@ import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -31,7 +32,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
@@ -40,32 +40,31 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.sign
 
-private val PAPER_SHADOW_ELEVATION = 6.dp
 private const val SWIPE_THRESHOLD = 0.30f
 
 @Composable
 fun Stage(
     isDark: Boolean,
-    contentUri: Any?,
-    prevUri: Any?,
-    nextUri: Any?,
+    pageUris: Map<Int, Uri>,
+    currentPage: Int,
+    pageCount: Int,
+    pageWidth: Int,
+    pageHeight: Int,
     zoom: Float,
     panOffsetX: Float,
     panOffsetY: Float,
-    pageCount: Int,
-    currentPage: Int,
     onCenterTap: () -> Unit,
     onDoubleTap: () -> Unit,
     onZoomChange: (Float) -> Unit,
     onPanChange: (Float, Float) -> Unit,
-    onSwipeLeft: () -> Unit,
-    onSwipeRight: () -> Unit,
+    onNextPage: () -> Unit,
+    onPrevPage: () -> Unit,
     onViewportSizeChanged: (Int, Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val bg = if (isDark) Color(0xFF0F1220) else Color(0xFFDFE6F5)
     val shadowColor = if (isDark) Color(0x33000000) else Color(0x20000000)
-    var stageSize by remember { mutableStateOf(IntSize.Zero) }
+    var stageWidth by remember { mutableStateOf(0) }
     var currentZoom by remember { mutableFloatStateOf(zoom) }
     val transition = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
@@ -74,33 +73,43 @@ fun Stage(
 
     val isZoomed = zoom > 1.01f || abs(panOffsetX) > 1f || abs(panOffsetY) > 1f
     val offset = transition.value
-    val vw = stageSize.width.toFloat()
+    val pw = if (pageWidth > 0) pageWidth.toFloat() else stageWidth.toFloat()
+    val ph = if (pageHeight > 0) pageHeight else stageWidth
 
     val currentIsZoomed by rememberUpdatedState(isZoomed)
     val currentIsAnimFlip by rememberUpdatedState(isAnimFlip)
     val currentPageCount by rememberUpdatedState(pageCount)
     val currentPageIndex by rememberUpdatedState(currentPage)
+    val currentPw by rememberUpdatedState(pw)
 
     fun doFlip(dir: Int) {
-        if (isAnimFlip || vw <= 0f) return
+        if (isAnimFlip || pw <= 0f) return
         val target = currentPageIndex + dir
         if (target !in 0 until currentPageCount) return
         isAnimFlip = true
         scope.launch {
-            transition.animateTo(-dir * vw, tween(280, easing = FastOutSlowInEasing))
+            transition.animateTo(
+                -dir * pw,
+                tween(280, easing = FastOutSlowInEasing)
+            )
             transition.snapTo(0f)
             isAnimFlip = false
-            if (dir > 0) onSwipeLeft() else onSwipeRight()
+            if (dir > 0) onNextPage() else onPrevPage()
         }
     }
+
+    val pagesToShow = if (pageCount > 0) {
+        ((currentPage - 3).coerceAtLeast(0)..(currentPage + 3).coerceAtMost(pageCount - 1))
+            .sortedByDescending { it }
+    } else emptyList()
 
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(bg)
             .onSizeChanged {
-                stageSize = it
-                onViewportSizeChanged(it.width, it.height)
+                stageWidth = it.width
+                if (pageWidth <= 0) onViewportSizeChanged(it.width, it.height)
             }
             .pointerInput(isZoomed) {
                 if (isZoomed) {
@@ -116,11 +125,11 @@ fun Stage(
                     launch {
                         detectHorizontalDragGestures(
                             onDragEnd = {
-                                if (currentIsZoomed || currentIsAnimFlip || vw <= 0f) {
+                                if (currentIsZoomed || currentIsAnimFlip || currentPw <= 0f) {
                                     rawDragOffset = 0f
                                     return@detectHorizontalDragGestures
                                 }
-                                val threshold = vw * SWIPE_THRESHOLD
+                                val threshold = currentPw * SWIPE_THRESHOLD
                                 val finalOffset = rawDragOffset
                                 val dir = -finalOffset.sign.toInt()
                                 if (abs(finalOffset) > threshold && dir != 0) {
@@ -136,7 +145,8 @@ fun Stage(
                             },
                             onHorizontalDrag = { _, dragAmount ->
                                 if (currentIsZoomed || currentIsAnimFlip) return@detectHorizontalDragGestures
-                                rawDragOffset = (rawDragOffset + dragAmount).coerceIn(-vw, vw)
+                                rawDragOffset =
+                                    (rawDragOffset + dragAmount).coerceIn(-currentPw, currentPw)
                                 scope.launch { transition.snapTo(rawDragOffset) }
                             }
                         )
@@ -145,7 +155,7 @@ fun Stage(
                         detectTapGestures(
                             onTap = { pos ->
                                 if (currentIsAnimFlip || currentIsZoomed) return@detectTapGestures
-                                val sw = stageSize.width
+                                val sw = stageWidth
                                 if (sw <= 0) return@detectTapGestures
                                 val third = sw / 3f
                                 when {
@@ -162,54 +172,26 @@ fun Stage(
     ) {
         val currentOffset = offset.roundToInt()
 
-        if (!isZoomed && vw > 0f) {
-            if (prevUri != null) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(4.dp)
-                        .offset { IntOffset(currentOffset - vw.roundToInt(), 0) }
-                ) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current).data(prevUri).build(),
-                        contentDescription = "prev",
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
+        for (pageIndex in pagesToShow) {
+            val uri = pageUris[pageIndex] ?: continue
+            val baseX = (pageIndex - currentPage) * pw.roundToInt()
+            val pageModifier = if (pageWidth > 0) {
+                Modifier.size(pageWidth.dp, pageHeight.dp)
+            } else {
+                Modifier.fillMaxSize()
             }
-
-            if (nextUri != null) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(4.dp)
-                        .offset { IntOffset(currentOffset + vw.roundToInt(), 0) }
-                ) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current).data(nextUri).build(),
-                        contentDescription = "next",
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
-            }
-        }
-
-        if (contentUri != null) {
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(4.dp)
-                    .offset { IntOffset(currentOffset, 0) }
+                    .offset { IntOffset(currentOffset + baseX, 0) }
+                    .then(pageModifier)
             ) {
                 AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current).data(contentUri).build(),
-                    contentDescription = "page",
-                    contentScale = ContentScale.Fit,
+                    model = ImageRequest.Builder(LocalContext.current).data(uri).build(),
+                    contentDescription = "page $pageIndex",
+                    contentScale = ContentScale.FillBounds,
                     modifier = Modifier
                         .fillMaxSize()
-                        .shadow(PAPER_SHADOW_ELEVATION, RectangleShape)
+                        .shadow(6.dp, RectangleShape)
                 )
             }
         }
@@ -233,7 +215,6 @@ fun Stage(
                     }
                 }
             }
-
             val prevStack = minOf(currentPageIndex, 5).coerceAtLeast(0)
             if (prevStack > 0) {
                 Box(

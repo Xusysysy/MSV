@@ -100,20 +100,20 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                 else -> {
                     Stage(
                         isDark = isDark,
-                        contentUri = state.currentPageUri,
-                        prevUri = state.prevPageUri,
-                        nextUri = state.nextPageUri,
+                        pageUris = state.pageUris,
+                        currentPage = state.currentPage,
+                        pageCount = state.pageCount,
+                        pageWidth = state.pageWidth,
+                        pageHeight = state.pageHeight,
                         zoom = state.zoom,
                         panOffsetX = state.panOffsetX,
                         panOffsetY = state.panOffsetY,
-                        pageCount = state.pageCount,
-                        currentPage = state.currentPage,
                         onCenterTap = { viewModel.onEvent(ViewerEvent.ToggleUI) },
                         onDoubleTap = { viewModel.onEvent(ViewerEvent.ResetZoom) },
                         onZoomChange = { viewModel.onEvent(ViewerEvent.SetZoom(it)) },
                         onPanChange = { dx, dy -> viewModel.onEvent(ViewerEvent.PanBy(dx, dy)) },
-                        onSwipeLeft = { viewModel.onEvent(ViewerEvent.NextPage) },
-                        onSwipeRight = { viewModel.onEvent(ViewerEvent.PrevPage) },
+                        onNextPage = { viewModel.onEvent(ViewerEvent.NextPage) },
+                        onPrevPage = { viewModel.onEvent(ViewerEvent.PrevPage) },
                         onViewportSizeChanged = { w, h ->
                             viewModel.onEvent(ViewerEvent.UpdateViewportSize(w, h))
                         }

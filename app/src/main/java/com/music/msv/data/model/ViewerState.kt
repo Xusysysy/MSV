@@ -18,8 +18,9 @@ data class ViewerState(
     val isLoading: Boolean = false,
     val fileName: String = "",
     val currentPageUri: Uri? = null,
-    val prevPageUri: Uri? = null,
-    val nextPageUri: Uri? = null,
+    val pageUris: Map<Int, Uri> = emptyMap(),
+    val pageWidth: Int = 0,
+    val pageHeight: Int = 0,
     val viewportWidth: Int = 0,
     val viewportHeight: Int = 0,
     val thumbnailsLoading: Boolean = false
