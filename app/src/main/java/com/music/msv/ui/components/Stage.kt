@@ -52,12 +52,8 @@ fun Stage(
     zoom: Float,
     panOffsetX: Float,
     panOffsetY: Float,
-    showUI: Boolean,
-    isGoingForward: Boolean,
     pageCount: Int,
     currentPage: Int,
-    onEdgeLeftTap: () -> Unit,
-    onEdgeRightTap: () -> Unit,
     onCenterTap: () -> Unit,
     onDoubleTap: () -> Unit,
     onZoomChange: (Float) -> Unit,
@@ -85,7 +81,7 @@ fun Stage(
     val currentPageCount by rememberUpdatedState(pageCount)
     val currentPageIndex by rememberUpdatedState(currentPage)
 
-    fun animateFlip(dir: Int) {
+    fun doFlip(dir: Int) {
         if (isAnimFlip || vw <= 0f) return
         val target = currentPageIndex + dir
         if (target !in 0 until currentPageCount) return
@@ -94,7 +90,7 @@ fun Stage(
             transition.animateTo(-dir * vw, tween(280, easing = FastOutSlowInEasing))
             transition.snapTo(0f)
             isAnimFlip = false
-            if (dir < 0) onSwipeLeft() else onSwipeRight()
+            if (dir > 0) onSwipeLeft() else onSwipeRight()
         }
     }
 
@@ -128,21 +124,7 @@ fun Stage(
                                 val finalOffset = rawDragOffset
                                 val dir = -finalOffset.sign.toInt()
                                 if (abs(finalOffset) > threshold && dir != 0) {
-                                    val targetPage = currentPageIndex + dir
-                                    if (targetPage in 0 until currentPageCount) {
-                                        isAnimFlip = true
-                                        scope.launch {
-                                            transition.animateTo(
-                                                -dir * vw,
-                                                tween(200, easing = FastOutSlowInEasing)
-                                            )
-                                            transition.snapTo(0f)
-                                            isAnimFlip = false
-                                            if (dir < 0) onSwipeLeft() else onSwipeRight()
-                                        }
-                                    } else {
-                                        scope.launch { transition.animateTo(0f, tween(150)) }
-                                    }
+                                    doFlip(dir)
                                 } else {
                                     scope.launch { transition.animateTo(0f, tween(160, easing = FastOutSlowInEasing)) }
                                 }
@@ -167,8 +149,8 @@ fun Stage(
                                 if (sw <= 0) return@detectTapGestures
                                 val third = sw / 3f
                                 when {
-                                    pos.x < third -> animateFlip(1)
-                                    pos.x > sw - third -> animateFlip(-1)
+                                    pos.x < third -> doFlip(-1)
+                                    pos.x > sw - third -> doFlip(1)
                                     else -> onCenterTap()
                                 }
                             },
