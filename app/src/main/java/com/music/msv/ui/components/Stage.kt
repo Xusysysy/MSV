@@ -68,6 +68,7 @@ fun Stage(
     var isAnimFlip by remember { mutableStateOf(false) }
     var flipDir by remember { mutableIntStateOf(0) }
     var flipJob by remember { mutableStateOf<Job?>(null) }
+    var pendingDelta by remember { mutableIntStateOf(0) }
 
     val isZoomed = zoom > 1.01f || abs(panOffsetX) > 1f || abs(panOffsetY) > 1f
     val pw = if (pageWidth > 0) pageWidth.toFloat() else stageWidth.toFloat()
@@ -95,16 +96,23 @@ fun Stage(
         if (pw <= 0f) return
         val target = currentPageIndex + dir
         if (target !in 0 until currentPageCount) return
+        pendingDelta += dir
+        if (pendingDelta == 0) return
+        val currentDelta = pendingDelta
+        val animDir = if (currentDelta > 0) 1 else -1
         flipJob?.cancel()
         flipJob = scope.launch {
             transition.snapTo(0f)
             isAnimFlip = true
-            flipDir = dir
-            transition.animateTo(-dir * pw, spring(dampingRatio = 0.8f, stiffness = 300f))
+            flipDir = animDir
+            transition.animateTo(-animDir * pw, spring(dampingRatio = 0.8f, stiffness = 300f))
             transition.snapTo(0f)
             isAnimFlip = false
             flipDir = 0
-            if (dir > 0) onNextPage() else onPrevPage()
+            pendingDelta = 0
+            repeat(abs(currentDelta)) {
+                if (currentDelta > 0) onNextPage() else onPrevPage()
+            }
         }
     }
 
@@ -145,6 +153,7 @@ fun Stage(
                                 dragDir = 0
                                 rawDragOffset = 0f
                                 flipJob?.cancel()
+                                pendingDelta = 0
                                 isAnimFlip = false
                                 flipDir = 0
                             },
@@ -155,18 +164,20 @@ fun Stage(
                                 }
                                 if (dragDir != 0) {
                                     val threshold = currentPw * SWIPE_THRESHOLD
-                                    if (abs(rawDragOffset) > threshold) {
+                                    val finalOffset = rawDragOffset
+                                    val finalDir = dragDir
+                                    if (abs(finalOffset) > threshold) {
                                         flipJob = scope.launch {
-                                            transition.snapTo(rawDragOffset)
-                                            transition.animateTo(-dragDir * pw, spring(dampingRatio = 0.8f, stiffness = 300f))
+                                            transition.snapTo(finalOffset)
+                                            transition.animateTo(-finalDir * pw, spring(dampingRatio = 0.8f, stiffness = 300f))
                                             transition.snapTo(0f)
                                             isAnimFlip = false
                                             flipDir = 0
-                                            if (dragDir > 0) onNextPage() else onPrevPage()
+                                            if (finalDir > 0) onNextPage() else onPrevPage()
                                         }
                                     } else {
-                                        scope.launch {
-                                            transition.snapTo(rawDragOffset)
+                                        flipJob = scope.launch {
+                                            transition.snapTo(finalOffset)
                                             transition.animateTo(0f, spring(dampingRatio = 0.95f, stiffness = 500f))
                                             isAnimFlip = false
                                             flipDir = 0
@@ -174,14 +185,16 @@ fun Stage(
                                     }
                                 }
                                 rawDragOffset = 0f
+                                dragDir = 0
                             },
                             onDragCancel = {
-                                scope.launch {
+                                flipJob = scope.launch {
                                     transition.animateTo(0f, spring(dampingRatio = 0.95f, stiffness = 500f))
+                                    isAnimFlip = false
+                                    flipDir = 0
                                 }
-                                isAnimFlip = false
-                                flipDir = 0
                                 rawDragOffset = 0f
+                                dragDir = 0
                             },
                             onHorizontalDrag = { _, dragAmount ->
                                 if (currentIsZoomed) return@detectHorizontalDragGestures
