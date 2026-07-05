@@ -116,30 +116,15 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun openPdf(uri: Uri, name: String, restorePage: Int = 0) {
-        pdfUri = uri
-        imageUris = emptyList()
-        _uiState.update {
-            it.copy(
-                mode = Mode.Pdf,
-                isLoading = true,
-                statusMessage = "正在加载 PDF...",
-                zoom = 1f,
-                panOffsetX = 0f,
-                panOffsetY = 0f,
-                pageUris = emptyMap(),
-                pageWidth = 0,
-                pageHeight = 0,
-                viewportWidth = 0,
-                viewportHeight = 0
-            )
-        }
         viewModelScope.launch(Dispatchers.IO) {
             try {
+                pdfUri = uri
+                imageUris = emptyList()
                 val pageCount = pdfRenderer.open(uri)
                 if (pageCount == 0) {
                     pdfUri = null
                     pdfRenderer.close()
-                    _uiState.update { ViewerState(isDarkTheme = it.isDarkTheme, statusMessage = "无法打开 PDF") }
+                    _uiState.update { it.copy(statusMessage = "无法打开 PDF") }
                     return@launch
                 }
                 val rp = restorePage.coerceIn(0, pageCount - 1)
@@ -148,20 +133,27 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 val ratio = pw / ph
                 _uiState.update {
                     it.copy(
+                        mode = Mode.Pdf,
                         isLoading = false,
                         pageCount = pageCount,
                         currentPage = rp,
                         fileName = name,
-                        statusMessage = "已加载: $name"
+                        statusMessage = "已加载: $name",
+                        zoom = 1f,
+                        panOffsetX = 0f,
+                        panOffsetY = 0f,
+                        pageUris = emptyMap(),
+                        pageWidth = 0,
+                        pageHeight = 0,
+                        viewportWidth = 0,
+                        viewportHeight = 0
                     )
                 }
                 renderPageToCacheComputeSize(rp, ratio)
                 preloadRange(rp)
                 saveSession()
             } catch (e: Exception) {
-                pdfUri = null
-                pdfRenderer.close()
-                _uiState.update { ViewerState(isDarkTheme = it.isDarkTheme, statusMessage = "PDF 加载失败: ${e.message}") }
+                _uiState.update { it.copy(statusMessage = "PDF 加载失败: ${e.message}") }
             }
         }
     }

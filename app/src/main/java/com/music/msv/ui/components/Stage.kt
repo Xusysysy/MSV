@@ -141,7 +141,8 @@ fun Stage(
                     }
                 }
             }
-            .pointerInput(Unit) {
+            .pointerInput(stageWidth > 0) {
+                if (stageWidth <= 0) return@pointerInput
                 kotlinx.coroutines.coroutineScope {
                     launch {
                         var activeDir = 0
