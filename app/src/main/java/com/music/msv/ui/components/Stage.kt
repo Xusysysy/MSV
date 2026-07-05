@@ -34,7 +34,9 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -67,7 +69,6 @@ fun Stage(
     val scope = rememberCoroutineScope()
     var flipJob by remember { mutableStateOf<Job?>(null) }
     var dragOffset by remember { mutableFloatStateOf(0f) }
-    var pendingFlipDir by remember { mutableStateOf(0) }
 
     val isZoomed = zoom > 1.01f || abs(panOffsetX) > 1f || abs(panOffsetY) > 1f
     val pw = if (pageWidth > 0) pageWidth.toFloat() else stageWidth.toFloat()
@@ -92,24 +93,24 @@ fun Stage(
         }
     }
 
-    fun forceCompletePendingFlip() {
-        val d = pendingFlipDir
-        if (d != 0) {
-            pendingFlipDir = 0
-            if (d > 0) onNextPage() else onPrevPage()
-        }
-    }
-
-    fun doClickFlip(dir: Int) {
-        if (pw <= 0f) return
+    fun doFlip(dir: Int, easing: Boolean) {
+        if (currentPw <= 0f) return
         if (currentPageIndex + dir !in 0 until currentPageCount) return
-        forceCompletePendingFlip()
         flipJob?.cancel()
         flipJob = scope.launch {
             transition.snapTo(0f)
-            transition.animateTo(-dir * pw, tween(200, easing = FastOutSlowInEasing))
-            if (dir > 0) onNextPage() else onPrevPage()
-            transition.snapTo(0f)
+            try {
+                if (easing) {
+                    transition.animateTo(-dir * currentPw, tween(200, easing = FastOutSlowInEasing))
+                } else {
+                    transition.animateTo(-dir * currentPw, spring(dampingRatio = 0.85f, stiffness = 350f))
+                }
+            } finally {
+                withContext(NonCancellable) {
+                    transition.snapTo(0f)
+                    if (dir > 0) onNextPage() else onPrevPage()
+                }
+            }
         }
     }
 
@@ -145,35 +146,24 @@ fun Stage(
                             var activeDir = 0
                             while (true) {
                                 detectHorizontalDragGestures(
-                                onDragStart = {
-                                    forceCompletePendingFlip()
-                                    activeDir = 0
-                                    dragOffset = 0f
-                                    flipJob?.cancel()
-                                    scope.launch { transition.snapTo(0f) }
-                                },
-                                onDragEnd = {
-                                    if (currentIsZoomed || currentPw <= 0f) return@detectHorizontalDragGestures
-                                    if (activeDir == 0) return@detectHorizontalDragGestures
-                                    val threshold = currentPw * SWIPE_THRESHOLD
-                                    val finalV = dragOffset
-                                    if (abs(finalV) > threshold) {
+                                    onDragStart = {
+                                        flipJob?.cancel()
+                                        activeDir = 0
+                                        dragOffset = 0f
+                                        scope.launch { transition.snapTo(0f) }
+                                    },
+                                    onDragEnd = {
+                                        if (currentIsZoomed || currentPw <= 0f) return@detectHorizontalDragGestures
+                                        if (activeDir == 0) return@detectHorizontalDragGestures
                                         val dir = activeDir
-                                        pendingFlipDir = dir
-                                        flipJob = scope.launch {
-                                            transition.snapTo(finalV)
-                                            transition.animateTo(-dir * currentPw, spring(dampingRatio = 0.85f, stiffness = 350f))
-                                            if (dir > 0) onNextPage() else onPrevPage()
-                                            pendingFlipDir = 0
-                                            transition.snapTo(0f)
+                                        if (abs(dragOffset) > currentPw * SWIPE_THRESHOLD) {
+                                            doFlip(dir, easing = false)
+                                        } else {
+                                            flipJob = scope.launch {
+                                                transition.animateTo(0f, spring(dampingRatio = 0.95f, stiffness = 500f))
+                                            }
                                         }
-                                    } else {
-                                        flipJob = scope.launch {
-                                            transition.snapTo(finalV)
-                                            transition.animateTo(0f, spring(dampingRatio = 0.95f, stiffness = 500f))
-                                        }
-                                    }
-                                },
+                                    },
                                     onDragCancel = {
                                         flipJob = scope.launch {
                                             transition.animateTo(0f, spring(dampingRatio = 0.95f, stiffness = 500f))
@@ -205,8 +195,8 @@ fun Stage(
                                     if (sw <= 0) return@detectTapGestures
                                     val third = sw / 3f
                                     when {
-                                        pos.x < third -> doClickFlip(-1)
-                                        pos.x > sw - third -> doClickFlip(1)
+                                        pos.x < third -> doFlip(-1, easing = true)
+                                        pos.x > sw - third -> doFlip(1, easing = true)
                                         else -> onCenterTap()
                                     }
                                 },
