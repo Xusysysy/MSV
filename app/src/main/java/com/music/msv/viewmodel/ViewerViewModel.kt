@@ -114,7 +114,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    private fun openPdf(uri: Uri, name: String) {
+    private fun openPdf(uri: Uri, name: String, restorePage: Int = 0) {
         _uiState.update { it.copy(isLoading = true, statusMessage = "正在加载 PDF...") }
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -125,6 +125,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 }
                 pdfUri = uri
                 imageUris = emptyList()
+                val rp = restorePage.coerceIn(0, pageCount - 1)
                 val pw = pdfRenderer.pageWidth.toFloat()
                 val ph = pdfRenderer.pageHeight.toFloat()
                 val ratio = pw / ph
@@ -133,7 +134,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                         mode = Mode.Pdf,
                         isLoading = false,
                         pageCount = pageCount,
-                        currentPage = 0,
+                        currentPage = rp,
                         fileName = name,
                         statusMessage = "已加载: $name",
                         zoom = 1f,
@@ -146,8 +147,8 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                         viewportHeight = 0
                     )
                 }
-                renderPageToCacheComputeSize(0, ratio)
-                preloadRange(0)
+                renderPageToCacheComputeSize(rp, ratio)
+                preloadRange(rp)
                 saveSession()
             } catch (e: Exception) {
                 _uiState.update { it.copy(isLoading = false, statusMessage = "PDF 加载失败: ${e.message}") }
@@ -379,11 +380,12 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             }
 
             if (session.mode == "pdf") {
-                openPdf(uris.first(), session.fileName)
-                goToPage(session.currentPage)
+                openPdf(uris.first(), session.fileName, session.currentPage)
             } else if (session.mode == "image") {
                 openImages(uris, session.fileName)
-                goToPage(session.currentPage)
+                if (session.currentPage > 0 && session.currentPage < uris.size) {
+                    goToPage(session.currentPage)
+                }
             }
         }
     }

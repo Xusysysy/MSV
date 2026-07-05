@@ -156,7 +156,7 @@ fun Stage(
                     }
                 }
             }
-            .pointerInput(Unit) {
+            .pointerInput(pageCount) {
                 kotlinx.coroutines.coroutineScope {
                     launch {
                         var dragDir = 0
@@ -166,6 +166,8 @@ fun Stage(
                                 rawDragOffset = 0f
                                 flipJob?.cancel()
                                 pendingDelta = 0
+                                isAnimFlip = false
+                                flipDir = 0
                             },
                             onDragEnd = {
                                 if (currentIsZoomed || currentPw <= 0f) {
