@@ -149,11 +149,12 @@ fun Stage(
                                 val threshold = currentPw * SWIPE_THRESHOLD
                                 val finalV = dragOffset
                                 if (abs(finalV) > threshold) {
+                                    val dir = activeDir
                                     flipJob = scope.launch {
                                         transition.snapTo(finalV)
-                                        transition.animateTo(-activeDir * pw, spring(dampingRatio = 0.85f, stiffness = 350f))
+                                        transition.animateTo(-dir * currentPw, spring(dampingRatio = 0.85f, stiffness = 350f))
                                         transition.snapTo(0f)
-                                        if (activeDir > 0) onNextPage() else onPrevPage()
+                                        if (dir > 0) onNextPage() else onPrevPage()
                                     }
                                 } else {
                                     flipJob = scope.launch {
