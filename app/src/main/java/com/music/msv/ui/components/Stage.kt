@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -33,6 +32,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -67,6 +67,7 @@ fun Stage(
     var rawDragOffset by remember { mutableFloatStateOf(0f) }
     var isAnimFlip by remember { mutableStateOf(false) }
     var flipDir by remember { mutableIntStateOf(0) }
+    var flipJob by remember { mutableStateOf<Job?>(null) }
 
     val isZoomed = zoom > 1.01f || abs(panOffsetX) > 1f || abs(panOffsetY) > 1f
     val pw = if (pageWidth > 0) pageWidth.toFloat() else stageWidth.toFloat()
@@ -90,14 +91,15 @@ fun Stage(
         }
     }
 
-    fun animateFlip(dir: Int, from: Float = 0f) {
+    fun animateFlip(dir: Int) {
         if (pw <= 0f) return
         val target = currentPageIndex + dir
         if (target !in 0 until currentPageCount) return
-        isAnimFlip = true
-        flipDir = dir
-        scope.launch {
-            transition.snapTo(from)
+        flipJob?.cancel()
+        flipJob = scope.launch {
+            transition.snapTo(0f)
+            isAnimFlip = true
+            flipDir = dir
             transition.animateTo(-dir * pw, spring(dampingRatio = 0.8f, stiffness = 300f))
             transition.snapTo(0f)
             isAnimFlip = false
@@ -142,6 +144,9 @@ fun Stage(
                             onDragStart = {
                                 dragDir = 0
                                 rawDragOffset = 0f
+                                flipJob?.cancel()
+                                isAnimFlip = false
+                                flipDir = 0
                             },
                             onDragEnd = {
                                 if (currentIsZoomed || currentPw <= 0f) {
@@ -151,7 +156,14 @@ fun Stage(
                                 if (dragDir != 0) {
                                     val threshold = currentPw * SWIPE_THRESHOLD
                                     if (abs(rawDragOffset) > threshold) {
-                                        animateFlip(dragDir, rawDragOffset)
+                                        flipJob = scope.launch {
+                                            transition.snapTo(rawDragOffset)
+                                            transition.animateTo(-dragDir * pw, spring(dampingRatio = 0.8f, stiffness = 300f))
+                                            transition.snapTo(0f)
+                                            isAnimFlip = false
+                                            flipDir = 0
+                                            if (dragDir > 0) onNextPage() else onPrevPage()
+                                        }
                                     } else {
                                         scope.launch {
                                             transition.snapTo(rawDragOffset)
@@ -160,9 +172,6 @@ fun Stage(
                                             flipDir = 0
                                         }
                                     }
-                                } else {
-                                    isAnimFlip = false
-                                    flipDir = 0
                                 }
                                 rawDragOffset = 0f
                             },
@@ -175,7 +184,8 @@ fun Stage(
                                 rawDragOffset = 0f
                             },
                             onHorizontalDrag = { _, dragAmount ->
-                                if (currentIsZoomed || currentIsAnimFlip) return@detectHorizontalDragGestures
+                                if (currentIsZoomed) return@detectHorizontalDragGestures
+                                if (dragDir == 0 && currentIsAnimFlip) return@detectHorizontalDragGestures
                                 if (dragDir == 0) {
                                     val testDir = if (dragAmount < 0) 1 else -1
                                     if ((currentPageIndex + testDir) in 0 until currentPageCount) {
@@ -197,7 +207,7 @@ fun Stage(
                     launch {
                         detectTapGestures(
                             onTap = { pos ->
-                                if (currentIsAnimFlip || currentIsZoomed) return@detectTapGestures
+                                if (currentIsZoomed) return@detectTapGestures
                                 val sw = stageWidth
                                 if (sw <= 0) return@detectTapGestures
                                 val third = sw / 3f
