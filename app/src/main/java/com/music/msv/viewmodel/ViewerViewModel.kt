@@ -224,10 +224,9 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         if (pageW <= 0) return
         val zoom = state.zoom
         viewModelScope.launch(Dispatchers.IO) {
-            val newUris = state.pageUris.toMutableMap()
+            val newUris = mutableMapOf<Int, Uri>()
             for (i in (center + 1)..(center + 3)) {
                 if (i !in 0 until total) continue
-                if (i in newUris) continue
                 val uri = when (state.mode) {
                     is Mode.Pdf -> renderPage(i, pageW, pageH, zoom)
                     is Mode.Image -> imageUris.getOrNull(i)
@@ -237,7 +236,6 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             }
             for (i in (center - 1) downTo (center - 3)) {
                 if (i !in 0 until total) continue
-                if (i in newUris) continue
                 val uri = when (state.mode) {
                     is Mode.Pdf -> renderPage(i, pageW, pageH, zoom)
                     is Mode.Image -> imageUris.getOrNull(i)
@@ -245,7 +243,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 }
                 if (uri != null) newUris[i] = uri
             }
-            _uiState.update { it.copy(pageUris = newUris.toMap()) }
+            _uiState.update { it.copy(pageUris = it.pageUris + newUris) }
         }
     }
 
