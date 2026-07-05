@@ -9,15 +9,12 @@ data class ViewerState(
     val zoom: Float = 1f,
     val panOffsetX: Float = 0f,
     val panOffsetY: Float = 0f,
-    val isAnimating: Boolean = false,
-    val isGoingForward: Boolean = true,
     val showUI: Boolean = true,
     val showThumbnails: Boolean = false,
     val isDarkTheme: Boolean = true,
     val statusMessage: String = "",
     val isLoading: Boolean = false,
     val fileName: String = "",
-    val currentPageUri: Uri? = null,
     val pageUris: Map<Int, Uri> = emptyMap(),
     val pageWidth: Int = 0,
     val pageHeight: Int = 0,
@@ -45,6 +42,4 @@ sealed class ViewerEvent {
     data object ToggleTheme : ViewerEvent()
     data object ResetZoom : ViewerEvent()
     data object Reset : ViewerEvent()
-    data object AnimationStart : ViewerEvent()
-    data object AnimationEnd : ViewerEvent()
 }

@@ -84,8 +84,6 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             ViewerEvent.ToggleTheme -> toggleTheme()
             ViewerEvent.ResetZoom -> resetZoom()
             ViewerEvent.Reset -> reset()
-            ViewerEvent.AnimationStart -> _uiState.update { it.copy(isAnimating = true) }
-            ViewerEvent.AnimationEnd -> _uiState.update { it.copy(isAnimating = false) }
         }
     }
 
@@ -219,7 +217,6 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun preloadRange(center: Int) {
         val state = _uiState.value
-        val pc = state.pageCount
         val total = state.pageCount
         val vw = state.viewportWidth
         if (vw <= 0) return
@@ -227,11 +224,19 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         val pageH = state.pageHeight
         val zoom = state.zoom
         viewModelScope.launch(Dispatchers.IO) {
-            val existing = state.pageUris
-            val newUris = mutableMapOf<Int, Uri>()
-            newUris.putAll(existing)
-            val range = ((center - 3).coerceAtLeast(0)..(center + 3).coerceAtMost(total - 1))
-            for (i in range) {
+            val newUris = state.pageUris.toMutableMap()
+            for (i in (center + 1)..(center + 3)) {
+                if (i !in 0 until total) continue
+                if (i in newUris) continue
+                val uri = when (state.mode) {
+                    is Mode.Pdf -> renderPage(i, pageW, pageH, zoom)
+                    is Mode.Image -> imageUris.getOrNull(i)
+                    else -> null
+                }
+                if (uri != null) newUris[i] = uri
+            }
+            for (i in (center - 1) downTo (center - 3)) {
+                if (i !in 0 until total) continue
                 if (i in newUris) continue
                 val uri = when (state.mode) {
                     is Mode.Pdf -> renderPage(i, pageW, pageH, zoom)
