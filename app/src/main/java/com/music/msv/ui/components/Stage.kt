@@ -97,8 +97,7 @@ fun Stage(
         val target = currentPageIndex + dir
         if (target !in 0 until currentPageCount) return
         pendingDelta += dir
-        val currentDelta = pendingDelta
-        if (currentDelta == 0) {
+        if (pendingDelta == 0) {
             flipJob?.cancel()
             flipJob = scope.launch {
                 transition.animateTo(0f, spring(dampingRatio = 0.95f, stiffness = 500f))
@@ -109,22 +108,23 @@ fun Stage(
             return
         }
         if (flipJob?.isActive == true) return
-        val animDir = if (currentDelta > 0) 1 else -1
         flipJob = scope.launch {
-            transition.snapTo(0f)
-            isAnimFlip = true
-            flipDir = animDir
-            transition.animateTo(-animDir * pw, spring(dampingRatio = 0.8f, stiffness = 300f))
-            transition.snapTo(0f)
+            var first = true
+            while (pendingDelta != 0) {
+                val d = if (pendingDelta > 0) 1 else -1
+                if (first) {
+                    transition.snapTo(0f)
+                    first = false
+                }
+                isAnimFlip = true
+                flipDir = d
+                transition.animateTo(-d * pw, spring(dampingRatio = 0.8f, stiffness = 300f))
+                transition.snapTo(0f)
+                if (d > 0) onNextPage() else onPrevPage()
+                pendingDelta -= d
+            }
             isAnimFlip = false
             flipDir = 0
-            val finalDelta = pendingDelta
-            pendingDelta = 0
-            if (finalDelta != 0) {
-                repeat(abs(finalDelta)) {
-                    if (finalDelta > 0) onNextPage() else onPrevPage()
-                }
-            }
         }
     }
 
@@ -166,8 +166,6 @@ fun Stage(
                                 rawDragOffset = 0f
                                 flipJob?.cancel()
                                 pendingDelta = 0
-                                isAnimFlip = false
-                                flipDir = 0
                             },
                             onDragEnd = {
                                 if (currentIsZoomed || currentPw <= 0f) {
@@ -181,20 +179,22 @@ fun Stage(
                                     if (abs(finalOffset) > threshold) {
                                         pendingDelta += finalDir
                                         flipJob?.cancel()
-                                        val delta = pendingDelta
-                                        val aDir = if (delta > 0) 1 else -1
                                         flipJob = scope.launch {
                                             transition.snapTo(finalOffset)
-                                            isAnimFlip = true
-                                            flipDir = aDir
-                                            transition.animateTo(-aDir * pw, spring(dampingRatio = 0.8f, stiffness = 300f))
-                                            transition.snapTo(0f)
+                                            var first = true
+                                            while (pendingDelta != 0) {
+                                                val d = if (pendingDelta > 0) 1 else -1
+                                                if (!first) transition.snapTo(0f)
+                                                isAnimFlip = true
+                                                flipDir = d
+                                                transition.animateTo(-d * pw, spring(dampingRatio = 0.8f, stiffness = 300f))
+                                                transition.snapTo(0f)
+                                                if (d > 0) onNextPage() else onPrevPage()
+                                                pendingDelta -= d
+                                                first = false
+                                            }
                                             isAnimFlip = false
                                             flipDir = 0
-                                            pendingDelta = 0
-                                            repeat(abs(delta)) {
-                                                if (delta > 0) onNextPage() else onPrevPage()
-                                            }
                                         }
                                     } else {
                                         flipJob = scope.launch {

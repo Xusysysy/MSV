@@ -193,9 +193,11 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun renderPageToCacheComputeSize(pageIndex: Int, ratio: Float) {
         val vw = _uiState.value.viewportWidth
-        if (vw <= 0) return
+        val zw = _uiState.value.pageWidth
+        if (vw <= 0 || zw > 0) return
         val pageW = vw
         val pageH = (vw / ratio).toInt()
+        _uiState.update { it.copy(pageWidth = pageW, pageHeight = pageH) }
         val zoom = _uiState.value.zoom
         viewModelScope.launch(Dispatchers.IO) {
             val uri = when (_uiState.value.mode) {
@@ -205,11 +207,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             }
             if (uri != null) {
                 _uiState.update {
-                    it.copy(
-                        pageWidth = pageW,
-                        pageHeight = pageH,
-                        pageUris = it.pageUris + (pageIndex to uri)
-                    )
+                    it.copy(pageUris = it.pageUris + (pageIndex to uri))
                 }
             }
         }
@@ -218,10 +216,9 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     private fun preloadRange(center: Int) {
         val state = _uiState.value
         val total = state.pageCount
-        val vw = state.viewportWidth
-        if (vw <= 0) return
         val pageW = state.pageWidth
         val pageH = state.pageHeight
+        if (pageW <= 0) return
         val zoom = state.zoom
         viewModelScope.launch(Dispatchers.IO) {
             val newUris = state.pageUris.toMutableMap()
@@ -245,20 +242,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 }
                 if (uri != null) newUris[i] = uri
             }
-            if (pageW == 0 && state.mode is Mode.Pdf) {
-                val pw = pdfRenderer.pageWidth.toFloat()
-                val ph = pdfRenderer.pageHeight.toFloat()
-                val ratio = pw / ph
-                _uiState.update {
-                    it.copy(
-                        pageWidth = vw,
-                        pageHeight = (vw / ratio).toInt(),
-                        pageUris = newUris.toMap()
-                    )
-                }
-            } else {
-                _uiState.update { it.copy(pageUris = newUris.toMap()) }
-            }
+            _uiState.update { it.copy(pageUris = newUris.toMap()) }
         }
     }
 
@@ -280,7 +264,10 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         val changed = state.viewportWidth != width || state.viewportHeight != height
         _uiState.update { it.copy(viewportWidth = width, viewportHeight = height) }
         if (changed && state.pageWidth == 0 && state.mode != Mode.Idle) {
-            renderPageToCacheComputeSize(state.currentPage, 0.707f)
+            val ratio = if (state.mode is Mode.Pdf) {
+                pdfRenderer.pageWidth.toFloat() / pdfRenderer.pageHeight.toFloat()
+            } else 1f
+            renderPageToCacheComputeSize(state.currentPage, ratio)
             preloadRange(state.currentPage)
         }
     }
