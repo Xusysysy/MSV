@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -72,6 +73,12 @@ fun Stage(
 
     val isZoomed = zoom > 1.01f || abs(panOffsetX) > 1f || abs(panOffsetY) > 1f
     val pw = if (pageWidth > 0) pageWidth.toFloat() else stageWidth.toFloat()
+
+    if (pageCount > 0 && pageWidth <= 0 && stageWidth > 0) {
+        LaunchedEffect(stageWidth) {
+            onViewportSizeChanged(stageWidth, stageWidth)
+        }
+    }
 
     val currentIsZoomed by rememberUpdatedState(isZoomed)
     val currentIsAnimFlip by rememberUpdatedState(isAnimFlip)
@@ -156,10 +163,11 @@ fun Stage(
                     }
                 }
             }
-            .pointerInput(pageCount) {
+            .pointerInput(Unit) {
                 kotlinx.coroutines.coroutineScope {
                     launch {
                         var dragDir = 0
+                        while (true) {
                         detectHorizontalDragGestures(
                             onDragStart = {
                                 dragDir = 0
@@ -221,24 +229,26 @@ fun Stage(
                             },
                             onHorizontalDrag = { _, dragAmount ->
                                 if (currentIsZoomed) return@detectHorizontalDragGestures
-                                if (dragDir == 0 && currentIsAnimFlip) return@detectHorizontalDragGestures
                                 if (dragDir == 0) {
+                                    if (currentIsAnimFlip) return@detectHorizontalDragGestures
                                     val testDir = if (dragAmount < 0) 1 else -1
-                                    if ((currentPageIndex + testDir) in 0 until currentPageCount) {
+                                    val target = currentPageIndex + testDir
+                                    if (target in 0 until currentPageCount) {
                                         dragDir = testDir
                                         flipDir = testDir
                                         isAnimFlip = true
+                                    } else {
+                                        return@detectHorizontalDragGestures
                                     }
                                 }
-                                if (dragDir != 0) {
-                                    rawDragOffset = if (dragDir > 0)
-                                        (rawDragOffset + dragAmount).coerceIn(-currentPw, 0f)
-                                    else
-                                        (rawDragOffset + dragAmount).coerceIn(0f, currentPw)
-                                    scope.launch { transition.snapTo(rawDragOffset) }
-                                }
+                                rawDragOffset = if (dragDir > 0)
+                                    (rawDragOffset + dragAmount).coerceIn(-currentPw, 0f)
+                                else
+                                    (rawDragOffset + dragAmount).coerceIn(0f, currentPw)
+                                scope.launch { transition.snapTo(rawDragOffset) }
                             }
                         )
+                        }
                     }
                     launch {
                         detectTapGestures(
