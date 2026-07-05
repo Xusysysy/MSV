@@ -229,16 +229,19 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
         if (showResetDialog) {
             AlertDialog(
                 onDismissRequest = { showResetDialog = false },
-                title = { Text("确认重置") },
-                text = { Text("将关闭当前文件并清除记录，是否继续？") },
+                title = { Text("操作") },
+                text = { Text("选择要执行的操作") },
                 confirmButton = {
+                    TextButton(onClick = {
+                        viewModel.onEvent(ViewerEvent.Reload)
+                        showResetDialog = false
+                    }) { Text("重新加载") }
+                },
+                dismissButton = {
                     TextButton(onClick = {
                         viewModel.onEvent(ViewerEvent.Reset)
                         showResetDialog = false
-                    }) { Text("确定") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showResetDialog = false }) { Text("取消") }
+                    }) { Text("重置关闭") }
                 }
             )
         }

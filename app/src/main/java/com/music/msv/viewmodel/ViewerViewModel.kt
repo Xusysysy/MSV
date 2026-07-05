@@ -84,6 +84,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             ViewerEvent.ToggleTheme -> toggleTheme()
             ViewerEvent.ResetZoom -> resetZoom()
             ViewerEvent.Reset -> reset()
+            ViewerEvent.Reload -> reload()
         }
     }
 
@@ -115,58 +116,67 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun openPdf(uri: Uri, name: String, restorePage: Int = 0) {
-        _uiState.update { it.copy(isLoading = true, statusMessage = "正在加载 PDF...") }
+        pdfUri = uri
+        imageUris = emptyList()
+        _uiState.update {
+            it.copy(
+                mode = Mode.Pdf,
+                isLoading = true,
+                statusMessage = "正在加载 PDF...",
+                zoom = 1f,
+                panOffsetX = 0f,
+                panOffsetY = 0f,
+                pageUris = emptyMap(),
+                pageWidth = 0,
+                pageHeight = 0,
+                viewportWidth = 0,
+                viewportHeight = 0
+            )
+        }
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val pageCount = pdfRenderer.open(uri)
                 if (pageCount == 0) {
-                    _uiState.update { it.copy(isLoading = false, statusMessage = "无法打开 PDF") }
+                    pdfUri = null
+                    pdfRenderer.close()
+                    _uiState.update { ViewerState(isDarkTheme = it.isDarkTheme, statusMessage = "无法打开 PDF") }
                     return@launch
                 }
-                pdfUri = uri
-                imageUris = emptyList()
                 val rp = restorePage.coerceIn(0, pageCount - 1)
                 val pw = pdfRenderer.pageWidth.toFloat()
                 val ph = pdfRenderer.pageHeight.toFloat()
                 val ratio = pw / ph
                 _uiState.update {
                     it.copy(
-                        mode = Mode.Pdf,
                         isLoading = false,
                         pageCount = pageCount,
                         currentPage = rp,
                         fileName = name,
-                        statusMessage = "已加载: $name",
-                        zoom = 1f,
-                        panOffsetX = 0f,
-                        panOffsetY = 0f,
-                        pageUris = emptyMap(),
-                        pageWidth = 0,
-                        pageHeight = 0,
-                        viewportWidth = 0,
-                        viewportHeight = 0
+                        statusMessage = "已加载: $name"
                     )
                 }
                 renderPageToCacheComputeSize(rp, ratio)
                 preloadRange(rp)
                 saveSession()
             } catch (e: Exception) {
-                _uiState.update { it.copy(isLoading = false, statusMessage = "PDF 加载失败: ${e.message}") }
+                pdfUri = null
+                pdfRenderer.close()
+                _uiState.update { ViewerState(isDarkTheme = it.isDarkTheme, statusMessage = "PDF 加载失败: ${e.message}") }
             }
         }
     }
 
-    private fun openImages(uris: List<Uri>, name: String) {
-        _uiState.update { it.copy(isLoading = true, statusMessage = "正在加载图片...") }
+    private fun openImages(uris: List<Uri>, name: String, initialPage: Int = 0) {
         imageUris = uris.sortedBy { it.lastPathSegment }
         pdfUri = null
         pdfRenderer.close()
+        val page = initialPage.coerceIn(0, uris.size - 1)
         _uiState.update {
             it.copy(
                 mode = Mode.Image,
                 isLoading = false,
                 pageCount = uris.size,
-                currentPage = 0,
+                currentPage = page,
                 fileName = name,
                 statusMessage = "已加载: $name (${uris.size} 页)",
                 zoom = 1f,
@@ -310,6 +320,23 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch { sessionRepo.clearSession() }
     }
 
+    private fun reload() {
+        val state = _uiState.value
+        thumbnailCache.clear()
+        val cp = state.currentPage
+        when (state.mode) {
+            is Mode.Pdf -> {
+                pdfUri?.let { openPdf(it, state.fileName, cp) }
+            }
+            is Mode.Image -> {
+                if (imageUris.isNotEmpty()) {
+                    openImages(imageUris, state.fileName, cp)
+                }
+            }
+            Mode.Idle -> {}
+        }
+    }
+
     private fun saveSession() {
         val state = _uiState.value
         viewModelScope.launch {
@@ -382,10 +409,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             if (session.mode == "pdf") {
                 openPdf(uris.first(), session.fileName, session.currentPage)
             } else if (session.mode == "image") {
-                openImages(uris, session.fileName)
-                if (session.currentPage > 0 && session.currentPage < uris.size) {
-                    goToPage(session.currentPage)
-                }
+                openImages(uris, session.fileName, session.currentPage)
             }
         }
     }

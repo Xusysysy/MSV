@@ -42,4 +42,5 @@ sealed class ViewerEvent {
     data object ToggleTheme : ViewerEvent()
     data object ResetZoom : ViewerEvent()
     data object Reset : ViewerEvent()
+    data object Reload : ViewerEvent()
 }
