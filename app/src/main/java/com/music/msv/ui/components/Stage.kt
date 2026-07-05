@@ -67,6 +67,7 @@ fun Stage(
     val scope = rememberCoroutineScope()
     var flipJob by remember { mutableStateOf<Job?>(null) }
     var dragOffset by remember { mutableFloatStateOf(0f) }
+    var pendingFlipDir by remember { mutableStateOf(0) }
 
     val isZoomed = zoom > 1.01f || abs(panOffsetX) > 1f || abs(panOffsetY) > 1f
     val pw = if (pageWidth > 0) pageWidth.toFloat() else stageWidth.toFloat()
@@ -91,9 +92,18 @@ fun Stage(
         }
     }
 
+    fun forceCompletePendingFlip() {
+        val d = pendingFlipDir
+        if (d != 0) {
+            pendingFlipDir = 0
+            if (d > 0) onNextPage() else onPrevPage()
+        }
+    }
+
     fun doClickFlip(dir: Int) {
         if (pw <= 0f) return
         if (currentPageIndex + dir !in 0 until currentPageCount) return
+        forceCompletePendingFlip()
         flipJob?.cancel()
         flipJob = scope.launch {
             transition.snapTo(0f)
@@ -138,6 +148,7 @@ fun Stage(
                         while (true) {
                             detectHorizontalDragGestures(
                             onDragStart = {
+                                forceCompletePendingFlip()
                                 activeDir = 0
                                 dragOffset = 0f
                                 flipJob?.cancel()
@@ -150,11 +161,13 @@ fun Stage(
                                 val finalV = dragOffset
                                 if (abs(finalV) > threshold) {
                                     val dir = activeDir
+                                    pendingFlipDir = dir
                                     flipJob = scope.launch {
                                         transition.snapTo(finalV)
                                         transition.animateTo(-dir * currentPw, spring(dampingRatio = 0.85f, stiffness = 350f))
                                         transition.snapTo(0f)
                                         if (dir > 0) onNextPage() else onPrevPage()
+                                        pendingFlipDir = 0
                                     }
                                 } else {
                                     flipJob = scope.launch {
