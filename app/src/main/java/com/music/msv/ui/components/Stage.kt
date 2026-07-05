@@ -97,10 +97,19 @@ fun Stage(
         val target = currentPageIndex + dir
         if (target !in 0 until currentPageCount) return
         pendingDelta += dir
-        if (pendingDelta == 0) return
         val currentDelta = pendingDelta
+        if (currentDelta == 0) {
+            flipJob?.cancel()
+            flipJob = scope.launch {
+                transition.animateTo(0f, spring(dampingRatio = 0.95f, stiffness = 500f))
+                isAnimFlip = false
+                flipDir = 0
+            }
+            pendingDelta = 0
+            return
+        }
+        if (flipJob?.isActive == true) return
         val animDir = if (currentDelta > 0) 1 else -1
-        flipJob?.cancel()
         flipJob = scope.launch {
             transition.snapTo(0f)
             isAnimFlip = true
@@ -109,9 +118,12 @@ fun Stage(
             transition.snapTo(0f)
             isAnimFlip = false
             flipDir = 0
+            val finalDelta = pendingDelta
             pendingDelta = 0
-            repeat(abs(currentDelta)) {
-                if (currentDelta > 0) onNextPage() else onPrevPage()
+            if (finalDelta != 0) {
+                repeat(abs(finalDelta)) {
+                    if (finalDelta > 0) onNextPage() else onPrevPage()
+                }
             }
         }
     }
@@ -167,13 +179,22 @@ fun Stage(
                                     val finalOffset = rawDragOffset
                                     val finalDir = dragDir
                                     if (abs(finalOffset) > threshold) {
+                                        pendingDelta += finalDir
+                                        flipJob?.cancel()
+                                        val delta = pendingDelta
+                                        val aDir = if (delta > 0) 1 else -1
                                         flipJob = scope.launch {
                                             transition.snapTo(finalOffset)
-                                            transition.animateTo(-finalDir * pw, spring(dampingRatio = 0.8f, stiffness = 300f))
+                                            isAnimFlip = true
+                                            flipDir = aDir
+                                            transition.animateTo(-aDir * pw, spring(dampingRatio = 0.8f, stiffness = 300f))
                                             transition.snapTo(0f)
                                             isAnimFlip = false
                                             flipDir = 0
-                                            if (finalDir > 0) onNextPage() else onPrevPage()
+                                            pendingDelta = 0
+                                            repeat(abs(delta)) {
+                                                if (delta > 0) onNextPage() else onPrevPage()
+                                            }
                                         }
                                     } else {
                                         flipJob = scope.launch {
