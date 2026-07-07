@@ -154,30 +154,28 @@ Single-screen app — no Navigation component. State-based content switching via
 
 | Element | Type | Lines |
 |---|---|---|
-| Package + imports | — | L1-L41 |
-| `SWIPE_THRESHOLD` | private const val (0.30f) | L43 |
-| `Stage` | @Composable fun | L45-L237 |
-| Parameters (17): | isDark, pageUris, currentPage, pageCount, pageWidth, pageHeight, zoom, panOffsetX, panOffsetY, onCenterTap, onDoubleTap, onZoomChange, onPanChange, onNextPage, onPrevPage, onViewportSizeChanged, onPreloadAround(default={}), modifier(default=Modifier) | L46-L64 |
-| `bg` | derived val background color | L66 |
-| `stageWidth` | mutableStateOf(0) | L67 |
-| `currentZoom` | mutableFloatStateOf(zoom) | L68 |
-| `transition` | Animatable(0f) | L69 |
-| `scope` | rememberCoroutineScope | L70 |
-| `flipJob` | mutableStateOf<Job?>(null) | L71 |
-| `dragOffset` | mutableFloatStateOf(0f) | L72 |
-| `isZoomed` / `pw` | derived vals | L74-L75 |
-| `currentIsZoomed` etc. | 4× rememberUpdatedState | L77-L80 |
-| `baseX(pageIndex)` | local fun — static x offset | L82-L85 |
-| `pageX(pageIndex)` | local fun — animated x offset | L87-L95 |
-| `doFlip(dir, fromOffset, easing)` | local fun — page flip animation | L97-L116 |
-| `pagesToShow` | derived val — visible page window (±3) | L118-L121 |
-| `pageSizeModifier` | derived Modifier | L123-L127 |
-| Root Box | composable (gestures + rendering) | L129-L236 |
-| — `.pointerInput(isZoomed)` | detectTransformGestures (zoom 0.5x–8x + pan) | L137-L145 |
-| — `.pointerInput(pageCount)` | coroutineScope with 2 launches: | L146-L217 |
-| — — launch 1 | detectHorizontalDragGestures (swipe flip + dynamic preload full ±3 range) | L148-L193 |
-| — — launch 2 | detectTapGestures (left/right edge flip with preload + center UI toggle + double-tap zoom reset) | L194-L215 |
-| — `for (pageIndex in pagesToShow)` | page Box with AsyncImage (no background, white-filled PDF bitmaps) | L219-L235 |
+| Package + imports | — | L1-L42 |
+| `SWIPE_THRESHOLD` | private const val (0.30f) | L44 |
+| `Stage` | @Composable fun | L46-L237 |
+| Parameters (17): | isDark, pageUris, currentPage, pageCount, pageWidth, pageHeight, zoom, panOffsetX, panOffsetY, onCenterTap, onDoubleTap, onZoomChange, onPanChange, onNextPage, onPrevPage, onViewportSizeChanged, onPreloadAround(default={}), modifier(default=Modifier) | L47-L65 |
+| `bg` | derived val background color | L67 |
+| `stageWidth` | mutableStateOf(0) | L68 |
+| `currentZoom` | mutableFloatStateOf(zoom) | L69 |
+| `transition` | Animatable(0f) | L70 |
+| `scope` | rememberCoroutineScope | L71 |
+| `flipJob` | mutableStateOf<Job?>(null) | L72 |
+| `dragOffset` | mutableFloatStateOf(0f) | L73 |
+| `isZoomed` / `pw` | derived vals | L75-L76 |
+| `currentIsZoomed` etc. | 4× rememberUpdatedState | L78-L81 |
+| `baseX(pageIndex)` | local fun — static x offset | L83-L86 |
+| `pageX(pageIndex)` | local fun — animated x offset | L88-L96 |
+| `doFlip(dir, fromOffset, easing)` | local fun — page flip animation | L98-L117 |
+| `pagesToShow` | derived val — visible page window (±3) | L119-L122 |
+| `pageSizeModifier` | derived Modifier | L124-L128 |
+| Root Box | composable (gestures + rendering) | L131-L240 |
+| — `.pointerInput(pageCount)` (outer) | coroutineScope: drag detector + tap detector, key=pageCount for cold start init | L138-L209 |
+| — `.pointerInput(isZoomed)` (inner) | detectTransformGestures (zoom 0.5x–8x + pan) | L210-L218 |
+| — `for (pageIndex in pagesToShow)` | page Box with AsyncImage (no background, white-filled PDF bitmaps) | L220-L237 |
 
 ---
 
