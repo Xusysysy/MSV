@@ -4,6 +4,9 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color as AndroidColor
+import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.ParcelFileDescriptor
@@ -65,7 +68,8 @@ class PdfPageRenderer(private val context: Context) {
         val result = Bitmap.createBitmap(renderWidth, renderHeight, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(result)
         canvas.drawColor(AndroidColor.WHITE)
-        canvas.drawBitmap(temp, 0f, 0f, null)
+        val paint = Paint().apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_OVER) }
+        canvas.drawBitmap(temp, 0f, 0f, paint)
         temp.recycle()
 
         cache.put(key, result)
@@ -91,7 +95,8 @@ class PdfPageRenderer(private val context: Context) {
         val result = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(result)
         canvas.drawColor(AndroidColor.WHITE)
-        canvas.drawBitmap(temp, 0f, 0f, null)
+        val paint = Paint().apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_OVER) }
+        canvas.drawBitmap(temp, 0f, 0f, paint)
         temp.recycle()
 
         cache.put(key, result)

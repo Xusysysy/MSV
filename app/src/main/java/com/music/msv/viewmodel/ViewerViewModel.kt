@@ -256,9 +256,10 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         val bmp = pdfRenderer.renderPage(pageIndex, pageW, pageH, zoom) ?: return null
         val cachedFile = java.io.File(
             getApplication<Application>().cacheDir,
-            "page_$pageIndex.png"
+            "page_$pageIndex.jpg"
         )
-        bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 90, cachedFile.outputStream())
+        cachedFile.delete()
+        bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 95, cachedFile.outputStream())
         bmp.recycle()
         return Uri.fromFile(cachedFile)
     }
