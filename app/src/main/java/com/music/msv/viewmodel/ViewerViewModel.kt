@@ -150,7 +150,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                     )
                 }
                 renderPageToCacheComputeSize(rp, ratio)
-                preloadRange(rp)
+                preloadAround(rp)
                 saveSession()
             } catch (e: Exception) {
                 _uiState.update { it.copy(statusMessage = "PDF 加载失败: ${e.message}") }
@@ -190,7 +190,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         val target = page.coerceIn(0, state.pageCount - 1)
         if (target == state.currentPage) return
         _uiState.update { it.copy(currentPage = target) }
-        preloadRange(target)
+        preloadAround(target)
         saveSession()
     }
 
@@ -216,17 +216,18 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    private fun preloadRange(center: Int) {
+    fun preloadAround(center: Int) {
         val state = _uiState.value
         val total = state.pageCount
         val pageW = state.pageWidth
         val pageH = state.pageHeight
         if (pageW <= 0) return
+        if (center !in 0 until total) return
         val zoom = state.zoom
         viewModelScope.launch(Dispatchers.IO) {
             val newUris = mutableMapOf<Int, Uri>()
-            for (i in (center + 1)..(center + 3)) {
-                if (i !in 0 until total) continue
+            for (i in (center - 3)..(center + 3)) {
+                if (i !in 0 until total || state.pageUris.containsKey(i)) continue
                 val uri = when (state.mode) {
                     is Mode.Pdf -> renderPage(i, pageW, pageH, zoom)
                     is Mode.Image -> imageUris.getOrNull(i)
@@ -234,16 +235,9 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 }
                 if (uri != null) newUris[i] = uri
             }
-            for (i in (center - 1) downTo (center - 3)) {
-                if (i !in 0 until total) continue
-                val uri = when (state.mode) {
-                    is Mode.Pdf -> renderPage(i, pageW, pageH, zoom)
-                    is Mode.Image -> imageUris.getOrNull(i)
-                    else -> null
-                }
-                if (uri != null) newUris[i] = uri
+            if (newUris.isNotEmpty()) {
+                _uiState.update { it.copy(pageUris = it.pageUris + newUris) }
             }
-            _uiState.update { it.copy(pageUris = it.pageUris + newUris) }
         }
     }
 
@@ -269,7 +263,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 pdfRenderer.pageWidth.toFloat() / pdfRenderer.pageHeight.toFloat()
             } else 1f
             renderPageToCacheComputeSize(state.currentPage, ratio)
-            preloadRange(state.currentPage)
+            preloadAround(state.currentPage)
         }
     }
 

@@ -126,7 +126,7 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 6. ui/screen/ViewerScreen.kt (L1-L250)
+### 6. ui/screen/ViewerScreen.kt (L1-L251)
 
 | Element | Type | Lines |
 |---|---|---|
@@ -150,35 +150,34 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 7. ui/components/Stage.kt (L1-L248)
+### 7. ui/components/Stage.kt (L1-L237)
 
 | Element | Type | Lines |
 |---|---|---|
-| Package + imports | — | L1-L42 |
-| `SWIPE_THRESHOLD` | private const val (0.30f) | L44 |
-| `Stage` | @Composable fun | L46-L248 |
-| Parameters (17): | isDark, pageUris, currentPage, pageCount, pageWidth, pageHeight, zoom, panOffsetX, panOffsetY, onCenterTap, onDoubleTap, onZoomChange, onPanChange, onNextPage, onPrevPage, onViewportSizeChanged, onPreloadPage(default={}), modifier(default=Modifier) | L48-L65 |
-| `bg` | derived val background color | L67 |
-| `stageWidth` | mutableStateOf(0) | L68 |
-| `currentZoom` | mutableFloatStateOf(zoom) | L69 |
-| `transition` | Animatable(0f) | L70 |
-| `scope` | rememberCoroutineScope | L71 |
-| `flipJob` | mutableStateOf<Job?>(null) | L72 |
-| `dragOffset` | mutableFloatStateOf(0f) | L73 |
-| `isZoomed` / `pw` | derived vals | L75-L76 |
-| `currentIsZoomed` etc. | 4× rememberUpdatedState | L78-L81 |
-| `LaunchedEffect(pageCount)` | warmup center tap on cold start | L83-L87 |
-| `baseX(pageIndex)` | local fun — static x offset | L89-L92 |
-| `pageX(pageIndex)` | local fun — animated x offset | L94-L102 |
-| `doFlip(dir, fromOffset, easing)` | local fun — page flip animation | L104-L123 |
-| `pagesToShow` | derived val — visible page window (±3) | L125-L128 |
-| `pageSizeModifier` | derived Modifier | L130-L134 |
-| Root Box | composable (gestures + rendering) | L136-L247 |
-| — `.pointerInput(isZoomed)` | detectTransformGestures (zoom 0.5x–8x + pan) | L145-L152 |
-| — `.pointerInput(Unit)` | coroutineScope with 2 launches: | L154-L228 |
-| — — launch 1 | detectHorizontalDragGestures (swipe flip + dynamic preload) | L156-L201 |
-| — — launch 2 | detectTapGestures (left/right edge flip + center UI toggle + double-tap zoom reset) | L203-L226 |
-| — `for (pageIndex in pagesToShow)` | page Box with background + AsyncImage | L229-L246 |
+| Package + imports | — | L1-L41 |
+| `SWIPE_THRESHOLD` | private const val (0.30f) | L43 |
+| `Stage` | @Composable fun | L45-L237 |
+| Parameters (17): | isDark, pageUris, currentPage, pageCount, pageWidth, pageHeight, zoom, panOffsetX, panOffsetY, onCenterTap, onDoubleTap, onZoomChange, onPanChange, onNextPage, onPrevPage, onViewportSizeChanged, onPreloadAround(default={}), modifier(default=Modifier) | L46-L64 |
+| `bg` | derived val background color | L66 |
+| `stageWidth` | mutableStateOf(0) | L67 |
+| `currentZoom` | mutableFloatStateOf(zoom) | L68 |
+| `transition` | Animatable(0f) | L69 |
+| `scope` | rememberCoroutineScope | L70 |
+| `flipJob` | mutableStateOf<Job?>(null) | L71 |
+| `dragOffset` | mutableFloatStateOf(0f) | L72 |
+| `isZoomed` / `pw` | derived vals | L74-L75 |
+| `currentIsZoomed` etc. | 4× rememberUpdatedState | L77-L80 |
+| `baseX(pageIndex)` | local fun — static x offset | L82-L85 |
+| `pageX(pageIndex)` | local fun — animated x offset | L87-L95 |
+| `doFlip(dir, fromOffset, easing)` | local fun — page flip animation | L97-L116 |
+| `pagesToShow` | derived val — visible page window (±3) | L118-L121 |
+| `pageSizeModifier` | derived Modifier | L123-L127 |
+| Root Box | composable (gestures + rendering) | L129-L236 |
+| — `.pointerInput(isZoomed)` | detectTransformGestures (zoom 0.5x–8x + pan) | L137-L145 |
+| — `.pointerInput(pageCount)` | coroutineScope with 2 launches: | L146-L217 |
+| — — launch 1 | detectHorizontalDragGestures (swipe flip + dynamic preload full ±3 range) | L148-L193 |
+| — — launch 2 | detectTapGestures (left/right edge flip with preload + center UI toggle + double-tap zoom reset) | L194-L215 |
+| — `for (pageIndex in pagesToShow)` | page Box with AsyncImage (no background, white-filled PDF bitmaps) | L219-L235 |
 
 ---
 
@@ -257,12 +256,12 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 13. viewmodel/ViewerViewModel.kt (L1-L432)
+### 13. viewmodel/ViewerViewModel.kt (L1-L434)
 
 | Element | Type | Lines |
 |---|---|---|
 | Package + imports | — | L1-L22 |
-| `ViewerViewModel(application)` | class : AndroidViewModel | L24-L432 |
+| `ViewerViewModel(application)` | class : AndroidViewModel | L24-L434 |
 | `fileRepo` | private val FileRepository | L26 |
 | `sessionRepo` | private val SessionRepository | L27 |
 | `pdfRenderer` | private val PdfPageRenderer | L28 |
@@ -280,23 +279,23 @@ Single-screen app — no Navigation component. State-based content switching via
 | `openImages(uris, name, initialPage=0)` | private fun | L161-L185 |
 | `goToPage(page)` | private fun | L187-L195 |
 | `renderPageToCacheComputeSize(pageIndex, ratio)` | private fun | L197-L217 |
-| `preloadRange(center)` | private fun (center ± 3 pages) | L219-L248 |
-| `renderPage(pageIndex, pageW, pageH, zoom)` | private fun | L250-L260 |
-| `updateViewportSize(width, height)` | private fun | L262-L274 |
-| `setZoom(zoom)` | private fun | L276-L278 |
-| `panBy(dx, dy)` | private fun | L280-L284 |
-| `toggleUI()` | private fun | L286-L288 |
-| `toggleThumbnails()` | private fun | L290-L294 |
-| `toggleTheme()` | private fun | L296-L298 |
-| `resetZoom()` | private fun | L300-L302 |
-| `reset()` | private fun | L304-L311 |
-| `reload()` | private fun | L313-L328 |
-| `saveSession()` | private fun | L330-L350 |
-| `getThumbnailUri(pageIndex)` | public fun | L352-L353 |
-| `preloadPage(pageIndex)` | public fun (single page preload, skips if already cached) | L355-L374 |
-| `preloadThumbnails()` | private fun | L376-L399 |
-| `restoreSession()` | private fun | L401-L426 |
-| `onCleared()` | override fun | L428-L431 |
+| `preloadAround(center)` | public fun (preload center ± 3 pages, includes center + skips cached) | L219-L242 |
+| `renderPage(pageIndex, pageW, pageH, zoom)` | private fun | L244-L254 |
+| `updateViewportSize(width, height)` | private fun | L256-L268 |
+| `setZoom(zoom)` | private fun | L270-L272 |
+| `panBy(dx, dy)` | private fun | L274-L278 |
+| `toggleUI()` | private fun | L280-L282 |
+| `toggleThumbnails()` | private fun | L284-L288 |
+| `toggleTheme()` | private fun | L290-L292 |
+| `resetZoom()` | private fun | L294-L296 |
+| `reset()` | private fun | L298-L305 |
+| `reload()` | private fun | L307-L322 |
+| `saveSession()` | private fun | L324-L344 |
+| `getThumbnailUri(pageIndex)` | public fun | L346-L347 |
+| `preloadPage(pageIndex)` | public fun (single page preload, skips if already cached) | L349-L368 |
+| `preloadThumbnails()` | private fun | L370-L393 |
+| `restoreSession()` | private fun | L395-L420 |
+| `onCleared()` | override fun | L422-L433 |
 
 ---
 
@@ -361,20 +360,20 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 17. data/pdf/PdfPageRenderer.kt (L1-L110)
+### 17. data/pdf/PdfPageRenderer.kt (L1-L112)
 
 | Element | Type | Lines |
 |---|---|---|
 | Package + imports | — | L1-L10 |
-| `PdfPageRenderer(context)` | class | L12-L110 |
+| `PdfPageRenderer(context)` | class | L12-L112 |
 | `renderer: PdfRenderer?` | private var | L14 |
 | `currentUri: Uri?` | private var | L15 |
 | `pageCount: Int` | private var | L16 |
 | `cache` | private val LruCache (max 16) | L18-L20 |
-| `open(uri): Int` | fun | L22-L43 |
-| `renderPage(pageIndex, viewportW, viewportH, zoom=1f): Bitmap?` | fun | L45-L64 |
-| `renderThumbnail(pageIndex, maxDim=200): Bitmap?` | fun | L66-L83 |
-| `pageWidth: Int` | val (getter from pdf page 0) | L85-L91 |
-| `pageHeight: Int` | val (getter from pdf page 0) | L93-L99 |
-| `close()` | fun | L101-L107 |
-| `getPageCount(): Int` | fun | L109 |
+| `open(uri): Int` | fun | L22-L44 |
+| `renderPage(pageIndex, viewportW, viewportH, zoom=1f): Bitmap?` | fun — creates ARGB_8888 bitmap filled with WHITE before rendering | L46-L65 |
+| `renderThumbnail(pageIndex, maxDim=200): Bitmap?` | fun — creates ARGB_8888 bitmap filled with WHITE before rendering | L67-L85 |
+| `pageWidth: Int` | val (getter from pdf page 0) | L87-L93 |
+| `pageHeight: Int` | val (getter from pdf page 0) | L95-L101 |
+| `close()` | fun | L103-L109 |
+| `getPageCount(): Int` | fun | L111 |

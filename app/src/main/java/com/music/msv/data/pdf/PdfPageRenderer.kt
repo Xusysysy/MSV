@@ -2,6 +2,7 @@ package com.music.msv.data.pdf
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Color as AndroidColor
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.ParcelFileDescriptor
@@ -56,6 +57,7 @@ class PdfPageRenderer(private val context: Context) {
         val renderWidth = (pw * scale).toInt().coerceAtLeast(1)
         val renderHeight = (ph * scale).toInt().coerceAtLeast(1)
         val bitmap = Bitmap.createBitmap(renderWidth, renderHeight, Bitmap.Config.ARGB_8888)
+        bitmap.eraseColor(AndroidColor.WHITE)
         page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
         page.close()
 
@@ -75,6 +77,7 @@ class PdfPageRenderer(private val context: Context) {
         val w = (page.width.toFloat() * scale).toInt().coerceAtLeast(1)
         val h = (page.height.toFloat() * scale).toInt().coerceAtLeast(1)
         val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        bitmap.eraseColor(AndroidColor.WHITE)
         page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
         page.close()
 

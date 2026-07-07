@@ -117,7 +117,7 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                         onViewportSizeChanged = { w, h ->
                             viewModel.onEvent(ViewerEvent.UpdateViewportSize(w, h))
                         },
-                        onPreloadPage = { viewModel.preloadPage(it) }
+                        onPreloadAround = { viewModel.preloadAround(it) }
                     )
 
                     AnimatedVisibility(

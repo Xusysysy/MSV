@@ -21,7 +21,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
@@ -61,7 +60,7 @@ fun Stage(
     onNextPage: () -> Unit,
     onPrevPage: () -> Unit,
     onViewportSizeChanged: (Int, Int) -> Unit,
-    onPreloadPage: (Int) -> Unit = {},
+    onPreloadAround: (Int) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val bg = if (isDark) Color(0xFF0F1220) else Color(0xFFDFE6F5)
@@ -79,12 +78,6 @@ fun Stage(
     val currentPageIndex by rememberUpdatedState(currentPage)
     val currentPageCount by rememberUpdatedState(pageCount)
     val currentPw by rememberUpdatedState(pw)
-
-    LaunchedEffect(pageCount) {
-        if (pageCount > 0 && stageWidth > 0) {
-            onCenterTap()
-        }
-    }
 
     fun baseX(pageIndex: Int): Float {
         val cp = currentPage
@@ -150,7 +143,7 @@ fun Stage(
                     }
                 }
             }
-            .pointerInput(Unit) {
+            .pointerInput(pageCount) {
                 kotlinx.coroutines.coroutineScope {
                     launch {
                         var activeDir = 0
@@ -187,8 +180,7 @@ fun Stage(
                                         flipJob?.cancel()
                                         activeDir = dir
                                         dragOffset = 0f
-                                        onPreloadPage(currentPageIndex + dir)
-                                        onPreloadPage(currentPageIndex + dir * 2)
+                                        onPreloadAround(currentPageIndex + dir)
                                     }
                                     dragOffset = if (activeDir > 0)
                                         (dragOffset + amount).coerceIn(-currentPw, 0f)
@@ -208,13 +200,11 @@ fun Stage(
                                 val third = sw / 3f
                                 when {
                                     pos.x < third -> {
-                                        onPreloadPage(currentPageIndex - 1)
-                                        onPreloadPage(currentPageIndex - 2)
+                                        onPreloadAround(currentPageIndex - 1)
                                         doFlip(-1, 0f, easing = true)
                                     }
                                     pos.x > sw - third -> {
-                                        onPreloadPage(currentPageIndex + 1)
-                                        onPreloadPage(currentPageIndex + 2)
+                                        onPreloadAround(currentPageIndex + 1)
                                         doFlip(1, 0f, easing = true)
                                     }
                                     else -> onCenterTap()
@@ -232,7 +222,6 @@ fun Stage(
                 modifier = Modifier
                     .offset { IntOffset(pageX(pageIndex).roundToInt(), 0) }
                     .then(pageSizeModifier)
-                    .background(bg)
             ) {
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current).data(uri).build(),
