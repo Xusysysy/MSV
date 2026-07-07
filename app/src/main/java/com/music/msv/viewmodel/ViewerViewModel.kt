@@ -33,7 +33,6 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     private var imageUris: List<Uri> = emptyList()
     private var pdfUri: Uri? = null
     private var loadJob: Job? = null
-    private var preloadJob: Job? = null
     private val thumbnailCache = java.util.concurrent.ConcurrentHashMap<Int, Uri>()
 
     init {
@@ -225,16 +224,17 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         if (pageW <= 0) return
         if (center !in 0 until total) return
         val zoom = state.zoom
-        preloadJob?.cancel()
-        preloadJob = viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO) {
             val newUris = mutableMapOf<Int, Uri>()
-            val uri = when (state.mode) {
-                is Mode.Pdf -> renderPage(center, pageW, pageH, zoom)
-                is Mode.Image -> imageUris.getOrNull(center)
-                else -> null
-            }
-            if (uri != null) {
-                _uiState.update { it.copy(pageUris = it.pageUris + (center to uri)) }
+            if (!state.pageUris.containsKey(center)) {
+                val uri = when (state.mode) {
+                    is Mode.Pdf -> renderPage(center, pageW, pageH, zoom)
+                    is Mode.Image -> imageUris.getOrNull(center)
+                    else -> null
+                }
+                if (uri != null) {
+                    _uiState.update { it.copy(pageUris = it.pageUris + (center to uri)) }
+                }
             }
             for (i in (center - 3)..(center + 3)) {
                 if (i == center || i !in 0 until total || state.pageUris.containsKey(i)) continue
@@ -258,12 +258,9 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             getApplication<Application>().cacheDir,
             "page_$pageIndex.png"
         )
-        cachedFile.delete()
         bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 90, cachedFile.outputStream())
         bmp.recycle()
-        return Uri.fromFile(cachedFile).buildUpon()
-            .appendQueryParameter("t", System.currentTimeMillis().toString())
-            .build()
+        return Uri.fromFile(cachedFile)
     }
 
     private fun updateViewportSize(width: Int, height: Int) {
