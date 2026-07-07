@@ -115,6 +115,17 @@ fun Stage(
         }
     }
 
+    fun doBounce(dir: Int) {
+        if (currentPw <= 0f) return
+        flipJob?.cancel()
+        flipJob = scope.launch {
+            transition.snapTo(0f)
+            val overshoot = -dir * currentPw * 0.08f
+            transition.animateTo(overshoot, tween(100, easing = FastOutSlowInEasing))
+            transition.animateTo(0f, spring(dampingRatio = 0.6f, stiffness = 400f))
+        }
+    }
+
     val pagesToShow = if (pageCount > 0) {
         ((currentPage - 3).coerceAtLeast(0)..(currentPage + 3).coerceAtMost(pageCount - 1))
             .sortedByDescending { it }
@@ -148,11 +159,20 @@ fun Stage(
                             if (currentIsZoomed || currentPw <= 0f) return@detectHorizontalDragGestures
                             if (activeDir == 0) return@detectHorizontalDragGestures
                             val dir = activeDir
-                            if (abs(dragOffset) > currentPw * SWIPE_THRESHOLD) {
-                                doFlip(dir, dragOffset, easing = false)
-                            } else {
-                                flipJob = scope.launch {
-                                    transition.animateTo(0f, spring(dampingRatio = 0.95f, stiffness = 500f))
+                            val atBoundary = currentPageIndex + dir !in 0 until currentPageCount
+                            when {
+                                atBoundary -> {
+                                    flipJob = scope.launch {
+                                        transition.animateTo(0f, spring(dampingRatio = 0.7f, stiffness = 350f))
+                                    }
+                                }
+                                abs(dragOffset) > currentPw * SWIPE_THRESHOLD -> {
+                                    doFlip(dir, dragOffset, easing = false)
+                                }
+                                else -> {
+                                    flipJob = scope.launch {
+                                        transition.animateTo(0f, spring(dampingRatio = 0.95f, stiffness = 500f))
+                                    }
                                 }
                             }
                         },
@@ -165,16 +185,19 @@ fun Stage(
                             if (currentIsZoomed) return@detectHorizontalDragGestures
                             if (activeDir == 0) {
                                 val dir = if (amount < 0) 1 else -1
-                                if (currentPageIndex + dir !in 0 until currentPageCount) return@detectHorizontalDragGestures
+                                val inRange = currentPageIndex + dir in 0 until currentPageCount
                                 flipJob?.cancel()
                                 activeDir = dir
                                 dragOffset = 0f
-                                onPreloadAround(currentPageIndex + dir)
+                                if (inRange) onPreloadAround(currentPageIndex + dir)
                             }
+                            val inRange = currentPageIndex + activeDir in 0 until currentPageCount
+                            val factor = if (inRange) 1f else 0.25f
+                            val limit = if (inRange) currentPw else currentPw * 0.25f
                             dragOffset = if (activeDir > 0)
-                                (dragOffset + amount).coerceIn(-currentPw, 0f)
+                                (dragOffset + amount * factor).coerceIn(-limit, 0f)
                             else
-                                (dragOffset + amount).coerceIn(0f, currentPw)
+                                (dragOffset + amount * factor).coerceIn(0f, limit)
                             scope.launch { transition.snapTo(dragOffset) }
                         }
                     )
@@ -189,12 +212,20 @@ fun Stage(
                         val third = sw / 3f
                         when {
                             pos.x < third -> {
-                                onPreloadAround(currentPageIndex - 1)
-                                doFlip(-1, 0f, easing = true)
+                                if (currentPageIndex > 0) {
+                                    onPreloadAround(currentPageIndex - 1)
+                                    doFlip(-1, 0f, easing = true)
+                                } else {
+                                    doBounce(-1)
+                                }
                             }
                             pos.x > sw - third -> {
-                                onPreloadAround(currentPageIndex + 1)
-                                doFlip(1, 0f, easing = true)
+                                if (currentPageIndex < currentPageCount - 1) {
+                                    onPreloadAround(currentPageIndex + 1)
+                                    doFlip(1, 0f, easing = true)
+                                } else {
+                                    doBounce(1)
+                                }
                             }
                             else -> onCenterTap()
                         }
