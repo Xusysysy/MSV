@@ -256,12 +256,12 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 13. viewmodel/ViewerViewModel.kt (L1-L434)
+### 13. viewmodel/ViewerViewModel.kt (L1-L436)
 
 | Element | Type | Lines |
 |---|---|---|
 | Package + imports | — | L1-L22 |
-| `ViewerViewModel(application)` | class : AndroidViewModel | L24-L434 |
+| `ViewerViewModel(application)` | class : AndroidViewModel | L24-L436 |
 | `fileRepo` | private val FileRepository | L26 |
 | `sessionRepo` | private val SessionRepository | L27 |
 | `pdfRenderer` | private val PdfPageRenderer | L28 |
@@ -279,23 +279,23 @@ Single-screen app — no Navigation component. State-based content switching via
 | `openImages(uris, name, initialPage=0)` | private fun | L161-L185 |
 | `goToPage(page)` | private fun | L187-L195 |
 | `renderPageToCacheComputeSize(pageIndex, ratio)` | private fun | L197-L217 |
-| `preloadAround(center)` | public fun (preload center ± 3 pages, includes center + skips cached) | L219-L242 |
-| `renderPage(pageIndex, pageW, pageH, zoom)` | private fun | L244-L254 |
-| `updateViewportSize(width, height)` | private fun | L256-L268 |
-| `setZoom(zoom)` | private fun | L270-L272 |
-| `panBy(dx, dy)` | private fun | L274-L278 |
-| `toggleUI()` | private fun | L280-L282 |
-| `toggleThumbnails()` | private fun | L284-L288 |
-| `toggleTheme()` | private fun | L290-L292 |
-| `resetZoom()` | private fun | L294-L296 |
-| `reset()` | private fun | L298-L305 |
-| `reload()` | private fun | L307-L322 |
-| `saveSession()` | private fun | L324-L344 |
-| `getThumbnailUri(pageIndex)` | public fun | L346-L347 |
-| `preloadPage(pageIndex)` | public fun (single page preload, skips if already cached) | L349-L368 |
-| `preloadThumbnails()` | private fun | L370-L393 |
-| `restoreSession()` | private fun | L395-L420 |
-| `onCleared()` | override fun | L422-L433 |
+| `preloadAround(center)` | public fun — renders center page FIRST (immediate UI update), then ±3 surrounding pages in background | L219-L252 |
+| `renderPage(pageIndex, pageW, pageH, zoom)` | private fun | L254-L264 |
+| `updateViewportSize(width, height)` | private fun | L266-L278 |
+| `setZoom(zoom)` | private fun | L280-L282 |
+| `panBy(dx, dy)` | private fun | L284-L288 |
+| `toggleUI()` | private fun | L290-L292 |
+| `toggleThumbnails()` | private fun | L294-L298 |
+| `toggleTheme()` | private fun | L300-L302 |
+| `resetZoom()` | private fun | L304-L306 |
+| `reset()` | private fun | L308-L315 |
+| `reload()` | private fun | L317-L332 |
+| `saveSession()` | private fun | L334-L354 |
+| `getThumbnailUri(pageIndex)` | public fun | L356-L357 |
+| `preloadPage(pageIndex)` | public fun (single page preload, skips if already cached) | L359-L378 |
+| `preloadThumbnails()` | private fun | L380-L403 |
+| `restoreSession()` | private fun | L405-L430 |
+| `onCleared()` | override fun | L432-L435 |
 
 ---
 

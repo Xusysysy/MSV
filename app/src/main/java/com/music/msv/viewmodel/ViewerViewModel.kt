@@ -226,8 +226,18 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         val zoom = state.zoom
         viewModelScope.launch(Dispatchers.IO) {
             val newUris = mutableMapOf<Int, Uri>()
+            if (!state.pageUris.containsKey(center)) {
+                val uri = when (state.mode) {
+                    is Mode.Pdf -> renderPage(center, pageW, pageH, zoom)
+                    is Mode.Image -> imageUris.getOrNull(center)
+                    else -> null
+                }
+                if (uri != null) {
+                    _uiState.update { it.copy(pageUris = it.pageUris + (center to uri)) }
+                }
+            }
             for (i in (center - 3)..(center + 3)) {
-                if (i !in 0 until total || state.pageUris.containsKey(i)) continue
+                if (i == center || i !in 0 until total || state.pageUris.containsKey(i)) continue
                 val uri = when (state.mode) {
                     is Mode.Pdf -> renderPage(i, pageW, pageH, zoom)
                     is Mode.Image -> imageUris.getOrNull(i)
