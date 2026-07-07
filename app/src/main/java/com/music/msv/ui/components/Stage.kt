@@ -134,15 +134,6 @@ fun Stage(
                 stageWidth = it.width
                 if (pageWidth <= 0) onViewportSizeChanged(it.width, it.height)
             }
-            .pointerInput(isZoomed) {
-                if (isZoomed) {
-                    detectTransformGestures { _, pan, zoomChange, _ ->
-                        currentZoom = (currentZoom * zoomChange).coerceIn(0.5f, 8f)
-                        onZoomChange(currentZoom)
-                        onPanChange(pan.x, pan.y)
-                    }
-                }
-            }
             .pointerInput(pageCount) {
                 kotlinx.coroutines.coroutineScope {
                     launch {
@@ -212,6 +203,15 @@ fun Stage(
                             },
                             onDoubleTap = { onDoubleTap() }
                         )
+                    }
+                }
+            }
+            .pointerInput(isZoomed) {
+                if (isZoomed) {
+                    detectTransformGestures { _, pan, zoomChange, _ ->
+                        currentZoom = (currentZoom * zoomChange).coerceIn(0.5f, 8f)
+                        onZoomChange(currentZoom)
+                        onPanChange(pan.x, pan.y)
                     }
                 }
             }
