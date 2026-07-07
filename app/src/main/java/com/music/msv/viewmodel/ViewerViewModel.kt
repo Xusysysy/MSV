@@ -352,6 +352,27 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     fun getThumbnailUri(pageIndex: Int): Uri? = thumbnailCache[pageIndex]
         ?: imageUris.getOrNull(pageIndex)
 
+    fun preloadPage(pageIndex: Int) {
+        val state = _uiState.value
+        val total = state.pageCount
+        if (pageIndex !in 0 until total) return
+        if (state.pageUris.containsKey(pageIndex)) return
+        val pageW = state.pageWidth
+        val pageH = state.pageHeight
+        if (pageW <= 0) return
+        val zoom = state.zoom
+        viewModelScope.launch(Dispatchers.IO) {
+            val uri = when (state.mode) {
+                is Mode.Pdf -> renderPage(pageIndex, pageW, pageH, zoom)
+                is Mode.Image -> imageUris.getOrNull(pageIndex)
+                else -> null
+            }
+            if (uri != null) {
+                _uiState.update { it.copy(pageUris = it.pageUris + (pageIndex to uri)) }
+            }
+        }
+    }
+
     private fun preloadThumbnails() {
         val state = _uiState.value
         if (state.mode !is Mode.Pdf) return

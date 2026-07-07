@@ -100,7 +100,19 @@ $env:JAVA_HOME = "D:\software\AndroidStudio\jbr"; .\gradlew.bat assembleDebug
 
 **Prefer modifying files with the Edit tool rather than rewriting entire files. Only use Write when creating new files or when the scope of changes exceeds 50% of the file.**
 
-**After any structural change (new/removed files, changed component responsibilities, navigation flow updates), sync the changes to `STRUCTURE.md`.**
+**ABSOLUTE MANDATE — STRUCTURE.md is the single source of truth for code structure. You MUST:**
+
+1. **Before every task**: Read `STRUCTURE.md` first to understand the code layout, then only read the specific files you need to modify. Do NOT read unrelated files.
+
+2. **After EVERY change** (any file modification, no matter how small): Immediately update `STRUCTURE.md` to reflect the changes. This includes:
+   - New/removed classes, functions, callbacks, events
+   - Changed line ranges for any modified section
+   - Updated descriptions of component responsibilities
+   - New/removed import dependencies
+
+3. **Line-range precision**: Every documented class, function, composable, and logical block MUST have its line range noted as `L{start}-{end}`. The STRUCTURE.md must be precise enough that anyone can locate any piece of logic without reading the source.
+
+**STRUCTURE.md format**: Top-level directory tree → per-file breakdown with line ranges for every significant element (classes, functions, composables, sealed classes, events, key constants, init blocks, nested components).
 
 ---
 
