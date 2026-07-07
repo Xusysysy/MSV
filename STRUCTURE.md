@@ -360,20 +360,20 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 17. data/pdf/PdfPageRenderer.kt (L1-L112)
+### 17. data/pdf/PdfPageRenderer.kt (L1-L125)
 
 | Element | Type | Lines |
 |---|---|---|
-| Package + imports | — | L1-L10 |
-| `PdfPageRenderer(context)` | class | L12-L112 |
-| `renderer: PdfRenderer?` | private var | L14 |
-| `currentUri: Uri?` | private var | L15 |
-| `pageCount: Int` | private var | L16 |
-| `cache` | private val LruCache (max 16) | L18-L20 |
-| `open(uri): Int` | fun | L22-L44 |
-| `renderPage(pageIndex, viewportW, viewportH, zoom=1f): Bitmap?` | fun — creates ARGB_8888 bitmap filled with WHITE before rendering | L46-L65 |
-| `renderThumbnail(pageIndex, maxDim=200): Bitmap?` | fun — creates ARGB_8888 bitmap filled with WHITE before rendering | L67-L85 |
-| `pageWidth: Int` | val (getter from pdf page 0) | L87-L93 |
-| `pageHeight: Int` | val (getter from pdf page 0) | L95-L101 |
-| `close()` | fun | L103-L109 |
-| `getPageCount(): Int` | fun | L111 |
+| Package + imports | — | L1-L11 |
+| `PdfPageRenderer(context)` | class | L13-L125 |
+| `renderer: PdfRenderer?` | private var | L15 |
+| `currentUri: Uri?` | private var | L16 |
+| `pageCount: Int` | private var | L17 |
+| `cache` | private val LruCache (max 16) | L19-L21 |
+| `open(uri): Int` | fun | L23-L45 |
+| `renderPage(pageIndex, viewportW, viewportH, zoom=1f): Bitmap?` | fun — renders to temp bitmap, composites onto white Canvas via SRC_OVER to force opacity | L47-L70 |
+| `renderThumbnail(pageIndex, maxDim=200): Bitmap?` | fun — same temp+composite pattern for full opacity | L72-L95 |
+| `pageWidth: Int` | val (getter from pdf page 0) | L97-L103 |
+| `pageHeight: Int` | val (getter from pdf page 0) | L105-L111 |
+| `close()` | fun | L113-L119 |
+| `getPageCount(): Int` | fun | L121 |

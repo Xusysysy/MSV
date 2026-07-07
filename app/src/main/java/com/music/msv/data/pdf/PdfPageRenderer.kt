@@ -2,6 +2,7 @@ package com.music.msv.data.pdf
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color as AndroidColor
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
@@ -56,13 +57,19 @@ class PdfPageRenderer(private val context: Context) {
         val scale = min(viewportW / pw, viewportH / ph) * zoom
         val renderWidth = (pw * scale).toInt().coerceAtLeast(1)
         val renderHeight = (ph * scale).toInt().coerceAtLeast(1)
-        val bitmap = Bitmap.createBitmap(renderWidth, renderHeight, Bitmap.Config.ARGB_8888)
-        bitmap.eraseColor(AndroidColor.WHITE)
-        page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+
+        val temp = Bitmap.createBitmap(renderWidth, renderHeight, Bitmap.Config.ARGB_8888)
+        page.render(temp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
         page.close()
 
-        cache.put(key, bitmap)
-        return bitmap
+        val result = Bitmap.createBitmap(renderWidth, renderHeight, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(result)
+        canvas.drawColor(AndroidColor.WHITE)
+        canvas.drawBitmap(temp, 0f, 0f, null)
+        temp.recycle()
+
+        cache.put(key, result)
+        return result
     }
 
     fun renderThumbnail(pageIndex: Int, maxDim: Int = 200): Bitmap? {
@@ -76,13 +83,19 @@ class PdfPageRenderer(private val context: Context) {
         val scale = maxDim.toFloat() / page.width.coerceAtLeast(page.height).toFloat()
         val w = (page.width.toFloat() * scale).toInt().coerceAtLeast(1)
         val h = (page.height.toFloat() * scale).toInt().coerceAtLeast(1)
-        val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-        bitmap.eraseColor(AndroidColor.WHITE)
-        page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+
+        val temp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        page.render(temp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
         page.close()
 
-        cache.put(key, bitmap)
-        return bitmap
+        val result = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(result)
+        canvas.drawColor(AndroidColor.WHITE)
+        canvas.drawBitmap(temp, 0f, 0f, null)
+        temp.recycle()
+
+        cache.put(key, result)
+        return result
     }
 
     val pageWidth: Int get() {
