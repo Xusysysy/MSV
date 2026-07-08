@@ -13,10 +13,11 @@ app/src/main/java/com/music/msv/
 │   │   └── Shape.kt             ← Rounded shapes
 │   ├── components/
 │   │   ├── Stage.kt             ← Main viewport + gestures + page rendering
-│   │   ├── TopBar.kt            ← Top control bar (upload, page nav, thumbnails, theme, reset)
+│   │   ├── TopBar.kt            ← Top control bar (shelf, page nav, thumbnails, theme, reset)
 │   │   ├── Footer.kt            ← Status footer
-│   │   ├── EmptyView.kt         ← Idle landing page with upload button
-│   │   ├── ThumbnailPanel.kt    ← Slide-in thumbnail grid
+│   │   ├── EmptyView.kt         ← Idle landing page with shelf button
+│   │   ├── ThumbnailPanel.kt    ← Slide-in thumbnail grid (right)
+│   │   ├── ShelfPanel.kt        ← Slide-in shelf panel (left), lists saved scores with thumbnails
 │   │   └── LoadingOverlay.kt    ← Spinner overlay
 │   └── screen/
 │       └── ViewerScreen.kt      ← Root orchestrator, wires ViewModel → components
@@ -126,27 +127,29 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 6. ui/screen/ViewerScreen.kt (L1-L251)
+### 6. ui/screen/ViewerScreen.kt (L1-L275)
 
 | Element | Type | Lines |
 |---|---|---|
 | Package + imports | — | L1-L48 |
-| `ViewerScreen(viewModel: ViewerViewModel)` | @Composable fun | L50-L250 |
+| `ViewerScreen(viewModel: ViewerViewModel)` | @Composable fun | L50-L275 |
 | `state` | collectAsState | L52 |
 | `filePickerLauncher` | rememberLauncherForActivityResult | L55-L61 |
 | `openFilePicker` | local val lambda | L63-L65 |
 | `showPageDialog` / `pageInput` / `showResetDialog` | mutableStateOf | L67-L69 |
 | `isDark` / `appBg` / `isViewing` | derived vals | L71-L74 |
-| Root Box | composable | L76-L248 |
-| — Inner Box (shell/viewing conditional) | composable | L83-L197 |
-| — — `Mode.Idle` → EmptyView | composable | L97-L98 |
-| — — `else` → Stage | composable | L100-L128 |
-| — — TopBar (AnimatedVisibility, slide+top) | composable | L133-L155 |
-| — — BottomFooter (AnimatedVisibility, slide+bottom) | composable | L158-L169 |
-| — — ThumbnailPanel (AnimatedVisibility, slide+right) | composable | L172-L187 |
-| — — Thumbnail backdrop click Box | composable | L190-L196 |
-| — Page jump AlertDialog | composable | L200-L227 |
-| — Reset/Reload AlertDialog | composable | L230-L247 |
+| Root Box | composable | L76-L273 |
+| — Inner Box (shell/viewing conditional) | composable | L83-L223 |
+| — — `Mode.Idle` → EmptyView (with onShelfClick) | composable | L97-L102 |
+| — — `else` → Stage | composable | L104-L132 |
+| — — TopBar (AnimatedVisibility, slide+top, onShelfClick) | composable | L138-L160 |
+| — — BottomFooter (AnimatedVisibility, slide+bottom) | composable | L163-L174 |
+| — — ThumbnailPanel (AnimatedVisibility, slide+right) | composable | L176-L201 |
+| — — Thumbnail backdrop click Box | composable | L178-L185 |
+| — — ShelfPanel (AnimatedVisibility, slide+left) | composable | L204-L220 |
+| — — Shelf backdrop click Box | composable | L204-L212 |
+| — Page jump AlertDialog | composable | L226-L253 |
+| — Reset/Reload AlertDialog | composable | L256-L273 |
 
 ---
 
@@ -185,10 +188,10 @@ Single-screen app — no Navigation component. State-based content switching via
 |---|---|---|
 | Package + imports | — | L1-L28 |
 | `TopBar` | @Composable fun | L29-L162 |
-| Parameters (11): | isDark, fileName, currentPage, pageCount, showPageNav, onUploadClick, onPageJumpClick, onThumbnailsClick, onThemeClick, onResetClick, modifier | L31-L41 |
+| Parameters (11): | isDark, fileName, currentPage, pageCount, showPageNav, onShelfClick, onPageJumpClick, onThumbnailsClick, onThemeClick, onResetClick, modifier | L31-L41 |
 | Local colors | bg, border, text, muted, divider, ctrlBg, ctrlBorder, accent | L43-L50 |
 | Main Row | composable | L52-L161 |
-| — Upload button Box | icon + text, clickable | L63-L75 |
+| — Shelf button Box | icon + text, clickable (calls onShelfClick) | L63-L75 |
 | — Page nav (if showPageNav) | page number display + divider | L77-L101 |
 | — Weight Spacer | L104 |
 | — File name Text | L107-L116 |
@@ -214,7 +217,7 @@ Single-screen app — no Navigation component. State-based content switching via
 |---|---|---|
 | Package + imports | — | L1-L29 |
 | `EmptyView` | @Composable fun | L31-L89 |
-| Parameters (3): | isDark(default=true), onUploadClick, modifier | L33-L35 |
+| Parameters (3): | isDark(default=true), onShelfClick, modifier | L33-L35 |
 | Local colors | muted, accent, text, bg, border | L37-L41 |
 | Root Box | centered Column | L43-L88 |
 | — Icon Text ("🎼") | L54-L57 |
@@ -241,6 +244,25 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
+### 11b. ui/components/ShelfPanel.kt (L1-L166)
+
+| Element | Type | Lines |
+|---|---|---|
+| Package + imports | — | L1-L36 |
+| `ShelfPanel` | @Composable fun | L38-L166 |
+| Parameters (6): | isDark, shelfFiles(List<ShelfFile>), onFileSelected(Uri->Unit), onImportClick, onClose, modifier | L40-L46 |
+| Local colors | panelBg, itemBg, itemBorder, muted, accent, text | L48-L54 |
+| Column root | composable | L56-L165 |
+| — Close button Box | L58-L74 |
+| — Import button Box ("+ 导入乐谱") | L76-L98 |
+| — Empty state Text | L100-L106 |
+| — LazyColumn | L107-L163 |
+| — — itemsIndexed (shelfFile → item) | L109-L162 |
+| — — — Thumbnail (AsyncImage or 🎼 fallback) | L125-L143 |
+| — — — File name Text | L144-L154 |
+
+---
+
 ### 12. ui/components/LoadingOverlay.kt (L1-L44)
 
 | Element | Type | Lines |
@@ -254,12 +276,12 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 13. viewmodel/ViewerViewModel.kt (L1-L436)
+### 13. viewmodel/ViewerViewModel.kt (L1-L530)
 
 | Element | Type | Lines |
 |---|---|---|
 | Package + imports | — | L1-L22 |
-| `ViewerViewModel(application)` | class : AndroidViewModel | L24-L436 |
+| `ViewerViewModel(application)` | class : AndroidViewModel | L24-L530 |
 | `fileRepo` | private val FileRepository | L26 |
 | `sessionRepo` | private val SessionRepository | L27 |
 | `pdfRenderer` | private val PdfPageRenderer | L28 |
@@ -271,66 +293,74 @@ Single-screen app — no Navigation component. State-based content switching via
 | `thumbnailCache` | private val ConcurrentHashMap | L36 |
 | `init` block | restoreSession() | L38-L40 |
 | `handleShareIntent(intent)` | public fun | L42-L71 |
-| `onEvent(event)` | public fun (event dispatch) | L73-L89 |
-| `handleFilesSelected(uris)` | private fun | L91-L116 |
-| `openPdf(uri, name, restorePage=0)` | private fun | L118-L159 |
-| `openImages(uris, name, initialPage=0)` | private fun | L161-L185 |
-| `goToPage(page)` | private fun | L187-L195 |
-| `renderPageToCacheComputeSize(pageIndex, ratio)` | private fun | L197-L217 |
-| `preloadAround(center)` | public fun — renders center page FIRST (immediate UI update), then ±3 surrounding pages in background | L219-L252 |
-| `renderPage(pageIndex, pageW, pageH, zoom)` | private fun | L254-L264 |
-| `updateViewportSize(width, height)` | private fun | L266-L278 |
-| `setZoom(zoom)` | private fun | L280-L282 |
-| `panBy(dx, dy)` | private fun | L284-L288 |
-| `toggleUI()` | private fun | L290-L292 |
-| `toggleThumbnails()` | private fun | L294-L298 |
-| `toggleTheme()` | private fun | L300-L302 |
-| `resetZoom()` | private fun | L304-L306 |
-| `reset()` | private fun | L308-L315 |
-| `reload()` | private fun | L317-L332 |
-| `saveSession()` | private fun | L334-L354 |
-| `getThumbnailUri(pageIndex)` | public fun | L356-L357 |
-| `preloadPage(pageIndex)` | public fun (single page preload, skips if already cached) | L359-L378 |
-| `preloadThumbnails()` | private fun | L380-L403 |
-| `restoreSession()` | private fun | L405-L430 |
-| `onCleared()` | override fun | L432-L435 |
+| `onEvent(event)` | public fun (event dispatch) | L73-L91 |
+| `handleFilesSelected(uris)` | private fun | L93-L118 |
+| `openPdf(uri, name, restorePage=0)` | private fun | L120-L161 |
+| `openImages(uris, name, initialPage=0)` | private fun | L163-L187 |
+| `goToPage(page)` | private fun | L189-L197 |
+| `renderPageToCacheComputeSize(pageIndex, ratio)` | private fun | L199-L219 |
+| `preloadAround(center)` | public fun | L221-L254 |
+| `renderPage(pageIndex, pageW, pageH, zoom)` | private fun | L256-L266 |
+| `updateViewportSize(width, height)` | private fun | L268-L280 |
+| `setZoom(zoom)` | private fun | L282-L284 |
+| `panBy(dx, dy)` | private fun | L286-L290 |
+| `toggleUI()` | private fun | L292-L294 |
+| `toggleThumbnails()` | private fun | L296-L300 |
+| `toggleShelf()` | private fun — lists local files, generates PDF thumbnails lazily | L302-L305 |
+| `loadShelfFiles()` | private fun — iterates docsDir, creates ShelfFile list, generates PDF thumbnails in background | L307-L323 |
+| `generatePdfThumbnail(fileUri, fileName)` | private fun — renders page 0 at 200px max dim, caches PNG to cacheDir | L325-L353 |
+| `openShelfFile(uri)` | private fun — closes shelf, loads file by URI | L355-L364 |
+| `toggleTheme()` | private fun | L366-L368 |
+| `resetZoom()` | private fun | L370-L372 |
+| `reset()` | private fun | L380-L387 |
+| `reload()` | private fun | L389-L404 |
+| `saveSession()` | private fun | L406-L426 |
+| `getThumbnailUri(pageIndex)` | public fun | L428-L429 |
+| `preloadPage(pageIndex)` | public fun | L431-L450 |
+| `preloadThumbnails()` | private fun | L452-L475 |
+| `restoreSession()` | private fun | L477-L502 |
+| `onCleared()` | override fun | L504-L507 |
 
 ---
 
-### 14. data/model/ViewerState.kt (L1-L46)
+### 14. data/model/ViewerState.kt (L1-L56)
 
 | Element | Type | Lines |
 |---|---|---|
 | Package + import | — | L1-L3 |
-| `ViewerState` | data class (17 fields) | L5-L24 |
-| Fields: | mode(Mode.Idle), currentPage(0), pageCount(0), zoom(1f), panOffsetX(0f), panOffsetY(0f), showUI(true), showThumbnails(false), isDarkTheme(true), statusMessage(""), isLoading(false), fileName(""), pageUris(emptyMap()), pageWidth(0), pageHeight(0), viewportWidth(0), viewportHeight(0), thumbnailsLoading(false) | L6-L23 |
-| `Mode` | sealed class | L26-L30 |
-| — `Idle` | data object | L27 |
-| — `Image` | data object | L28 |
-| — `Pdf` | data object | L29 |
-| `ViewerEvent` | sealed class | L32-L46 |
-| — `FilesSelected(uris)` | data class | L33 |
-| — `GoToPage(page)` | data class | L34 |
-| — `NextPage` | data object | L35 |
-| — `PrevPage` | data object | L36 |
-| — `SetZoom(zoom)` | data class | L37 |
-| — `PanBy(dx, dy)` | data class | L38 |
-| — `UpdateViewportSize(width, height)` | data class | L39 |
-| — `ToggleUI` | data object | L40 |
-| — `ToggleThumbnails` | data object | L41 |
-| — `ToggleTheme` | data object | L42 |
-| — `ResetZoom` | data object | L43 |
-| — `Reset` | data object | L44 |
-| — `Reload` | data object | L45 |
+| `ViewerState` | data class (19 fields) | L5-L26 |
+| Fields: | mode(Mode.Idle), currentPage(0), pageCount(0), zoom(1f), panOffsetX(0f), panOffsetY(0f), showUI(true), showThumbnails(false), showShelf(false), isDarkTheme(true), statusMessage(""), isLoading(false), fileName(""), pageUris(emptyMap()), pageWidth(0), pageHeight(0), viewportWidth(0), viewportHeight(0), thumbnailsLoading(false), shelfFiles(emptyList()) | L6-L25 |
+| `Mode` | sealed class | L28-L32 |
+| — `Idle` | data object | L29 |
+| — `Image` | data object | L30 |
+| — `Pdf` | data object | L31 |
+| `ViewerEvent` | sealed class | L34-L50 |
+| — `FilesSelected(uris)` | data class | L35 |
+| — `GoToPage(page)` | data class | L36 |
+| — `NextPage` | data object | L37 |
+| — `PrevPage` | data object | L38 |
+| — `SetZoom(zoom)` | data class | L39 |
+| — `PanBy(dx, dy)` | data class | L40 |
+| — `UpdateViewportSize(width, height)` | data class | L41 |
+| — `ToggleUI` | data object | L42 |
+| — `ToggleThumbnails` | data object | L43 |
+| — `ToggleTheme` | data object | L44 |
+| — `ResetZoom` | data object | L45 |
+| — `Reset` | data object | L46 |
+| — `Reload` | data object | L47 |
+| — `ToggleShelf` | data object | L48 |
+| — `OpenShelfFile(uri)` | data class | L49 |
+| `ShelfFile` | data class (3 fields) | L52-L56 |
+| Fields: | name(String), uri(Uri), thumbnailUri(Uri?) | L53-L55 |
 
 ---
 
-### 15. data/repository/FileRepository.kt (L1-L71)
+### 15. data/repository/FileRepository.kt (L1-L77)
 
 | Element | Type | Lines |
 |---|---|---|
 | Package + imports | — | L1-L7 |
-| `FileRepository(context)` | class | L9-L71 |
+| `FileRepository(context)` | class | L9-L77 |
 | `docsDir` | private val property (getter) | L11-L12 |
 | `getFileName(uri): String` | fun | L14-L27 |
 | `isPdf(fileName): Boolean` | fun | L29-L30 |
@@ -339,7 +369,8 @@ Single-screen app — no Navigation component. State-based content switching via
 | `takePersistablePermissions(uris)` | fun | L48-L50 |
 | `copyToLocal(uri, fileName): Uri?` | fun | L52-L63 |
 | `getLocalFile(fileName): Uri?` | fun | L65-L68 |
-| `openInputStream(uri)` | fun | L70 |
+| `listLocalFiles(): List<JFile>` | fun — lists all files in docsDir sorted by last modified desc | L70-L73 |
+| `openInputStream(uri)` | fun | L75 |
 
 ---
 
