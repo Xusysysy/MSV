@@ -67,5 +67,10 @@ class FileRepository(private val context: Context) {
         return if (file.exists()) Uri.fromFile(file) else null
     }
 
+    fun listLocalFiles(): List<JFile> {
+        return docsDir.listFiles()?.filter { it.isFile }?.sortedByDescending { it.lastModified() }
+            ?: emptyList()
+    }
+
     fun openInputStream(uri: Uri) = context.contentResolver.openInputStream(uri)
 }

@@ -31,7 +31,7 @@ import com.music.msv.ui.theme.LightMuted
 @Composable
 fun EmptyView(
     isDark: Boolean = true,
-    onUploadClick: () -> Unit,
+    onShelfClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val muted = if (isDark) DarkMuted else LightMuted
@@ -73,12 +73,12 @@ fun EmptyView(
                     .clip(RoundedCornerShape(28.dp))
                     .background(accent)
                     .border(1.dp, accent, RoundedCornerShape(28.dp))
-                    .clickable { onUploadClick() }
+                    .clickable { onShelfClick() }
                     .padding(horizontal = 28.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "打开文件",
+                    text = "📂 谱架",
                     color = Color.White,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold

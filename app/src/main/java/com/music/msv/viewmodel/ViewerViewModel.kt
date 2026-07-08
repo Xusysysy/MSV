@@ -7,6 +7,7 @@ import android.os.Build
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.music.msv.data.model.Mode
+import com.music.msv.data.model.ShelfFile
 import com.music.msv.data.model.ViewerEvent
 import com.music.msv.data.model.ViewerState
 import com.music.msv.data.pdf.PdfPageRenderer
@@ -85,6 +86,8 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             ViewerEvent.ResetZoom -> resetZoom()
             ViewerEvent.Reset -> reset()
             ViewerEvent.Reload -> reload()
+            ViewerEvent.ToggleShelf -> toggleShelf()
+            is ViewerEvent.OpenShelfFile -> openShelfFile(event.uri)
         }
     }
 
@@ -296,6 +299,84 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         val show = !_uiState.value.showThumbnails
         _uiState.update { it.copy(showThumbnails = show) }
         if (show) preloadThumbnails()
+    }
+
+    private fun toggleShelf() {
+        val show = !_uiState.value.showShelf
+        _uiState.update { it.copy(showShelf = show) }
+        if (show) loadShelfFiles()
+    }
+
+    private fun loadShelfFiles() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val files = fileRepo.listLocalFiles().map { file ->
+                ShelfFile(
+                    name = file.name,
+                    uri = Uri.fromFile(file),
+                    thumbnailUri = if (fileRepo.isImage(file.name)) Uri.fromFile(file) else null
+                )
+            }
+            _uiState.update { it.copy(shelfFiles = files) }
+            files.forEachIndexed { index, sf ->
+                if (sf.thumbnailUri != null) return@forEachIndexed
+                val thumb = generatePdfThumbnail(sf.uri, sf.name)
+                if (thumb != null) {
+                    val updated = _uiState.value.shelfFiles.toMutableList()
+                    if (index < updated.size) {
+                        updated[index] = sf.copy(thumbnailUri = thumb)
+                        _uiState.update { it.copy(shelfFiles = updated) }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun generatePdfThumbnail(fileUri: Uri, fileName: String): Uri? {
+        return try {
+            val cachedFile = java.io.File(
+                getApplication<Application>().cacheDir,
+                "shelf_thumb_${fileName.hashCode()}.png"
+            )
+            if (cachedFile.exists()) return Uri.fromFile(cachedFile)
+            val fd = getApplication<Application>().contentResolver.openFileDescriptor(fileUri, "r")
+                ?: return null
+            val renderer = android.graphics.pdf.PdfRenderer(fd)
+            if (renderer.pageCount == 0) {
+                renderer.close()
+                return null
+            }
+            val page = renderer.openPage(0)
+            val maxDim = 200f
+            val scale = maxDim / kotlin.math.max(page.width.toFloat(), page.height.toFloat())
+            val w = (page.width * scale).toInt().coerceAtLeast(1)
+            val h = (page.height * scale).toInt().coerceAtLeast(1)
+            val bmp = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+            val canvas = android.graphics.Canvas(bmp)
+            canvas.drawColor(android.graphics.Color.WHITE)
+            page.render(bmp, null, null, android.graphics.pdf.PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+            page.close()
+            renderer.close()
+            cachedFile.outputStream().use { out ->
+                bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 80, out)
+            }
+            bmp.recycle()
+            Uri.fromFile(cachedFile)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun openShelfFile(uri: Uri) {
+        if (_uiState.value.showShelf) {
+            _uiState.update { it.copy(showShelf = false) }
+        }
+        viewModelScope.launch {
+            val name = fileRepo.getFileName(uri)
+            when {
+                fileRepo.isPdf(name) -> openPdf(uri, name)
+                fileRepo.isImage(name) -> openImages(listOf(uri), name)
+            }
+        }
     }
 
     private fun toggleTheme() {

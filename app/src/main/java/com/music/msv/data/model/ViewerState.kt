@@ -11,6 +11,7 @@ data class ViewerState(
     val panOffsetY: Float = 0f,
     val showUI: Boolean = true,
     val showThumbnails: Boolean = false,
+    val showShelf: Boolean = false,
     val isDarkTheme: Boolean = true,
     val statusMessage: String = "",
     val isLoading: Boolean = false,
@@ -20,7 +21,8 @@ data class ViewerState(
     val pageHeight: Int = 0,
     val viewportWidth: Int = 0,
     val viewportHeight: Int = 0,
-    val thumbnailsLoading: Boolean = false
+    val thumbnailsLoading: Boolean = false,
+    val shelfFiles: List<ShelfFile> = emptyList()
 )
 
 sealed class Mode {
@@ -43,4 +45,12 @@ sealed class ViewerEvent {
     data object ResetZoom : ViewerEvent()
     data object Reset : ViewerEvent()
     data object Reload : ViewerEvent()
+    data object ToggleShelf : ViewerEvent()
+    data class OpenShelfFile(val uri: Uri) : ViewerEvent()
 }
+
+data class ShelfFile(
+    val name: String,
+    val uri: Uri,
+    val thumbnailUri: Uri? = null
+)

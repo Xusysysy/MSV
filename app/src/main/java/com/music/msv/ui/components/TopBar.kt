@@ -33,7 +33,7 @@ fun TopBar(
     currentPage: Int,
     pageCount: Int,
     showPageNav: Boolean,
-    onUploadClick: () -> Unit,
+    onShelfClick: () -> Unit,
     onPageJumpClick: () -> Unit,
     onThumbnailsClick: () -> Unit,
     onThemeClick: () -> Unit,
@@ -59,19 +59,19 @@ fun TopBar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // Upload button
+        // Shelf button
         Row(
             modifier = Modifier
                 .clip(ButtonShape)
                 .background(accent)
                 .border(1.dp, accent, ButtonShape)
-                .clickable { onUploadClick() }
+                .clickable { onShelfClick() }
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Text("+", color = if (isDark) Color(0xFF0F1220) else Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            Text("打开文件", color = if (isDark) Color(0xFF0F1220) else Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Text("📂", color = if (isDark) Color(0xFF0F1220) else Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Text("谱架", color = if (isDark) Color(0xFF0F1220) else Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
         }
 
         if (showPageNav) {

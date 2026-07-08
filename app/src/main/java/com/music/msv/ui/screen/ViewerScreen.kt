@@ -43,6 +43,7 @@ import com.music.msv.data.model.ViewerEvent
 import com.music.msv.ui.components.EmptyView
 import com.music.msv.ui.components.LoadingOverlay
 import com.music.msv.ui.components.BottomFooter
+import com.music.msv.ui.components.ShelfPanel
 import com.music.msv.ui.components.Stage
 import com.music.msv.ui.components.ThumbnailPanel
 import com.music.msv.ui.components.TopBar
@@ -96,7 +97,10 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
         ) {
             when (state.mode) {
                 Mode.Idle -> {
-                    EmptyView(isDark = isDark, onUploadClick = openFilePicker)
+                    EmptyView(
+                        isDark = isDark,
+                        onShelfClick = { viewModel.onEvent(ViewerEvent.ToggleShelf) }
+                    )
                 }
                 else -> {
                     Stage(
@@ -145,7 +149,7 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                     currentPage = state.currentPage + 1,
                     pageCount = state.pageCount,
                     showPageNav = isViewing,
-                    onUploadClick = openFilePicker,
+                    onShelfClick = { viewModel.onEvent(ViewerEvent.ToggleShelf) },
                     onPageJumpClick = {
                         pageInput = (state.currentPage + 1).toString()
                         showPageDialog = true
@@ -194,6 +198,32 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                     getThumbnailUri = { viewModel.getThumbnailUri(it) },
                     onPageSelected = { viewModel.onEvent(ViewerEvent.GoToPage(it)) },
                     onClose = { viewModel.onEvent(ViewerEvent.ToggleThumbnails) }
+                )
+            }
+
+            if (state.showShelf) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable(
+                            indication = null,
+                            interactionSource = remember { MutableInteractionSource() }
+                        ) { viewModel.onEvent(ViewerEvent.ToggleShelf) }
+                )
+            }
+
+            AnimatedVisibility(
+                visible = state.showShelf,
+                enter = slideInHorizontally { -it / 3 } + fadeIn(),
+                exit = slideOutHorizontally { -it / 3 } + fadeOut(),
+                modifier = Modifier.align(Alignment.CenterStart)
+            ) {
+                ShelfPanel(
+                    isDark = isDark,
+                    shelfFiles = state.shelfFiles,
+                    onFileSelected = { uri -> viewModel.onEvent(ViewerEvent.OpenShelfFile(uri)) },
+                    onImportClick = openFilePicker,
+                    onClose = { viewModel.onEvent(ViewerEvent.ToggleShelf) }
                 )
             }
         }
