@@ -244,22 +244,22 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 11b. ui/components/ShelfPanel.kt (L1-L166)
+### 11b. ui/components/ShelfPanel.kt (L1-L168)
 
 | Element | Type | Lines |
 |---|---|---|
-| Package + imports | — | L1-L36 |
-| `ShelfPanel` | @Composable fun | L38-L166 |
-| Parameters (6): | isDark, shelfFiles(List<ShelfFile>), onFileSelected(Uri->Unit), onImportClick, onClose, modifier | L40-L46 |
-| Local colors | panelBg, itemBg, itemBorder, muted, accent, text | L48-L54 |
-| Column root | composable | L56-L165 |
-| — Close button Box | L58-L74 |
-| — Import button Box ("+ 导入乐谱") | L76-L98 |
-| — Empty state Text | L100-L106 |
-| — LazyColumn | L107-L163 |
-| — — itemsIndexed (shelfFile → item) | L109-L162 |
-| — — — Thumbnail (AsyncImage or 🎼 fallback) | L125-L143 |
-| — — — File name Text | L144-L154 |
+| Package + imports | — | L1-L39 |
+| `ShelfPanel` | @Composable fun | L41-L168 |
+| Parameters (6): | isDark, shelfFiles(List<ShelfFile>), onFileSelected(Uri->Unit), onImportClick, onClose, modifier | L43-L49 |
+| Local colors | panelBg, itemBg, itemBorder, muted, accent, text | L51-L57 |
+| Column root | composable | L59-L168 |
+| — Close button Box | L61-L77 |
+| — Import button Box ("+ 导入乐谱") | L79-L101 |
+| — Empty state Text | L103-L109 |
+| — LazyVerticalGrid (2 cols) | L111-L166 |
+| — — itemsIndexed (shelfFile → item) | L113-L165 |
+| — — — Thumbnail (AsyncImage or 🎼 fallback) | L129-L147 |
+| — — — File name Text | L148-L158 |
 
 ---
 
@@ -294,7 +294,7 @@ Single-screen app — no Navigation component. State-based content switching via
 | `init` block | restoreSession() | L38-L40 |
 | `handleShareIntent(intent)` | public fun | L42-L71 |
 | `onEvent(event)` | public fun (event dispatch) | L73-L91 |
-| `handleFilesSelected(uris)` | private fun | L93-L118 |
+| `handleFilesSelected(uris)` | private fun — imports file, then calls loadShelfFiles() if shelf is visible | L94-L120 |
 | `openPdf(uri, name, restorePage=0)` | private fun | L120-L161 |
 | `openImages(uris, name, initialPage=0)` | private fun | L163-L187 |
 | `goToPage(page)` | private fun | L189-L197 |
