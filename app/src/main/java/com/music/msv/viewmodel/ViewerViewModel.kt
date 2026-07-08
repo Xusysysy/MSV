@@ -115,6 +115,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                     }
                 }
             }
+            if (_uiState.value.showShelf) loadShelfFiles()
         }
     }
 

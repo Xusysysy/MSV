@@ -15,8 +15,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -114,28 +115,29 @@ fun ShelfPanel(
                 Text("暂无导入的乐谱", color = muted, fontSize = 14.sp)
             }
         } else {
-            LazyColumn(
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
                 itemsIndexed(shelfFiles) { _, sf ->
                     Column(
                         modifier = Modifier
-                            .fillMaxWidth()
                             .clip(RoundedCornerShape(12.dp))
                             .background(itemBg, RoundedCornerShape(12.dp))
                             .border(1.dp, itemBorder, RoundedCornerShape(12.dp))
                             .clickable { onFileSelected(sf.uri) }
-                            .padding(8.dp),
+                            .padding(6.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         val context = LocalContext.current
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .aspectRatio(1.2f)
+                                .aspectRatio(0.75f)
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(if (isDark) Color(0x2E000000) else Color(0x141A2230)),
                             contentAlignment = Alignment.Center
@@ -153,14 +155,14 @@ fun ShelfPanel(
                             } else {
                                 Text(
                                     "🎼",
-                                    fontSize = 32.sp
+                                    fontSize = 24.sp
                                 )
                             }
                         }
                         Text(
                             text = sf.name,
                             color = text,
-                            fontSize = 12.sp,
+                            fontSize = 11.sp,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                             textAlign = TextAlign.Center
