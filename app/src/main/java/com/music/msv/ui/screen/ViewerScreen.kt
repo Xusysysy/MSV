@@ -14,6 +14,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -169,30 +170,30 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                 )
             }
 
+            if (state.showThumbnails && state.pageCount > 0) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable(
+                            indication = null,
+                            interactionSource = remember { MutableInteractionSource() }
+                        ) { viewModel.onEvent(ViewerEvent.ToggleThumbnails) }
+                )
+            }
+
             AnimatedVisibility(
                 visible = state.showThumbnails && state.pageCount > 0,
                 enter = slideInHorizontally { it / 3 } + fadeIn(),
                 exit = slideOutHorizontally { it / 3 } + fadeOut(),
                 modifier = Modifier.align(Alignment.CenterEnd)
             ) {
-                Box {
-                    ThumbnailPanel(
-                        isDark = isDark,
-                        pageCount = state.pageCount,
-                        currentPage = state.currentPage,
-                        getThumbnailUri = { viewModel.getThumbnailUri(it) },
-                        onPageSelected = { viewModel.onEvent(ViewerEvent.GoToPage(it)) },
-                        onClose = { viewModel.onEvent(ViewerEvent.ToggleThumbnails) }
-                    )
-                }
-            }
-
-            if (state.showThumbnails && state.pageCount > 0) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clickable { viewModel.onEvent(ViewerEvent.ToggleThumbnails) }
-                        .padding(end = 280.dp)
+                ThumbnailPanel(
+                    isDark = isDark,
+                    pageCount = state.pageCount,
+                    currentPage = state.currentPage,
+                    getThumbnailUri = { viewModel.getThumbnailUri(it) },
+                    onPageSelected = { viewModel.onEvent(ViewerEvent.GoToPage(it)) },
+                    onClose = { viewModel.onEvent(ViewerEvent.ToggleThumbnails) }
                 )
             }
         }
