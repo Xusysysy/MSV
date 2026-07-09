@@ -244,22 +244,25 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 11b. ui/components/ShelfPanel.kt (L1-L168)
+### 11b. ui/components/ShelfPanel.kt (L1-L255)
 
 | Element | Type | Lines |
 |---|---|---|
-| Package + imports | — | L1-L39 |
-| `ShelfPanel` | @Composable fun | L41-L168 |
-| Parameters (6): | isDark, shelfFiles(List<ShelfFile>), onFileSelected(Uri->Unit), onImportClick, onClose, modifier | L43-L49 |
-| Local colors | panelBg, itemBg, itemBorder, muted, accent, text | L51-L57 |
-| Column root | composable | L59-L168 |
-| — Close button Box | L61-L77 |
-| — Import button Box ("+ 导入乐谱") | L79-L101 |
-| — Empty state Text | L103-L109 |
-| — LazyVerticalGrid (2 cols) | L111-L166 |
-| — — itemsIndexed (shelfFile → item) | L113-L165 |
-| — — — Thumbnail (AsyncImage or 🎼 fallback) | L129-L147 |
-| — — — File name Text | L148-L158 |
+| Package + imports | — | L1-L56 |
+| `ShelfPanel` | @Composable fun | L58-L255 |
+| Parameters (9): | isDark, shelfFiles, shelfSortBy, onFileSelected, onImportClick, onClose, onRename, onToggleSort, modifier | L60-L68 |
+| Local colors + rename state | panelBg, itemBg, itemBorder, muted, accent, text, renameTarget, renameText | L70-L78 |
+| Column root | composable | L80-L254 |
+| — Close button Box | L82-L95 |
+| — Row: Import button + Sort toggle | L97-L144 |
+| — — Import button ("+ 导入乐谱") | L103-L115 |
+| — — Sort toggle (↓/A) | L116-L129 |
+| — Empty state Text | L134-L140 |
+| — LazyVerticalGrid (2 cols) | L142-L209 |
+| — — itemsIndexed (combinedClickable: click→open, longClick→rename) | L144-L208 |
+| — — — Thumbnail (AsyncImage or 🎼 fallback) | L159-L177 |
+| — — — File name Text | L178-L190 |
+| — Rename AlertDialog | L212-L253 |
 
 ---
 
@@ -306,10 +309,12 @@ Single-screen app — no Navigation component. State-based content switching via
 | `panBy(dx, dy)` | private fun | L286-L290 |
 | `toggleUI()` | private fun | L292-L294 |
 | `toggleThumbnails()` | private fun | L296-L300 |
-| `toggleShelf()` | private fun — lists local files, generates PDF thumbnails lazily | L302-L305 |
-| `loadShelfFiles()` | private fun — iterates docsDir, creates ShelfFile list, generates PDF thumbnails in background | L307-L323 |
-| `generatePdfThumbnail(fileUri, fileName)` | private fun — renders page 0 at 200px max dim, caches PNG to cacheDir | L325-L353 |
-| `openShelfFile(uri)` | private fun — closes shelf, loads file by URI | L355-L364 |
+| `toggleShelf()` | private fun | L305-L309 |
+| `toggleShelfSort()` | private fun — toggles NAME↔DATE, reloads shelf | L311-L315 |
+| `loadShelfFiles()` | private fun — sorts by shelfSortBy, maps to ShelfFile, generates PDF thumbnails via uri-key (not index) | L317-L338 |
+| `generatePdfThumbnail(fileUri)` | private fun — renders page 0 at 200px, caches by filePath hash | L340-L363 |
+| `renameShelfFile(oldUri, newName)` | private fun — renames file in docsDir, refreshes shelf | L365-L377 |
+| `openShelfFile(uri)` | private fun — closes shelf, loads file by URI | L379-L386 |
 | `toggleTheme()` | private fun | L366-L368 |
 | `resetZoom()` | private fun | L370-L372 |
 | `reset()` | private fun | L380-L387 |
@@ -323,35 +328,38 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 14. data/model/ViewerState.kt (L1-L56)
+### 14. data/model/ViewerState.kt (L1-L62)
 
 | Element | Type | Lines |
 |---|---|---|
 | Package + import | — | L1-L3 |
-| `ViewerState` | data class (19 fields) | L5-L26 |
-| Fields: | mode(Mode.Idle), currentPage(0), pageCount(0), zoom(1f), panOffsetX(0f), panOffsetY(0f), showUI(true), showThumbnails(false), showShelf(false), isDarkTheme(true), statusMessage(""), isLoading(false), fileName(""), pageUris(emptyMap()), pageWidth(0), pageHeight(0), viewportWidth(0), viewportHeight(0), thumbnailsLoading(false), shelfFiles(emptyList()) | L6-L25 |
-| `Mode` | sealed class | L28-L32 |
-| — `Idle` | data object | L29 |
-| — `Image` | data object | L30 |
-| — `Pdf` | data object | L31 |
-| `ViewerEvent` | sealed class | L34-L50 |
-| — `FilesSelected(uris)` | data class | L35 |
-| — `GoToPage(page)` | data class | L36 |
-| — `NextPage` | data object | L37 |
-| — `PrevPage` | data object | L38 |
-| — `SetZoom(zoom)` | data class | L39 |
-| — `PanBy(dx, dy)` | data class | L40 |
-| — `UpdateViewportSize(width, height)` | data class | L41 |
-| — `ToggleUI` | data object | L42 |
-| — `ToggleThumbnails` | data object | L43 |
-| — `ToggleTheme` | data object | L44 |
-| — `ResetZoom` | data object | L45 |
-| — `Reset` | data object | L46 |
-| — `Reload` | data object | L47 |
-| — `ToggleShelf` | data object | L48 |
-| — `OpenShelfFile(uri)` | data class | L49 |
-| `ShelfFile` | data class (3 fields) | L52-L56 |
-| Fields: | name(String), uri(Uri), thumbnailUri(Uri?) | L53-L55 |
+| `ViewerState` | data class (20 fields) | L5-L27 |
+| Fields: | mode, currentPage, pageCount, zoom, panOffsetX, panOffsetY, showUI, showThumbnails, showShelf, isDarkTheme, statusMessage, isLoading, fileName, pageUris, pageWidth, pageHeight, viewportWidth, viewportHeight, thumbnailsLoading, shelfFiles(emptyList()), shelfSortBy(ShelfSort.DATE) | L6-L26 |
+| `ShelfSort` | enum (NAME, DATE) | L29 |
+| `Mode` | sealed class | L31-L35 |
+| — `Idle` | data object | L32 |
+| — `Image` | data object | L33 |
+| — `Pdf` | data object | L34 |
+| `ViewerEvent` | sealed class | L37-L55 |
+| — `FilesSelected(uris)` | data class | L38 |
+| — `GoToPage(page)` | data class | L39 |
+| — `NextPage` | data object | L40 |
+| — `PrevPage` | data object | L41 |
+| — `SetZoom(zoom)` | data class | L42 |
+| — `PanBy(dx, dy)` | data class | L43 |
+| — `UpdateViewportSize(width, height)` | data class | L44 |
+| — `ToggleUI` | data object | L45 |
+| — `ToggleThumbnails` | data object | L46 |
+| — `ToggleTheme` | data object | L47 |
+| — `ResetZoom` | data object | L48 |
+| — `Reset` | data object | L49 |
+| — `Reload` | data object | L50 |
+| — `ToggleShelf` | data object | L51 |
+| — `OpenShelfFile(uri)` | data class | L52 |
+| — `RenameShelfFile(uri, newName)` | data class | L53 |
+| — `ToggleShelfSort` | data object | L54 |
+| `ShelfFile` | data class (3 fields) | L57-L62 |
+| Fields: | name(String), uri(Uri), thumbnailUri(Uri?) | L59-L61 |
 
 ---
 
