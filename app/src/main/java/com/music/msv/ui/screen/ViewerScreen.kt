@@ -221,9 +221,12 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                 ShelfPanel(
                     isDark = isDark,
                     shelfFiles = state.shelfFiles,
+                    shelfSortBy = state.shelfSortBy,
                     onFileSelected = { uri -> viewModel.onEvent(ViewerEvent.OpenShelfFile(uri)) },
                     onImportClick = openFilePicker,
-                    onClose = { viewModel.onEvent(ViewerEvent.ToggleShelf) }
+                    onClose = { viewModel.onEvent(ViewerEvent.ToggleShelf) },
+                    onRename = { uri, name -> viewModel.onEvent(ViewerEvent.RenameShelfFile(uri, name)) },
+                    onToggleSort = { viewModel.onEvent(ViewerEvent.ToggleShelfSort) }
                 )
             }
         }

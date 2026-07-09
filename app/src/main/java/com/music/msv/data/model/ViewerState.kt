@@ -22,8 +22,11 @@ data class ViewerState(
     val viewportWidth: Int = 0,
     val viewportHeight: Int = 0,
     val thumbnailsLoading: Boolean = false,
-    val shelfFiles: List<ShelfFile> = emptyList()
+    val shelfFiles: List<ShelfFile> = emptyList(),
+    val shelfSortBy: ShelfSort = ShelfSort.DATE
 )
+
+enum class ShelfSort { NAME, DATE }
 
 sealed class Mode {
     data object Idle : Mode()
@@ -47,6 +50,8 @@ sealed class ViewerEvent {
     data object Reload : ViewerEvent()
     data object ToggleShelf : ViewerEvent()
     data class OpenShelfFile(val uri: Uri) : ViewerEvent()
+    data class RenameShelfFile(val uri: Uri, val newName: String) : ViewerEvent()
+    data object ToggleShelfSort : ViewerEvent()
 }
 
 data class ShelfFile(

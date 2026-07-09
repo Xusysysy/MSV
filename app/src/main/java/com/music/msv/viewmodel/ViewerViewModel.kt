@@ -8,6 +8,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.music.msv.data.model.Mode
 import com.music.msv.data.model.ShelfFile
+import com.music.msv.data.model.ShelfSort
 import com.music.msv.data.model.ViewerEvent
 import com.music.msv.data.model.ViewerState
 import com.music.msv.data.pdf.PdfPageRenderer
@@ -88,6 +89,8 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             ViewerEvent.Reload -> reload()
             ViewerEvent.ToggleShelf -> toggleShelf()
             is ViewerEvent.OpenShelfFile -> openShelfFile(event.uri)
+            is ViewerEvent.RenameShelfFile -> renameShelfFile(event.uri, event.newName)
+            ViewerEvent.ToggleShelfSort -> toggleShelfSort()
         }
     }
 
@@ -308,9 +311,22 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         if (show) loadShelfFiles()
     }
 
+    private fun toggleShelfSort() {
+        val current = _uiState.value.shelfSortBy
+        val next = if (current == ShelfSort.DATE) ShelfSort.NAME else ShelfSort.DATE
+        _uiState.update { it.copy(shelfSortBy = next) }
+        loadShelfFiles()
+    }
+
     private fun loadShelfFiles() {
         viewModelScope.launch(Dispatchers.IO) {
-            val files = fileRepo.listLocalFiles().map { file ->
+            val sortBy = _uiState.value.shelfSortBy
+            val files = fileRepo.listLocalFiles().let { list ->
+                when (sortBy) {
+                    ShelfSort.NAME -> list.sortedBy { it.name.lowercase() }
+                    ShelfSort.DATE -> list.sortedByDescending { it.lastModified() }
+                }
+            }.map { file ->
                 ShelfFile(
                     name = file.name,
                     uri = Uri.fromFile(file),
@@ -318,52 +334,59 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 )
             }
             _uiState.update { it.copy(shelfFiles = files) }
-            files.forEachIndexed { index, sf ->
-                if (sf.thumbnailUri != null) return@forEachIndexed
-                val thumb = generatePdfThumbnail(sf.uri, sf.name)
+            for (sf in files) {
+                if (sf.thumbnailUri != null) continue
+                val thumb = generatePdfThumbnail(sf.uri)
                 if (thumb != null) {
-                    val updated = _uiState.value.shelfFiles.toMutableList()
-                    if (index < updated.size) {
-                        updated[index] = sf.copy(thumbnailUri = thumb)
-                        _uiState.update { it.copy(shelfFiles = updated) }
+                    _uiState.update { state ->
+                        val updated = state.shelfFiles.map { f ->
+                            if (f.uri == sf.uri) f.copy(thumbnailUri = thumb) else f
+                        }
+                        state.copy(shelfFiles = updated)
                     }
                 }
             }
         }
     }
 
-    private fun generatePdfThumbnail(fileUri: Uri, fileName: String): Uri? {
+    private fun generatePdfThumbnail(fileUri: Uri): Uri? {
         return try {
-            val cachedFile = java.io.File(
-                getApplication<Application>().cacheDir,
-                "shelf_thumb_${fileName.hashCode()}.png"
-            )
-            if (cachedFile.exists()) return Uri.fromFile(cachedFile)
-            val fd = getApplication<Application>().contentResolver.openFileDescriptor(fileUri, "r")
-                ?: return null
+            val app = getApplication<Application>()
+            val filePath = fileUri.path ?: fileUri.toString()
+            val cacheKey = "shelf_thumb_${filePath.hashCode()}_${fileUri.lastPathSegment?.hashCode() ?: 0}"
+            val cachedFile = java.io.File(app.cacheDir, "$cacheKey.png")
+            if (cachedFile.exists() && cachedFile.length() > 0) return Uri.fromFile(cachedFile)
+            val fd = app.contentResolver.openFileDescriptor(fileUri, "r") ?: return null
             val renderer = android.graphics.pdf.PdfRenderer(fd)
-            if (renderer.pageCount == 0) {
-                renderer.close()
-                return null
-            }
+            if (renderer.pageCount == 0) { renderer.close(); return null }
             val page = renderer.openPage(0)
             val maxDim = 200f
             val scale = maxDim / kotlin.math.max(page.width.toFloat(), page.height.toFloat())
             val w = (page.width * scale).toInt().coerceAtLeast(1)
             val h = (page.height * scale).toInt().coerceAtLeast(1)
             val bmp = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
-            val canvas = android.graphics.Canvas(bmp)
-            canvas.drawColor(android.graphics.Color.WHITE)
+            android.graphics.Canvas(bmp).drawColor(android.graphics.Color.WHITE)
             page.render(bmp, null, null, android.graphics.pdf.PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
             page.close()
             renderer.close()
-            cachedFile.outputStream().use { out ->
-                bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 80, out)
-            }
+            cachedFile.outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 80, it) }
             bmp.recycle()
             Uri.fromFile(cachedFile)
-        } catch (_: Exception) {
-            null
+        } catch (_: Exception) { null }
+    }
+
+    private fun renameShelfFile(oldUri: Uri, newName: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val oldFile = java.io.File(oldUri.path ?: return@launch)
+            if (!oldFile.exists()) return@launch
+            val ext = oldFile.extension
+            val newFileName = if (newName.endsWith(".$ext")) newName else "$newName.$ext"
+            val newFile = java.io.File(oldFile.parentFile, newFileName)
+            if (newFile.exists() || !oldFile.renameTo(newFile)) {
+                _uiState.update { it.copy(statusMessage = "重命名失败") }
+                return@launch
+            }
+            loadShelfFiles()
         }
     }
 
