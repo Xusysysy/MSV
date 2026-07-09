@@ -394,6 +394,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         if (_uiState.value.showShelf) {
             _uiState.update { it.copy(showShelf = false) }
         }
+        thumbnailCache.clear()
         viewModelScope.launch {
             val name = fileRepo.getFileName(uri)
             when {
