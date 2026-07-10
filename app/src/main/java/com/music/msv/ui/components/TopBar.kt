@@ -113,8 +113,7 @@ fun TopBar(
                 color = muted,
                 fontSize = 12.sp,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false)
+                overflow = TextOverflow.Ellipsis
             )
         }
 

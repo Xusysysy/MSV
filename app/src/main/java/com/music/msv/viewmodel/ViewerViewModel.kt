@@ -386,7 +386,14 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 _uiState.update { it.copy(statusMessage = "重命名失败") }
                 return@launch
             }
+            val newUri = Uri.fromFile(newFile)
             loadShelfFiles()
+            if (oldUri == pdfUri || oldUri in imageUris) {
+                val cp = _uiState.value.currentPage
+                val name = fileRepo.getFileName(newUri)
+                if (fileRepo.isPdf(name)) openPdf(newUri, name, cp)
+                else if (fileRepo.isImage(name)) openImages(listOf(newUri), name, cp)
+            }
         }
     }
 
