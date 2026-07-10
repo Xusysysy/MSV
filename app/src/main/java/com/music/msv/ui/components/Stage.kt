@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
@@ -259,10 +260,14 @@ fun Stage(
                     model = ImageRequest.Builder(LocalContext.current).data(uri).build(),
                     contentDescription = "page $pageIndex",
                     contentScale = ContentScale.FillBounds,
-                    colorFilter = if (isDark) ColorFilter.colorMatrix(invertColorMatrix) else null,
                     modifier = Modifier
                         .fillMaxSize()
                         .shadow(6.dp, RectangleShape)
+                        .graphicsLayer {
+                            if (isDark) {
+                                colorFilter = ColorFilter.colorMatrix(invertColorMatrix)
+                            }
+                        }
                 )
             }
         }
