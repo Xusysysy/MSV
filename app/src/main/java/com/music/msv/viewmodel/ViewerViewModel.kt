@@ -151,9 +151,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                         panOffsetY = 0f,
                         pageUris = emptyMap(),
                         pageWidth = 0,
-                        pageHeight = 0,
-                        viewportWidth = 0,
-                        viewportHeight = 0
+                        pageHeight = 0
                     )
                 }
                 renderPageToCacheComputeSize(rp, ratio)
@@ -183,9 +181,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 panOffsetY = 0f,
                 pageUris = uris.mapIndexed { i, u -> i to u }.toMap(),
                 pageWidth = 0,
-                pageHeight = 0,
-                viewportWidth = 0,
-                viewportHeight = 0
+                pageHeight = 0
             )
         }
         saveSession()
@@ -258,12 +254,15 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    private val docCacheKey: String
+        get() = pdfUri?.path?.hashCode()?.toString(36) ?: "0"
+
     private fun renderPage(pageIndex: Int, pageW: Int, pageH: Int, zoom: Float): Uri? {
         if (pageW <= 0 || pageH <= 0) return null
         val bmp = pdfRenderer.renderPage(pageIndex, pageW, pageH, zoom) ?: return null
         val cachedFile = java.io.File(
             getApplication<Application>().cacheDir,
-            "page_$pageIndex.jpg"
+            "page_${docCacheKey}_$pageIndex.jpg"
         )
         cachedFile.delete()
         bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 95, cachedFile.outputStream())
@@ -489,12 +488,13 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         if (state.mode !is Mode.Pdf) return
         if (state.pageCount == 0) return
         _uiState.update { it.copy(thumbnailsLoading = true) }
+        val dk = docCacheKey
         viewModelScope.launch(Dispatchers.IO) {
             for (i in 0 until state.pageCount) {
                 if (thumbnailCache.containsKey(i)) continue
                 val cachedFile = java.io.File(
                     getApplication<Application>().cacheDir,
-                    "thumb_$i.png"
+                    "thumb_${dk}_$i.png"
                 )
                 if (cachedFile.exists()) {
                     thumbnailCache[i] = Uri.fromFile(cachedFile)
