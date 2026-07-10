@@ -42,9 +42,9 @@ import com.music.msv.ui.theme.ThumbnailThumbShape
 
 private val invertColorMatrix = ColorMatrix(
     floatArrayOf(
-        -1f, 0f, 0f, 0f, 1f,
-        0f, -1f, 0f, 0f, 1f,
-        0f, 0f, -1f, 0f, 1f,
+        -1f, 0f, 0f, 0f, 255f,
+        0f, -1f, 0f, 0f, 255f,
+        0f, 0f, -1f, 0f, 255f,
         0f, 0f, 0f, 1f, 0f
     )
 )
@@ -134,9 +134,7 @@ fun ThumbnailPanel(
                             .clip(ThumbnailThumbShape)
                             .background(if (isDark) Color(0x2E000000) else Color(0x141A2230))
                             .graphicsLayer {
-                                if (isDark) {
-                                    colorFilter = ColorFilter.colorMatrix(invertColorMatrix)
-                                }
+                                colorFilter = if (isDark) ColorFilter.colorMatrix(invertColorMatrix) else null
                             }
                     )
                     Text(

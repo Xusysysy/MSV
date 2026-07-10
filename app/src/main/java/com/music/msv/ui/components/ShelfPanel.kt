@@ -55,9 +55,9 @@ import com.music.msv.ui.theme.ButtonShape
 
 private val invertColorMatrix = ColorMatrix(
     floatArrayOf(
-        -1f, 0f, 0f, 0f, 1f,
-        0f, -1f, 0f, 0f, 1f,
-        0f, 0f, -1f, 0f, 1f,
+        -1f, 0f, 0f, 0f, 255f,
+        0f, -1f, 0f, 0f, 255f,
+        0f, 0f, -1f, 0f, 255f,
         0f, 0f, 0f, 1f, 0f
     )
 )
@@ -206,9 +206,7 @@ fun ShelfPanel(
                                     modifier = Modifier
                                         .fillMaxSize()
                                         .graphicsLayer {
-                                            if (isDark) {
-                                                colorFilter = ColorFilter.colorMatrix(invertColorMatrix)
-                                            }
+                                            colorFilter = if (isDark) ColorFilter.colorMatrix(invertColorMatrix) else null
                                         }
                                 )
                             } else {
