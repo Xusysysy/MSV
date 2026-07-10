@@ -38,7 +38,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -203,11 +202,8 @@ fun ShelfPanel(
                                         .build(),
                                     contentDescription = sf.name,
                                     contentScale = ContentScale.Fit,
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .graphicsLayer {
-                                            colorFilter = if (isDark) ColorFilter.colorMatrix(invertColorMatrix) else null
-                                        }
+                                    colorFilter = if (isDark) ColorFilter.colorMatrix(invertColorMatrix) else null,
+                                    modifier = Modifier.fillMaxSize()
                                 )
                             } else {
                                 Text(

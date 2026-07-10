@@ -27,7 +27,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
@@ -128,14 +127,12 @@ fun ThumbnailPanel(
                             .build(),
                         contentDescription = "Page ${index + 1}",
                         contentScale = ContentScale.Fit,
+                        colorFilter = if (isDark) ColorFilter.colorMatrix(invertColorMatrix) else null,
                         modifier = Modifier
                             .fillMaxWidth()
                             .aspectRatio(0.75f)
                             .clip(ThumbnailThumbShape)
                             .background(if (isDark) Color(0x2E000000) else Color(0x141A2230))
-                            .graphicsLayer {
-                                colorFilter = if (isDark) ColorFilter.colorMatrix(invertColorMatrix) else null
-                            }
                     )
                     Text(
                         text = "${index + 1}",
