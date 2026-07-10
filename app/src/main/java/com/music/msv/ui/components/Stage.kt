@@ -145,11 +145,13 @@ fun Stage(
             }
             .pointerInput(pageCount) {
                 var activeDir = 0
+                var reversed = false
                 while (true) {
                     detectHorizontalDragGestures(
                         onDragStart = {
                             flipJob?.cancel()
                             activeDir = 0
+                            reversed = false
                             dragOffset = 0f
                             scope.launch { transition.snapTo(0f) }
                         },
@@ -158,7 +160,7 @@ fun Stage(
                             if (activeDir == 0) return@detectHorizontalDragGestures
                             val dir = activeDir
                             val atBoundary = currentPageIndex + dir !in 0 until currentPageCount
-                            if (atBoundary) {
+                            if (atBoundary || reversed) {
                                 flipJob = scope.launch {
                                     transition.animateTo(0f, spring(dampingRatio = 0.7f, stiffness = 350f))
                                 }
@@ -179,8 +181,10 @@ fun Stage(
                                 flipJob?.cancel()
                                 activeDir = dir
                                 dragOffset = 0f
+                                reversed = false
                                 if (inRange) onPreloadAround(currentPageIndex + dir)
                             }
+                            if (amount * activeDir > 0) reversed = true
                             val inRange = currentPageIndex + activeDir in 0 until currentPageCount
                             val factor = if (inRange) 1f else 0.25f
                             val limit = if (inRange) currentPw else currentPw * 0.25f
