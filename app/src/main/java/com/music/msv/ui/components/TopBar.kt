@@ -1,8 +1,10 @@
 package com.music.msv.ui.components
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -26,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import com.music.msv.ui.theme.TopbarShape
 import com.music.msv.ui.theme.ButtonShape
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TopBar(
     isDark: Boolean,
@@ -36,8 +39,8 @@ fun TopBar(
     onShelfClick: () -> Unit,
     onPageJumpClick: () -> Unit,
     onThumbnailsClick: () -> Unit,
-    onThemeClick: () -> Unit,
     onResetClick: () -> Unit,
+    onThemeLongClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val bg = if (isDark) Color(0x940A0E16) else Color(0xE0FFFFFF)
@@ -129,30 +132,17 @@ fun TopBar(
                 Text("▦", color = text, fontSize = 16.sp, textAlign = TextAlign.Center)
             }
 
-            // Theme toggle button
+            // Reset button (long-press toggles theme)
             Box(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(ButtonShape)
                     .background(ctrlBg, ButtonShape)
                     .border(1.dp, ctrlBorder, ButtonShape)
-                    .clickable { onThemeClick() },
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    if (isDark) "☀" else "☾",
-                    color = text, fontSize = 16.sp, textAlign = TextAlign.Center
-                )
-            }
-
-            // Reset button
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(ButtonShape)
-                    .background(ctrlBg, ButtonShape)
-                    .border(1.dp, ctrlBorder, ButtonShape)
-                    .clickable { onResetClick() },
+                    .combinedClickable(
+                        onClick = { onResetClick() },
+                        onLongClick = { onThemeLongClick() }
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Text("↺", color = text, fontSize = 16.sp, textAlign = TextAlign.Center)

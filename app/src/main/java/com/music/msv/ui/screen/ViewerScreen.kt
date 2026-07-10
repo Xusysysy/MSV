@@ -155,8 +155,8 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                         showPageDialog = true
                     },
                     onThumbnailsClick = { viewModel.onEvent(ViewerEvent.ToggleThumbnails) },
-                    onThemeClick = { viewModel.onEvent(ViewerEvent.ToggleTheme) },
-                    onResetClick = { showResetDialog = true }
+                    onResetClick = { showResetDialog = true },
+                    onThemeLongClick = { viewModel.onEvent(ViewerEvent.ToggleTheme) }
                 )
             }
 

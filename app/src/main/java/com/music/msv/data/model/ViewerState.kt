@@ -12,7 +12,7 @@ data class ViewerState(
     val showUI: Boolean = true,
     val showThumbnails: Boolean = false,
     val showShelf: Boolean = false,
-    val isDarkTheme: Boolean = true,
+    val isDarkTheme: Boolean = false,
     val statusMessage: String = "",
     val isLoading: Boolean = false,
     val fileName: String = "",
