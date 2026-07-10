@@ -24,6 +24,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -39,6 +41,15 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.abs
 import kotlin.math.roundToInt
+
+private val invertColorMatrix = ColorMatrix(
+    floatArrayOf(
+        -1f, 0f, 0f, 0f, 1f,
+        0f, -1f, 0f, 0f, 1f,
+        0f, 0f, -1f, 0f, 1f,
+        0f, 0f, 0f, 1f, 0f
+    )
+)
 
 @Composable
 fun Stage(
@@ -248,6 +259,7 @@ fun Stage(
                     model = ImageRequest.Builder(LocalContext.current).data(uri).build(),
                     contentDescription = "page $pageIndex",
                     contentScale = ContentScale.FillBounds,
+                    colorFilter = if (isDark) ColorFilter.colorMatrix(invertColorMatrix) else null,
                     modifier = Modifier
                         .fillMaxSize()
                         .shadow(6.dp, RectangleShape)

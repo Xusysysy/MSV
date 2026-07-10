@@ -36,6 +36,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -49,6 +51,15 @@ import coil3.request.crossfade
 import com.music.msv.data.model.ShelfFile
 import com.music.msv.data.model.ShelfSort
 import com.music.msv.ui.theme.ButtonShape
+
+private val invertColorMatrix = ColorMatrix(
+    floatArrayOf(
+        -1f, 0f, 0f, 0f, 1f,
+        0f, -1f, 0f, 0f, 1f,
+        0f, 0f, -1f, 0f, 1f,
+        0f, 0f, 0f, 1f, 0f
+    )
+)
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -191,6 +202,7 @@ fun ShelfPanel(
                                         .build(),
                                     contentDescription = sf.name,
                                     contentScale = ContentScale.Fit,
+                                    colorFilter = if (isDark) ColorFilter.colorMatrix(invertColorMatrix) else null,
                                     modifier = Modifier.fillMaxSize()
                                 )
                             } else {
