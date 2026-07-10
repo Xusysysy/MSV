@@ -157,6 +157,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 }
                 renderPageToCacheComputeSize(rp, ratio)
                 preloadAround(rp)
+                preloadThumbnails()
                 saveSession()
             } catch (e: Exception) {
                 _uiState.update { it.copy(statusMessage = "PDF 加载失败: ${e.message}") }
