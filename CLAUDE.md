@@ -117,3 +117,11 @@ $env:JAVA_HOME = "D:\software\AndroidStudio\jbr"; .\gradlew.bat assembleDebug
 ---
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+
+## 9. Gesture Modifier Safety (CRITICAL)
+
+**`detectTransformGestures` internally calls `event.changes.consume()` on ALL pointer events (including single-finger). This will break `detectHorizontalDragGestures` and `detectTapGestures` if placed in the same `pointerInput` chain or if always-active. Do NOT use `pointerInput(Unit)` with `detectTransformGestures` — it will consume all events and freeze/block other gesture detectors.**
+
+**Known-safe approach for pinch zoom**: keep `pointerInput(isZoomed)` + `if (isZoomed)` guard so the transform detector ONLY activates when already zoomed. To enable initial pinch, use a separate lightweight raw `awaitPointerEvent` detector that ONLY fires for 2+ fingers and bumps `onZoomChange(1.2f)` to wake the transform detector. The raw detector must NOT call `consume()`.
+
+**If gestures break after changes**: immediately `git revert` and test the previous commit before attempting another approach. Multiple failed gesture attempts in a row suggest the approach is fundamentally flawed — stop and ask for guidance.
