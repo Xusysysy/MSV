@@ -40,8 +40,6 @@ import kotlinx.coroutines.withContext
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-private const val SWIPE_THRESHOLD = 0.30f
-
 @Composable
 fun Stage(
     isDark: Boolean,
@@ -160,20 +158,12 @@ fun Stage(
                             if (activeDir == 0) return@detectHorizontalDragGestures
                             val dir = activeDir
                             val atBoundary = currentPageIndex + dir !in 0 until currentPageCount
-                            when {
-                                atBoundary -> {
-                                    flipJob = scope.launch {
-                                        transition.animateTo(0f, spring(dampingRatio = 0.7f, stiffness = 350f))
-                                    }
+                            if (atBoundary) {
+                                flipJob = scope.launch {
+                                    transition.animateTo(0f, spring(dampingRatio = 0.7f, stiffness = 350f))
                                 }
-                                abs(dragOffset) > currentPw * SWIPE_THRESHOLD -> {
-                                    doFlip(dir, dragOffset, easing = false)
-                                }
-                                else -> {
-                                    flipJob = scope.launch {
-                                        transition.animateTo(0f, spring(dampingRatio = 0.95f, stiffness = 500f))
-                                    }
-                                }
+                            } else {
+                                doFlip(dir, dragOffset, easing = false)
                             }
                         },
                         onDragCancel = {
