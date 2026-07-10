@@ -24,6 +24,7 @@ class PdfPageRenderer(private val context: Context) {
         override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount / 1024
     }
 
+    @Synchronized
     fun open(uri: Uri): Int {
         close()
         val fd: ParcelFileDescriptor? = if (uri.scheme == "file") {
@@ -47,6 +48,7 @@ class PdfPageRenderer(private val context: Context) {
         }
     }
 
+    @Synchronized
     fun renderPage(pageIndex: Int, viewportW: Int, viewportH: Int, zoom: Float = 1f): Bitmap? {
         val r = renderer ?: return null
         if (pageIndex !in 0 until pageCount) return null
@@ -76,6 +78,7 @@ class PdfPageRenderer(private val context: Context) {
         return result
     }
 
+    @Synchronized
     fun renderThumbnail(pageIndex: Int, maxDim: Int = 200): Bitmap? {
         val r = renderer ?: return null
         if (pageIndex !in 0 until pageCount) return null
@@ -119,6 +122,7 @@ class PdfPageRenderer(private val context: Context) {
         return h
     }
 
+    @Synchronized
     fun close() {
         cache.evictAll()
         renderer?.close()

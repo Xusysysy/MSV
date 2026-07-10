@@ -123,7 +123,8 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun openPdf(uri: Uri, name: String, restorePage: Int = 0) {
-        viewModelScope.launch(Dispatchers.IO) {
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch(Dispatchers.IO) {
             try {
                 pdfUri = uri
                 imageUris = emptyList()
