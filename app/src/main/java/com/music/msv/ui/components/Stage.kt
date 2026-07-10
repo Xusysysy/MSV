@@ -33,9 +33,10 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -103,10 +104,11 @@ fun Stage(
                 } else {
                     transition.animateTo(-dir * currentPw, spring(dampingRatio = 0.85f, stiffness = 350f))
                 }
-                transition.snapTo(0f)
-                if (dir > 0) onNextPage() else onPrevPage()
-            } catch (_: CancellationException) {
-                transition.snapTo(0f)
+            } finally {
+                withContext(NonCancellable) {
+                    transition.snapTo(0f)
+                    if (dir > 0) onNextPage() else onPrevPage()
+                }
             }
         }
     }
