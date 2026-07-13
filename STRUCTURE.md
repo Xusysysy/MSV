@@ -227,20 +227,22 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 11. ui/components/ThumbnailPanel.kt (L1-L137)
+### 11. ui/components/ThumbnailPanel.kt (L1-L159)
 
 | Element | Type | Lines |
 |---|---|---|
-| Package + imports | — | L1-L38 |
-| `ThumbnailPanel` | @Composable fun | L40-L137 |
-| Parameters (7): | isDark, pageCount, currentPage, getThumbnailUri, onPageSelected, onClose, modifier | L42-L48 |
-| Local colors | panelBg, panelBorder, itemBg, itemBorder, itemActiveBg, itemActiveBorder, muted | L50-L56 |
-| Column root | composable | L58-L136 |
-| — Close button Box | L66-L82 |
-| — LazyVerticalGrid (2 cols) | L85-L135 |
-| — — itemsIndexed (pageIndex → thumbnail item) | L92-L134 |
-| — — — Thumbnail AsyncImage | L112-L124 |
-| — — — Page number Text | L125-L132 |
+| Package + imports | — | L1-L42 |
+| `invertColorMatrix` | private val ColorMatrix | L44-L51 |
+| `ThumbnailPanel` | @Composable fun | L53-L159 |
+| Parameters (7): | isDark, pageCount, currentPage, getThumbnailUri, onPageSelected, onClose, modifier | L54-L61 |
+| Local colors | panelBg, panelBorder, itemBg, itemBorder, itemActiveBg, itemActiveBorder, muted | L63-L69 |
+| Column root | composable | L71-L158 |
+| — Close button Box | L78-L95 |
+| — gridState + LaunchedEffect scroll-to-current | L98-L103 |
+| — LazyVerticalGrid (2 cols, state=gridState) | L105-L157 |
+| — — itemsIndexed (pageIndex → thumbnail item) | L113-L156 |
+| — — — Thumbnail AsyncImage | L133-L146 |
+| — — — Page number Text | L147-L154 |
 
 ---
 
