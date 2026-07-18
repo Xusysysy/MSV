@@ -31,6 +31,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
@@ -141,7 +142,9 @@ fun Stage(
     } else emptyList()
 
     val pageSizeModifier: Modifier = if (pageWidth > 0) {
-        Modifier.size(pageWidth.dp, pageHeight.dp)
+        with(LocalDensity.current) {
+            Modifier.size(pageWidth.toDp(), pageHeight.toDp())
+        }
     } else {
         Modifier.fillMaxSize()
     }
