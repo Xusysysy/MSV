@@ -174,7 +174,7 @@ Single-screen app — no Navigation component. State-based content switching via
 | `pageX(pageIndex)` | local fun — animated x offset | L88-L96 |
 | `doFlip(dir, fromOffset, easing)` | local fun — page flip animation | L98-L117 |
 | `pagesToShow` | derived val — visible page window (±3) | L119-L122 |
-| `pageSizeModifier` | derived Modifier | L124-L128 |
+| `pageSizeModifier` | derived Modifier — converts pageWidth/pageHeight px to dp via LocalDensity | L144-L150 |
 | Root Box | composable (gestures + rendering) | L131-L240 |
 | — `.pointerInput(pageCount)` (outer) | coroutineScope: drag detector + tap detector, key=pageCount for cold start init | L138-L209 |
 | — `.pointerInput(isZoomed)` (inner) | detectTransformGestures (zoom 0.5x–8x + pan) | L210-L218 |
