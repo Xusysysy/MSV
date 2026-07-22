@@ -36,10 +36,26 @@ class FaceRecognitionManager(private val context: Context) {
     enum class TriggerMode { WINK, PUCKER, BOTH }
     enum class Gesture { LEFT_WINK, RIGHT_WINK, LEFT_PUCKER, RIGHT_PUCKER, NONE }
 
+    data class GestureScores(
+        val leftWink: Float = 0f,
+        val rightWink: Float = 0f,
+        val leftPucker: Float = 0f,
+        val rightPucker: Float = 0f
+    )
+
+    data class FaceDebugInfo(
+        val fps: Int = 0,
+        val scores: GestureScores = GestureScores()
+    )
+
     private var landmarker: FaceLandmarker? = null
     private var state = FaceState()
     private var onGestureDetected: ((Gesture) -> Unit)? = null
     private var onResult: ((FaceLandmarkerResult) -> Unit)? = null
+    private var currentScores = GestureScores()
+    private var currentDebugInfo = FaceDebugInfo()
+    private var fpsFrameCount = 0
+    private var fpsLastTime = System.currentTimeMillis()
 
     private val smoothState = mutableMapOf<String, Float>()
     private val activeState = mutableMapOf<String, Boolean>()
@@ -65,6 +81,10 @@ class FaceRecognitionManager(private val context: Context) {
     fun updateState(newState: FaceState) {
         state = newState
     }
+
+    fun getScores(): GestureScores = currentScores
+
+    fun getDebugInfo(): FaceDebugInfo = currentDebugInfo
 
     fun isInitialized(): Boolean = landmarker != null
 
@@ -165,6 +185,21 @@ class FaceRecognitionManager(private val context: Context) {
         val biasR = mR - mL
         val isLPuck = hyst("lp", puck, state.thresholds.pucker) && biasL >= state.thresholds.puckerBias
         val isRPuck = hyst("rp", puck, state.thresholds.pucker) && biasR >= state.thresholds.puckerBias
+
+        val cWL = if (isLWink) (diff / 0.5f).coerceIn(0f, 1f) else 0f
+        val cWR = if (isRWink) (diff / 0.5f).coerceIn(0f, 1f) else 0f
+        val cPL = if (isLPuck) ((puck * biasL.coerceAtLeast(0f)) / 0.25f).coerceIn(0f, 1f) else 0f
+        val cPR = if (isRPuck) ((puck * biasR.coerceAtLeast(0f)) / 0.25f).coerceIn(0f, 1f) else 0f
+
+        currentScores = GestureScores(cWL, cWR, cPL, cPR)
+
+        fpsFrameCount++
+        val now = System.currentTimeMillis()
+        if (now - fpsLastTime >= 1000) {
+            currentDebugInfo = FaceDebugInfo(fps = fpsFrameCount, scores = currentScores)
+            fpsFrameCount = 0
+            fpsLastTime = now
+        }
 
         val allowWink = state.triggerMode != TriggerMode.PUCKER
         val allowPucker = state.triggerMode != TriggerMode.WINK
