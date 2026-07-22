@@ -97,9 +97,12 @@ fun ThumbnailPanel(
         // Thumbnail grid
         val gridState = rememberLazyGridState()
 
-        LaunchedEffect(currentPage) {
+        LaunchedEffect(currentPage, pageCount) {
+            if (pageCount <= 0) return@LaunchedEffect
             val rowIndex = currentPage / 2
-            gridState.animateScrollToItem(rowIndex)
+            val visibleRows = 5
+            val targetRow = (rowIndex - visibleRows / 2).coerceAtLeast(0)
+            gridState.scrollToItem(targetRow * 2)
         }
 
         LazyVerticalGrid(
