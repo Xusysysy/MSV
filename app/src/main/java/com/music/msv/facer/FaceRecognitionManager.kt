@@ -31,6 +31,8 @@ class FaceRecognitionManager(context: Context) {
         val enabled: Boolean = true,
         val triggerMode: TriggerMode = TriggerMode.BOTH,
         val thresholds: Thresholds = Thresholds(),
+        val mirrored: Boolean = true,
+        val actionThreshold: Float = 0.3f,
         val fps: Int = 0,
         val scores: GestureScores = GestureScores(),
         val landmarks: List<NormalizedLandmark>? = null,
@@ -127,8 +129,10 @@ class FaceRecognitionManager(context: Context) {
         val cPL = if (lP) ((puck * maxOf(bL, 0f)) / 0.25f).coerceIn(0f, 1f) else 0f; val cPR = if (rP) ((puck * maxOf(bR, 0f)) / 0.25f).coerceIn(0f, 1f) else 0f
         _state.update { it.copy(scores = GestureScores(cWL, cWR, cPL, cPR)) }
 
+        val at = _state.value.actionThreshold
         val aw = _state.value.triggerMode != TriggerMode.PUCKER; val ap = _state.value.triggerMode != TriggerMode.WINK
-        return when { aw && rW -> Gesture.RIGHT_WINK; aw && lW -> Gesture.LEFT_WINK; ap && lP -> Gesture.LEFT_PUCKER; ap && rP -> Gesture.RIGHT_PUCKER; else -> Gesture.NONE }
+        val g = when { aw && rW && cWR >= at -> Gesture.RIGHT_WINK; aw && lW && cWL >= at -> Gesture.LEFT_WINK; ap && lP && cPL >= at -> Gesture.LEFT_PUCKER; ap && rP && cPR >= at -> Gesture.RIGHT_PUCKER; else -> Gesture.NONE }
+        return g
     }
 
     private fun score(cats: List<Category>, n: String) = cats.find { it.categoryName() == n }?.score() ?: 0f
@@ -152,7 +156,9 @@ class FaceRecognitionManager(context: Context) {
         val out = ByteArrayOutputStream(); yuv.compressToJpeg(Rect(0, 0, ip.width, ip.height), 95, out)
         val jpg = out.toByteArray(); out.close()
         val bmp = BitmapFactory.decodeByteArray(jpg, 0, jpg.size)
-        val mat = Matrix(); mat.postRotate(ip.imageInfo.rotationDegrees.toFloat()); mat.preScale(-1f, 1f)
+        val mat = Matrix()
+        mat.postRotate(ip.imageInfo.rotationDegrees.toFloat())
+        if (_state.value.mirrored) mat.preScale(-1f, 1f)
         return Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, mat, true).also { bmp.recycle() }
     }
 

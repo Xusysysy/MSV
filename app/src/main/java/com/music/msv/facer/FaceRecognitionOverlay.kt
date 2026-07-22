@@ -70,8 +70,8 @@ fun FaceRecognitionOverlay(visible: Boolean, onDismiss: () -> Unit, manager: Fac
     val ctx = LocalContext.current; val lc = LocalLifecycleOwner.current; val cfg = LocalConfiguration.current; val isLand = cfg.screenWidthDp > cfg.screenHeightDp
 
     var hasPerm by remember { mutableStateOf(ContextCompat.checkSelfPermission(ctx, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) }
-    val pLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { hasPerm = it; if (!it) Toast.makeText(ctx, "需要相机权限", Toast.LENGTH_SHORT).show() }
-    LaunchedEffect(visible) { if (visible && !hasPerm) pLauncher.launch(Manifest.permission.CAMERA) }
+    val pL = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { hasPerm = it; if (!it) Toast.makeText(ctx, "需要相机权限", Toast.LENGTH_SHORT).show() }
+    LaunchedEffect(visible) { if (visible && !hasPerm) pL.launch(Manifest.permission.CAMERA) }
 
     val state by manager.stateFlow.collectAsState()
 
@@ -86,46 +86,47 @@ fun FaceRecognitionOverlay(visible: Boolean, onDismiss: () -> Unit, manager: Fac
 
     Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)).clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { onDismiss() }, contentAlignment = Alignment.Center) {
         val maxH = cfg.screenHeightDp.dp * 0.9f
+        val content: @Composable () -> Unit = {
+            Header(state, gr, card, b, t, t2) {
+                val s = manager.currentState()
+                if (s.running) manager.updateState { it.copy(running = false, enabled = false) }
+                else { if (!manager.isReady()) manager.init(); manager.updateState { it.copy(running = true, enabled = true) } }
+            }
+            Box(Modifier.fillMaxWidth().aspectRatio(4f/3f).clip(RoundedCornerShape(12.dp)).border(1.dp, b, RoundedCornerShape(12.dp))) { if (hasPerm) Cam(manager, lc, state, Modifier.fillMaxSize()) else Placeholder(pL, t, ac) }
+            ActionRow(state.scores, ac, dn, card, b, t)
+            Modes(state, manager, card, b, ac)
+            var blk by remember { mutableFloatStateOf(state.thresholds.blink) }
+            var puk by remember { mutableFloatStateOf(state.thresholds.pucker) }
+            var act by remember { mutableFloatStateOf(state.actionThreshold) }
+            SliderC("眨眼阈值", blk, 0.10f..0.95f, card, b, t, ac) { blk = it; manager.updateState { s -> s.copy(thresholds = s.thresholds.copy(blink = it)) } }
+            SliderC("撅嘴阈值", puk, 0.05f..0.90f, card, b, t, ac) { puk = it; manager.updateState { s -> s.copy(thresholds = s.thresholds.copy(pucker = it)) } }
+            SliderC("翻谱阈值", act, 0.10f..0.95f, card, b, t, ac) { act = it; manager.updateState { s -> s.copy(actionThreshold = it) } }
+
+            // Mirror toggle
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(card).border(1.dp, b, RoundedCornerShape(10.dp)).padding(8.dp), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                Text("镜像翻转", color = t, fontSize = 11.sp)
+                Box(Modifier.clip(RoundedCornerShape(8.dp)).background(if (state.mirrored) ac.copy(alpha = 0.2f) else card).border(1.dp, if (state.mirrored) ac else b, RoundedCornerShape(8.dp)).clickable { manager.updateState { it.copy(mirrored = !it.mirrored) } }.padding(horizontal = 12.dp, vertical = 4.dp)) {
+                    Text(if (state.mirrored) "镜像" else "原始", color = if (state.mirrored) ac else t2, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            Debug(manager, hasPerm, state, card, b, t, t2, ac, gr)
+        }
         if (isLand) {
             Row(Modifier.fillMaxWidth(0.92f).heightIn(max = maxH).clip(RoundedCornerShape(16.dp)).background(bg).border(1.dp, b, RoundedCornerShape(16.dp)).clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) {}.padding(10.dp), Arrangement.spacedBy(10.dp)) {
-                Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), Arrangement.spacedBy(6.dp)) {
-                    Header(manager, state, gr, card, b, t, t2)
-                    Box(Modifier.fillMaxWidth().aspectRatio(4f/3f).clip(RoundedCornerShape(12.dp)).border(1.dp, b, RoundedCornerShape(12.dp))) { if (hasPerm) Cam(manager, lc, state, Modifier.fillMaxSize()) else Placeholder(pLauncher, t, ac) }
-                    ActionRow(state.scores, ac, dn, card, b, t)
-                }
-                Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), Arrangement.spacedBy(6.dp)) {
-                    Modes(manager, card, b, ac)
-                    var blk by remember { mutableFloatStateOf(state.thresholds.blink) }
-                    var puk by remember { mutableFloatStateOf(state.thresholds.pucker) }
-                    SliderC("眨眼阈值", blk, 0.10f..0.95f, card, b, t, ac) { v -> blk = v; manager.updateState { s -> s.copy(thresholds = s.thresholds.copy(blink = v)) } }
-                    SliderC("撅嘴阈值", puk, 0.05f..0.90f, card, b, t, ac) { v -> puk = v; manager.updateState { s -> s.copy(thresholds = s.thresholds.copy(pucker = v)) } }
-                    Debug(manager, hasPerm, state, card, b, t, t2, ac, gr)
-                }
+                Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), Arrangement.spacedBy(6.dp)) { content() }
+                Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), Arrangement.spacedBy(6.dp)) { /* right column handled by content() in unified mode */ }
             }
         } else {
-            Column(Modifier.fillMaxWidth(0.9f).heightIn(max = maxH).clip(RoundedCornerShape(16.dp)).background(bg).border(1.dp, b, RoundedCornerShape(16.dp)).clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) {}.verticalScroll(rememberScrollState()).padding(12.dp), Arrangement.spacedBy(8.dp)) {
-                Header(manager, state, gr, card, b, t, t2)
-                Box(Modifier.fillMaxWidth().aspectRatio(4f/3f).clip(RoundedCornerShape(12.dp)).border(1.dp, b, RoundedCornerShape(12.dp))) { if (hasPerm) Cam(manager, lc, state, Modifier.fillMaxSize()) else Placeholder(pLauncher, t, ac) }
-                ActionRow(state.scores, ac, dn, card, b, t)
-                Modes(manager, card, b, ac)
-                var blk by remember { mutableFloatStateOf(state.thresholds.blink) }
-                var puk by remember { mutableFloatStateOf(state.thresholds.pucker) }
-                SliderC("眨眼阈值", blk, 0.10f..0.95f, card, b, t, ac) { v -> blk = v; manager.updateState { s -> s.copy(thresholds = s.thresholds.copy(blink = v)) } }
-                SliderC("撅嘴阈值", puk, 0.05f..0.90f, card, b, t, ac) { v -> puk = v; manager.updateState { s -> s.copy(thresholds = s.thresholds.copy(pucker = v)) } }
-                Debug(manager, hasPerm, state, card, b, t, t2, ac, gr)
-            }
+            Column(Modifier.fillMaxWidth(0.9f).heightIn(max = maxH).clip(RoundedCornerShape(16.dp)).background(bg).border(1.dp, b, RoundedCornerShape(16.dp)).clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) {}.verticalScroll(rememberScrollState()).padding(12.dp), Arrangement.spacedBy(8.dp)) { content() }
         }
     }
 }
 
-@Composable private fun Header(manager: FaceRecognitionManager, state: FaceRecognitionManager.FaceState, gr: Color, card: Color, b: Color, t: Color, t2: Color) {
+@Composable private fun Header(state: FaceRecognitionManager.FaceState, gr: Color, card: Color, b: Color, t: Color, t2: Color, onToggle: () -> Unit) {
     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
         Text("面部识别", color = t, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-        Box(Modifier.clip(RoundedCornerShape(8.dp)).background(if (state.running) gr.copy(alpha = 0.2f) else card).border(1.dp, if (state.running) gr else b, RoundedCornerShape(8.dp)).clickable {
-            val s = manager.currentState()
-            if (s.running) manager.updateState { it.copy(running = false, enabled = false) }
-            else { if (!manager.isReady()) manager.init(); manager.updateState { it.copy(running = true, enabled = true) } }
-        }.padding(horizontal = 10.dp, vertical = 4.dp)) {
+        Box(Modifier.clip(RoundedCornerShape(8.dp)).background(if (state.running) gr.copy(alpha = 0.2f) else card).border(1.dp, if (state.running) gr else b, RoundedCornerShape(8.dp)).clickable { onToggle() }.padding(horizontal = 10.dp, vertical = 4.dp)) {
             Text(if (state.running) "● LIVE ${state.fps}fps" else "○ OFF", color = if (state.running) gr else t2, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
     }
@@ -147,15 +148,19 @@ fun FaceRecognitionOverlay(visible: Boolean, onDismiss: () -> Unit, manager: Fac
     }
 }
 
-@Composable private fun Modes(manager: FaceRecognitionManager, card: Color, b: Color, ac: Color) {
-    val s = manager.currentState()
+@Composable private fun Modes(state: FaceRecognitionManager.FaceState, manager: FaceRecognitionManager, card: Color, b: Color, ac: Color) {
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(card).border(1.dp, b, RoundedCornerShape(10.dp)).padding(8.dp), Arrangement.spacedBy(4.dp)) {
         Text("触发模式", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(4.dp)) {
-            MBtn(Modifier.weight(1f), "关闭", !s.enabled) { manager.updateState { it.copy(enabled = false, running = false) } }
-            MBtn(Modifier.weight(1f), "Wink", s.enabled && s.triggerMode == FaceRecognitionManager.TriggerMode.WINK) { if (!manager.isReady()) manager.init(); manager.updateState { it.copy(enabled = true, running = true, triggerMode = FaceRecognitionManager.TriggerMode.WINK) } }
-            MBtn(Modifier.weight(1f), "撅嘴", s.enabled && s.triggerMode == FaceRecognitionManager.TriggerMode.PUCKER) { if (!manager.isReady()) manager.init(); manager.updateState { it.copy(enabled = true, running = true, triggerMode = FaceRecognitionManager.TriggerMode.PUCKER) } }
-            MBtn(Modifier.weight(1f), "两者", s.enabled && s.triggerMode == FaceRecognitionManager.TriggerMode.BOTH) { if (!manager.isReady()) manager.init(); manager.updateState { it.copy(enabled = true, running = true, triggerMode = FaceRecognitionManager.TriggerMode.BOTH) } }
+            MBtn(Modifier.weight(1f), "Wink", state.triggerMode == FaceRecognitionManager.TriggerMode.WINK) {
+                if (!manager.isReady()) manager.init(); manager.updateState { it.copy(enabled = true, running = true, triggerMode = FaceRecognitionManager.TriggerMode.WINK) }
+            }
+            MBtn(Modifier.weight(1f), "撅嘴", state.triggerMode == FaceRecognitionManager.TriggerMode.PUCKER) {
+                if (!manager.isReady()) manager.init(); manager.updateState { it.copy(enabled = true, running = true, triggerMode = FaceRecognitionManager.TriggerMode.PUCKER) }
+            }
+            MBtn(Modifier.weight(1f), "两者", state.triggerMode == FaceRecognitionManager.TriggerMode.BOTH) {
+                if (!manager.isReady()) manager.init(); manager.updateState { it.copy(enabled = true, running = true, triggerMode = FaceRecognitionManager.TriggerMode.BOTH) }
+            }
         }
     }
 }

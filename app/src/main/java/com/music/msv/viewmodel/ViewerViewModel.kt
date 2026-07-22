@@ -47,6 +47,15 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             sessionRepo.getPageMap().collect { pageMap = it }
         }
+        faceManager.onGesture = { gesture ->
+            when (gesture) {
+                FaceRecognitionManager.Gesture.RIGHT_WINK,
+                FaceRecognitionManager.Gesture.LEFT_PUCKER -> onEvent(ViewerEvent.NextPage)
+                FaceRecognitionManager.Gesture.LEFT_WINK,
+                FaceRecognitionManager.Gesture.RIGHT_PUCKER -> onEvent(ViewerEvent.PrevPage)
+                FaceRecognitionManager.Gesture.NONE -> {}
+            }
+        }
         restoreSession()
     }
 
