@@ -112,9 +112,6 @@ fun Stage(
         onSpreadModeChanged(autoSpreadMode)
     }
 
-    val spreadW = if (isSpreadMode && displaySize != null) displaySize.first * 2f else 0f
-    val spreadOffsetX = if (isSpreadMode && stageWidth > 0) (stageWidth - spreadW) / 2f else 0f
-
     val currentIsZoomed by rememberUpdatedState(isZoomed)
     val currentPageIndex by rememberUpdatedState(currentPage)
     val currentPageCount by rememberUpdatedState(pageCount)
@@ -122,21 +119,6 @@ fun Stage(
     val displayW = displaySize?.first ?: pw
     val currentIsSpread by rememberUpdatedState(isSpreadMode)
     val flipUnit = if (currentIsSpread) displayW * 2f else displayW
-
-    fun baseX(pageIndex: Int): Float {
-        val cp = currentPage
-        return if (pageIndex >= cp) 0f else -(cp - pageIndex).toFloat() * displayW
-    }
-
-    fun pageX(pageIndex: Int): Float {
-        val base = baseX(pageIndex)
-        val t = transition.value
-        return when {
-            t < 0 && pageIndex == currentPage -> base + t
-            t > 0 && pageIndex == currentPage - 1 -> base + t
-            else -> base
-        }
-    }
 
     fun doFlip(dir: Int, fromOffset: Float, easing: Boolean) {
         if (flipUnit <= 0f) return
@@ -208,7 +190,8 @@ fun Stage(
                             if (currentIsZoomed || currentPw <= 0f) return@detectHorizontalDragGestures
                             if (activeDir == 0) return@detectHorizontalDragGestures
                             val dir = activeDir
-                            val atBoundary = currentPageIndex + dir !in 0 until currentPageCount
+                            val step = if (currentIsSpread) 2 else 1
+                            val atBoundary = currentPageIndex + dir * step !in 0 until currentPageCount
                             if (atBoundary || reversed) {
                                 flipJob = scope.launch {
                                     transition.animateTo(0f, spring(dampingRatio = 0.75f, stiffness = 400f))
@@ -226,15 +209,17 @@ fun Stage(
                             if (currentIsZoomed) return@detectHorizontalDragGestures
                             if (activeDir == 0) {
                                 val dir = if (amount < 0) 1 else -1
-                                val inRange = currentPageIndex + dir in 0 until currentPageCount
+                                val step = if (currentIsSpread) 2 else 1
+                                val inRange = currentPageIndex + dir * step in 0 until currentPageCount
                                 flipJob?.cancel()
                                 activeDir = dir
                                 dragOffset = 0f
                                 reversed = false
-                                if (inRange) onPreloadAround(currentPageIndex + dir)
+                                if (inRange) onPreloadAround(currentPageIndex + dir * step)
                             }
                             if (amount * activeDir > 0) reversed = true
-                            val inRange = currentPageIndex + activeDir in 0 until currentPageCount
+                            val step = if (currentIsSpread) 2 else 1
+                            val inRange = currentPageIndex + activeDir * step in 0 until currentPageCount
                             val factor = if (inRange) 1f else 0.25f
                             val limit = if (inRange) flipUnit else flipUnit * 0.25f
                             dragOffset = if (activeDir > 0)
@@ -255,16 +240,18 @@ fun Stage(
                         val third = sw / 3f
                         when {
                             pos.x < third -> {
+                                val step = if (currentIsSpread) 2 else 1
                                 if (currentPageIndex > 0) {
-                                    onPreloadAround(currentPageIndex - 1)
+                                    onPreloadAround(currentPageIndex - step)
                                     doFlip(-1, 0f, easing = true)
                                 } else {
                                     doBounce(-1)
                                 }
                             }
                             pos.x > sw - third -> {
+                                val step = if (currentIsSpread) 2 else 1
                                 if (currentPageIndex < currentPageCount - 1) {
-                                    onPreloadAround(currentPageIndex + 1)
+                                    onPreloadAround(currentPageIndex + step)
                                     doFlip(1, 0f, easing = true)
                                 } else {
                                     doBounce(1)
@@ -287,45 +274,90 @@ fun Stage(
             }
     ) {
         val (dw, dh) = displaySize ?: Pair(stageWidth.toFloat(), stageHeight.toFloat())
-        val centerX = if (stageWidth > 0) (stageWidth - dw) / 2f else 0f
-        val centerY = if (stageHeight > 0) (stageHeight - dh) / 2f else 0f
+        val t = transition.value
 
-        if (isSpreadMode && spreadOffsetX > 0f) {
-            Box(
-                modifier = Modifier
-                    .offset { IntOffset(0, 0) }
-                    .size(
-                        with(LocalDensity.current) { spreadOffsetX.toDp() },
-                        with(LocalDensity.current) { stageHeight.toFloat().toDp() }
-                    )
-                    .background(bg)
-            )
-        }
+        if (currentIsSpread) {
+            val spreadTotalW = dw * 2f
+            val spreadCenterX = if (stageWidth > 0) (stageWidth - spreadTotalW) / 2f else 0f
+            val centerY = if (stageHeight > 0) (stageHeight - dh) / 2f else 0f
 
-        for (pageIndex in pagesToShow) {
-            val uri = pageUris[pageIndex] ?: continue
-            Box(
-                modifier = Modifier
-                    .offset {
-                        IntOffset(
-                            (pageX(pageIndex) + centerX).roundToInt(),
-                            centerY.roundToInt()
-                        )
-                    }
-                    .size(
-                        with(LocalDensity.current) { dw.toDp() },
-                        with(LocalDensity.current) { dh.toDp() }
-                    )
-            ) {
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current).data(uri).build(),
-                    contentDescription = "page $pageIndex",
-                    contentScale = ContentScale.FillBounds,
-                    colorFilter = if (isDark) ColorFilter.colorMatrix(invertColorMatrix) else null,
+            if (spreadCenterX > 0f) {
+                Box(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .shadow(6.dp, RectangleShape)
+                        .offset { IntOffset(0, 0) }
+                        .size(
+                            with(LocalDensity.current) { spreadCenterX.toDp() },
+                            with(LocalDensity.current) { stageHeight.toFloat().toDp() }
+                        )
+                        .background(bg)
                 )
+            }
+
+            for (pageIndex in pagesToShow) {
+                val uri = pageUris[pageIndex] ?: continue
+                val offsetInSpread = (pageIndex - currentPage).toFloat() * dw
+                val pageOffsetX = spreadCenterX + offsetInSpread + t
+
+                Box(
+                    modifier = Modifier
+                        .offset {
+                            IntOffset(
+                                pageOffsetX.roundToInt(),
+                                centerY.roundToInt()
+                            )
+                        }
+                        .size(
+                            with(LocalDensity.current) { dw.toDp() },
+                            with(LocalDensity.current) { dh.toDp() }
+                        )
+                ) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current).data(uri).build(),
+                        contentDescription = "page $pageIndex",
+                        contentScale = ContentScale.FillBounds,
+                        colorFilter = if (isDark) ColorFilter.colorMatrix(invertColorMatrix) else null,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .shadow(6.dp, RectangleShape)
+                    )
+                }
+            }
+        } else {
+            val centerX = if (stageWidth > 0) (stageWidth - dw) / 2f else 0f
+            val centerY = if (stageHeight > 0) (stageHeight - dh) / 2f else 0f
+
+            for (pageIndex in pagesToShow) {
+                val uri = pageUris[pageIndex] ?: continue
+                val base = if (pageIndex >= currentPage) 0f else -(currentPage - pageIndex).toFloat() * dw
+                val pageOffsetX = when {
+                    t < 0 && pageIndex == currentPage -> base + t
+                    t > 0 && pageIndex == currentPage - 1 -> base + t
+                    else -> base
+                }
+
+                Box(
+                    modifier = Modifier
+                        .offset {
+                            IntOffset(
+                                (pageOffsetX + centerX).roundToInt(),
+                                centerY.roundToInt()
+                            )
+                        }
+                        .size(
+                            with(LocalDensity.current) { dw.toDp() },
+                            with(LocalDensity.current) { dh.toDp() }
+                        )
+                ) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current).data(uri).build(),
+                        contentDescription = "page $pageIndex",
+                        contentScale = ContentScale.FillBounds,
+                        colorFilter = if (isDark) ColorFilter.colorMatrix(invertColorMatrix) else null,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .shadow(6.dp, RectangleShape)
+                    )
+                }
             }
         }
     }
