@@ -41,6 +41,9 @@ fun TopBar(
     onThumbnailsClick: () -> Unit,
     onResetClick: () -> Unit,
     onThemeLongClick: () -> Unit,
+    faceEnabled: Boolean = false,
+    onFaceClick: () -> Unit = {},
+    onFaceLongClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val bg = if (isDark) Color(0x940A0E16) else Color(0xE0FFFFFF)
@@ -129,6 +132,34 @@ fun TopBar(
                 contentAlignment = Alignment.Center
             ) {
                 Text("▦", color = text, fontSize = 16.sp, textAlign = TextAlign.Center)
+            }
+
+            // Face recognition button
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(ButtonShape)
+                    .background(
+                        if (faceEnabled) accent.copy(alpha = 0.2f) else ctrlBg,
+                        ButtonShape
+                    )
+                    .border(
+                        1.dp,
+                        if (faceEnabled) accent else ctrlBorder,
+                        ButtonShape
+                    )
+                    .combinedClickable(
+                        onClick = { onFaceClick() },
+                        onLongClick = { onFaceLongClick() }
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "👁",
+                    color = if (faceEnabled) accent else text,
+                    fontSize = 16.sp,
+                    textAlign = TextAlign.Center
+                )
             }
 
             // Reset button (long-press toggles theme)

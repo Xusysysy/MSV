@@ -47,6 +47,7 @@ import com.music.msv.ui.components.ShelfPanel
 import com.music.msv.ui.components.Stage
 import com.music.msv.ui.components.ThumbnailPanel
 import com.music.msv.ui.components.TopBar
+import com.music.msv.facer.FaceRecognitionOverlay
 import com.music.msv.viewmodel.ViewerViewModel
 
 @Composable
@@ -152,7 +153,10 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                     },
                     onThumbnailsClick = { viewModel.onEvent(ViewerEvent.ToggleThumbnails) },
                     onResetClick = { showResetDialog = true },
-                    onThemeLongClick = { viewModel.onEvent(ViewerEvent.ToggleTheme) }
+                    onThemeLongClick = { viewModel.onEvent(ViewerEvent.ToggleTheme) },
+                    faceEnabled = state.faceEnabled,
+                    onFaceClick = { viewModel.onEvent(ViewerEvent.ToggleFace) },
+                    onFaceLongClick = { viewModel.onEvent(ViewerEvent.ShowFaceOverlay) }
                 )
             }
 
@@ -276,5 +280,11 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                 }
             )
         }
+
+        FaceRecognitionOverlay(
+            visible = state.showFaceOverlay,
+            onDismiss = { viewModel.onEvent(ViewerEvent.HideFaceOverlay) },
+            manager = viewModel.faceManager
+        )
     }
 }
