@@ -127,13 +127,7 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                         onPreloadAround = { viewModel.preloadAround(it) }
                     )
 
-                    AnimatedVisibility(
-                        visible = state.isLoading,
-                        enter = fadeIn(),
-                        exit = fadeOut()
-                    ) {
-                        LoadingOverlay(isDark = isDark, visible = state.isLoading)
-                    }
+                    LoadingOverlay(isDark = isDark, visible = state.isLoading)
                 }
             }
 

@@ -221,14 +221,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 else -> null
             }
             if (uri != null) {
-                _uiState.update {
-                    it.copy(
-                        pageUris = it.pageUris + (pageIndex to uri),
-                        isLoading = false
-                    )
-                }
-            } else {
-                _uiState.update { it.copy(isLoading = false) }
+                _uiState.update { it.copy(pageUris = it.pageUris + (pageIndex to uri)) }
             }
         }
     }
@@ -250,7 +243,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                     else -> null
                 }
                 if (uri != null) {
-                    _uiState.update { it.copy(pageUris = it.pageUris + (center to uri)) }
+                    newUris[center] = uri
                 }
             }
             for (i in (center - 3)..(center + 3)) {
@@ -264,6 +257,14 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             }
             if (newUris.isNotEmpty()) {
                 _uiState.update { it.copy(pageUris = it.pageUris + newUris) }
+            }
+            if (_uiState.value.isLoading) {
+                val loaded = _uiState.value.pageUris
+                val required = listOf(center - 1, center, center + 1, center + 2)
+                    .filter { it in 0 until total }
+                if (required.all { loaded.containsKey(it) }) {
+                    _uiState.update { it.copy(isLoading = false) }
+                }
             }
         }
     }
