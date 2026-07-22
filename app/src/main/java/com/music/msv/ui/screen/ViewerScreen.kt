@@ -284,7 +284,6 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
         FaceRecognitionOverlay(
             visible = state.showFaceOverlay,
             onDismiss = { viewModel.onEvent(ViewerEvent.HideFaceOverlay) },
-            onToggleRunning = { running -> viewModel.onEvent(ViewerEvent.ToggleFace) },
             manager = viewModel.faceManager,
             isDark = isDark
         )

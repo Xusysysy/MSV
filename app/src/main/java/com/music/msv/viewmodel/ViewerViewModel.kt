@@ -15,7 +15,6 @@ import com.music.msv.data.pdf.PdfPageRenderer
 import com.music.msv.data.repository.FileRepository
 import com.music.msv.data.repository.SessionRepository
 import com.music.msv.facer.FaceRecognitionManager
-import com.music.msv.facer.FaceRecognitionRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -32,7 +31,6 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     private val fileRepo = FileRepository(application)
     private val sessionRepo = SessionRepository(application)
     private val pdfRenderer = PdfPageRenderer(application)
-    private val faceRepo = FaceRecognitionRepository(application)
     val faceManager = FaceRecognitionManager(application)
 
     private val _uiState = MutableStateFlow(ViewerState())
@@ -48,41 +46,6 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     init {
         viewModelScope.launch {
             sessionRepo.getPageMap().collect { pageMap = it }
-        }
-        viewModelScope.launch {
-            faceRepo.prefsFlow.collect { prefs ->
-                faceManager.updateState(
-                    FaceRecognitionManager.FaceState(
-                        isEnabled = prefs.enabled,
-                        showMesh = prefs.showMesh,
-                        triggerMode = when (prefs.triggerMode) {
-                            "WINK" -> FaceRecognitionManager.TriggerMode.WINK
-                            "PUCKER" -> FaceRecognitionManager.TriggerMode.PUCKER
-                            else -> FaceRecognitionManager.TriggerMode.BOTH
-                        },
-                        thresholds = FaceRecognitionManager.Thresholds(
-                            blink = prefs.blinkThreshold,
-                            winkDiff = prefs.winkDiff,
-                            pucker = prefs.puckerThreshold,
-                            puckerBias = prefs.puckerBias
-                        ),
-                        cooldownMs = prefs.cooldownMs.toLong()
-                    )
-                )
-            }
-        }
-        faceManager.setOnGestureDetected { gesture ->
-            when (gesture) {
-                FaceRecognitionManager.Gesture.RIGHT_WINK,
-                FaceRecognitionManager.Gesture.LEFT_PUCKER -> {
-                    onEvent(ViewerEvent.NextPage)
-                }
-                FaceRecognitionManager.Gesture.LEFT_WINK,
-                FaceRecognitionManager.Gesture.RIGHT_PUCKER -> {
-                    onEvent(ViewerEvent.PrevPage)
-                }
-                FaceRecognitionManager.Gesture.NONE -> {}
-            }
         }
         restoreSession()
     }
@@ -520,31 +483,10 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         val newState = !_uiState.value.faceEnabled
         _uiState.update { it.copy(faceEnabled = newState) }
         if (newState) {
-            if (!faceManager.isInitialized()) {
-                val ok = faceManager.initialize()
-                if (!ok) {
-                    _uiState.update { it.copy(faceEnabled = false, statusMessage = "面部识别模型加载失败") }
-                    return
-                }
-            }
-            faceManager.updateState(faceManager.getState().copy(isEnabled = true, isRunning = true))
+            if (!faceManager.isReady()) faceManager.init()
+            faceManager.updateState { it.copy(running = true, enabled = true) }
         } else {
-            faceManager.updateState(faceManager.getState().copy(isEnabled = false, isRunning = false))
-        }
-        val managerState = faceManager.getState()
-        viewModelScope.launch {
-            faceRepo.savePrefs(
-                FaceRecognitionRepository.FacePrefs(
-                    enabled = managerState.isEnabled,
-                    showMesh = managerState.showMesh,
-                    triggerMode = managerState.triggerMode.name,
-                    blinkThreshold = managerState.thresholds.blink,
-                    winkDiff = managerState.thresholds.winkDiff,
-                    puckerThreshold = managerState.thresholds.pucker,
-                    puckerBias = managerState.thresholds.puckerBias,
-                    cooldownMs = managerState.cooldownMs.toInt()
-                )
-            )
+            faceManager.updateState { it.copy(running = false, enabled = false) }
         }
     }
 
@@ -554,21 +496,6 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun hideFaceOverlay() {
         _uiState.update { it.copy(showFaceOverlay = false) }
-        val managerState = faceManager.getState()
-        viewModelScope.launch {
-            faceRepo.savePrefs(
-                FaceRecognitionRepository.FacePrefs(
-                    enabled = managerState.isEnabled,
-                    showMesh = managerState.showMesh,
-                    triggerMode = managerState.triggerMode.name,
-                    blinkThreshold = managerState.thresholds.blink,
-                    winkDiff = managerState.thresholds.winkDiff,
-                    puckerThreshold = managerState.thresholds.pucker,
-                    puckerBias = managerState.thresholds.puckerBias,
-                    cooldownMs = managerState.cooldownMs.toInt()
-                )
-            )
-        }
     }
 
     private fun resetZoom() {
