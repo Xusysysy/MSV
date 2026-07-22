@@ -211,10 +211,20 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun renderPageToCacheComputeSize(pageIndex: Int, ratio: Float) {
         val vw = _uiState.value.viewportWidth
+        val vh = _uiState.value.viewportHeight
         val zw = _uiState.value.pageWidth
         if (vw <= 0 || zw > 0) return
-        val pageW = vw
-        val pageH = (vw / ratio).toInt()
+        val pageAspect = 1f / ratio
+        val stageAspect = vw.toFloat() / vh.toFloat()
+        val pageW: Int
+        val pageH: Int
+        if (pageAspect > stageAspect) {
+            pageW = vw
+            pageH = (vw / pageAspect).toInt()
+        } else {
+            pageH = vh
+            pageW = (vh * pageAspect).toInt()
+        }
         _uiState.update { it.copy(pageWidth = pageW, pageHeight = pageH) }
         val zoom = _uiState.value.zoom
         viewModelScope.launch(Dispatchers.IO) {
