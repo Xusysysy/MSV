@@ -113,6 +113,7 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                         zoom = state.zoom,
                         panOffsetX = state.panOffsetX,
                         panOffsetY = state.panOffsetY,
+                        isSpreadMode = state.isSpreadMode,
                         onCenterTap = { viewModel.onEvent(ViewerEvent.ToggleUI) },
                         onDoubleTap = { viewModel.onEvent(ViewerEvent.ResetZoom) },
                         onZoomChange = { viewModel.onEvent(ViewerEvent.SetZoom(it)) },
@@ -122,6 +123,7 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                         onViewportSizeChanged = { w, h ->
                             viewModel.onEvent(ViewerEvent.UpdateViewportSize(w, h))
                         },
+                        onSpreadModeChanged = { viewModel.onEvent(ViewerEvent.SetSpreadMode(it)) },
                         onPreloadAround = { viewModel.preloadAround(it) }
                     )
 

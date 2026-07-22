@@ -153,31 +153,35 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 7. ui/components/Stage.kt (L1-L237)
+### 7. ui/components/Stage.kt (L1-L320)
 
 | Element | Type | Lines |
 |---|---|---|
-| Package + imports | — | L1-L42 |
-| `SWIPE_THRESHOLD` | private const val (0.30f) | L44 |
-| `Stage` | @Composable fun | L46-L237 |
-| Parameters (17): | isDark, pageUris, currentPage, pageCount, pageWidth, pageHeight, zoom, panOffsetX, panOffsetY, onCenterTap, onDoubleTap, onZoomChange, onPanChange, onNextPage, onPrevPage, onViewportSizeChanged, onPreloadAround(default={}), modifier(default=Modifier) | L47-L65 |
-| `bg` | derived val background color | L67 |
-| `stageWidth` | mutableStateOf(0) | L68 |
-| `stageHeight` | mutableStateOf(0) | L69 |
-| `currentZoom` | mutableFloatStateOf(zoom) | L70 |
-| `transition` | Animatable(0f) | L71 |
-| `scope` | rememberCoroutineScope | L72 |
-| `flipJob` | mutableStateOf<Job?>(null) | L73 |
-| `dragOffset` | mutableFloatStateOf(0f) | L74 |
-| `isZoomed` / `pw` | derived vals | L86-L87 |
-| `displaySize` | derived Pair — fit-to-viewport display dimensions maintaining aspect ratio | L88-L102 |
-| `currentIsZoomed` etc. | 4× rememberUpdatedState + displayW | L104-L108 |
-| `baseX(pageIndex)` | local fun — static x offset (uses displayW) | L110-L113 |
-| `pageX(pageIndex)` | local fun — animated x offset | L115-L123 |
-| `doFlip(dir, fromOffset, easing)` | local fun — page flip animation (spring-based, uses displayW) | L126-L150 |
-| `pagesToShow` | derived val — visible page window (±3) | L163-L166 |
-| Root Box | composable (gestures + rendering, centered display) | L168-L277 |
-| — `for (pageIndex in pagesToShow)` | page Box with AsyncImage, centered via displaySize | L280-L298 |
+| Package + imports | — | L1-L44 |
+| `SWIPE_THRESHOLD` | private const val (0.30f) | L46 |
+| `Stage` | @Composable fun | L48-L320 |
+| Parameters (19): | isDark, pageUris, currentPage, pageCount, pageWidth, pageHeight, zoom, panOffsetX, panOffsetY, isSpreadMode, onCenterTap, onDoubleTap, onZoomChange, onPanChange, onNextPage, onPrevPage, onViewportSizeChanged, onSpreadModeChanged, onPreloadAround(default={}), modifier(default=Modifier) | L49-L68 |
+| `bg` | derived val background color | L70 |
+| `stageWidth` | mutableStateOf(0) | L71 |
+| `stageHeight` | mutableStateOf(0) | L72 |
+| `currentZoom` | mutableFloatStateOf(zoom) | L73 |
+| `transition` | Animatable(0f) | L74 |
+| `scope` | rememberCoroutineScope | L75 |
+| `flipJob` | mutableStateOf<Job?>(null) | L76 |
+| `dragOffset` | mutableFloatStateOf(0f) | L77 |
+| `isZoomed` / `pw` | derived vals | L89-L90 |
+| `displaySize` | derived Pair — fit-to-viewport display dimensions maintaining aspect ratio | L91-L105 |
+| `autoSpreadMode` | derived Boolean — landscape + narrow pages | L107-L110 |
+| `spreadW` / `spreadOffsetX` | derived Float — spread total width and left offset | L114-L115 |
+| `currentIsZoomed` etc. | 5× rememberUpdatedState + displayW + flipUnit | L117-L123 |
+| `baseX(pageIndex)` | local fun — static x offset (uses displayW) | L125-L128 |
+| `pageX(pageIndex)` | local fun — animated x offset | L130-L138 |
+| `doFlip(dir, fromOffset, easing)` | local fun — page flip animation (spring-based, uses flipUnit) | L140-L164 |
+| `doBounce(dir)` | local fun — boundary bounce animation | L166-L175 |
+| `pagesToShow` | derived val — visible page window (±3 single, ±6 spread) | L177-L182 |
+| Root Box | composable (gestures + rendering, centered display) | L184-L295 |
+| — spread mask Box | left gap fill when spread centered | L297-L306 |
+| — `for (pageIndex in pagesToShow)` | page Box with AsyncImage, centered via displaySize | L308-L326 |
 
 ---
 
@@ -334,8 +338,8 @@ Single-screen app — no Navigation component. State-based content switching via
 | Element | Type | Lines |
 |---|---|---|
 | Package + import | — | L1-L3 |
-| `ViewerState` | data class (20 fields) | L5-L27 |
-| Fields: | mode, currentPage, pageCount, zoom, panOffsetX, panOffsetY, showUI, showThumbnails, showShelf, isDarkTheme, statusMessage, isLoading, fileName, pageUris, pageWidth, pageHeight, viewportWidth, viewportHeight, thumbnailsLoading, shelfFiles(emptyList()), shelfSortBy(ShelfSort.DATE) | L6-L26 |
+| `ViewerState` | data class (21 fields) | L5-L28 |
+| Fields: | mode, currentPage, pageCount, zoom, panOffsetX, panOffsetY, showUI, showThumbnails, showShelf, isDarkTheme, statusMessage, isLoading, fileName, pageUris, pageWidth, pageHeight, viewportWidth, viewportHeight, thumbnailsLoading, shelfFiles(emptyList()), shelfSortBy(ShelfSort.DATE), isSpreadMode(false) | L6-L27 |
 | `ShelfSort` | enum (NAME, DATE) | L29 |
 | `Mode` | sealed class | L31-L35 |
 | — `Idle` | data object | L32 |
@@ -359,6 +363,7 @@ Single-screen app — no Navigation component. State-based content switching via
 | — `OpenShelfFile(uri)` | data class | L52 |
 | — `RenameShelfFile(uri, newName)` | data class | L53 |
 | — `ToggleShelfSort` | data object | L54 |
+| — `SetSpreadMode(spread)` | data class | L55 |
 | `ShelfFile` | data class (3 fields) | L57-L62 |
 | Fields: | name(String), uri(Uri), thumbnailUri(Uri?) | L59-L61 |
 

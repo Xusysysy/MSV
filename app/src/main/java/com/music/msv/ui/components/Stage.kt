@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -63,6 +64,7 @@ fun Stage(
     zoom: Float,
     panOffsetX: Float,
     panOffsetY: Float,
+    isSpreadMode: Boolean,
     onCenterTap: () -> Unit,
     onDoubleTap: () -> Unit,
     onZoomChange: (Float) -> Unit,
@@ -70,6 +72,7 @@ fun Stage(
     onNextPage: () -> Unit,
     onPrevPage: () -> Unit,
     onViewportSizeChanged: (Int, Int) -> Unit,
+    onSpreadModeChanged: (Boolean) -> Unit,
     onPreloadAround: (Int) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -101,11 +104,24 @@ fun Stage(
         null
     }
 
+    val autoSpreadMode = if (displaySize != null && stageWidth > stageHeight) {
+        displaySize.first < stageWidth.toFloat() / 2f
+    } else false
+
+    LaunchedEffect(autoSpreadMode) {
+        onSpreadModeChanged(autoSpreadMode)
+    }
+
+    val spreadW = if (isSpreadMode && displaySize != null) displaySize.first * 2f else 0f
+    val spreadOffsetX = if (isSpreadMode && stageWidth > 0) (stageWidth - spreadW) / 2f else 0f
+
     val currentIsZoomed by rememberUpdatedState(isZoomed)
     val currentPageIndex by rememberUpdatedState(currentPage)
     val currentPageCount by rememberUpdatedState(pageCount)
     val currentPw by rememberUpdatedState(pw)
     val displayW = displaySize?.first ?: pw
+    val currentIsSpread by rememberUpdatedState(isSpreadMode)
+    val flipUnit = if (currentIsSpread) displayW * 2f else displayW
 
     fun baseX(pageIndex: Int): Float {
         val cp = currentPage
@@ -123,20 +139,21 @@ fun Stage(
     }
 
     fun doFlip(dir: Int, fromOffset: Float, easing: Boolean) {
-        if (displayW <= 0f) return
-        if (currentPageIndex + dir !in 0 until currentPageCount) return
+        if (flipUnit <= 0f) return
+        val step = if (currentIsSpread) 2 else 1
+        if (currentPageIndex + dir * step !in 0 until currentPageCount) return
         flipJob?.cancel()
         flipJob = scope.launch {
             transition.snapTo(fromOffset)
             try {
                 if (easing) {
                     transition.animateTo(
-                        -dir * displayW,
+                        -dir * flipUnit,
                         spring(dampingRatio = 0.75f, stiffness = 280f)
                     )
                 } else {
                     transition.animateTo(
-                        -dir * displayW,
+                        -dir * flipUnit,
                         spring(dampingRatio = 0.8f, stiffness = 300f)
                     )
                 }
@@ -150,18 +167,19 @@ fun Stage(
     }
 
     fun doBounce(dir: Int) {
-        if (displayW <= 0f) return
+        if (flipUnit <= 0f) return
         flipJob?.cancel()
         flipJob = scope.launch {
             transition.snapTo(0f)
-            val overshoot = -dir * displayW * 0.06f
+            val overshoot = -dir * flipUnit * 0.06f
             transition.animateTo(overshoot, tween(80, easing = FastOutSlowInEasing))
             transition.animateTo(0f, spring(dampingRatio = 0.55f, stiffness = 450f))
         }
     }
 
     val pagesToShow = if (pageCount > 0) {
-        ((currentPage - 3).coerceAtLeast(0)..(currentPage + 3).coerceAtMost(pageCount - 1))
+        val spreadPages = if (currentIsSpread) 6 else 3
+        ((currentPage - spreadPages).coerceAtLeast(0)..(currentPage + spreadPages).coerceAtMost(pageCount - 1))
             .sortedByDescending { it }
     } else emptyList()
 
@@ -218,7 +236,7 @@ fun Stage(
                             if (amount * activeDir > 0) reversed = true
                             val inRange = currentPageIndex + activeDir in 0 until currentPageCount
                             val factor = if (inRange) 1f else 0.25f
-                            val limit = if (inRange) displayW else displayW * 0.25f
+                            val limit = if (inRange) flipUnit else flipUnit * 0.25f
                             dragOffset = if (activeDir > 0)
                                 (dragOffset + amount * factor).coerceIn(-limit, 0f)
                             else
@@ -271,6 +289,18 @@ fun Stage(
         val (dw, dh) = displaySize ?: Pair(stageWidth.toFloat(), stageHeight.toFloat())
         val centerX = if (stageWidth > 0) (stageWidth - dw) / 2f else 0f
         val centerY = if (stageHeight > 0) (stageHeight - dh) / 2f else 0f
+
+        if (isSpreadMode && spreadOffsetX > 0f) {
+            Box(
+                modifier = Modifier
+                    .offset { IntOffset(0, 0) }
+                    .size(
+                        with(LocalDensity.current) { spreadOffsetX.toDp() },
+                        with(LocalDensity.current) { stageHeight.toFloat().toDp() }
+                    )
+                    .background(bg)
+            )
+        }
 
         for (pageIndex in pagesToShow) {
             val uri = pageUris[pageIndex] ?: continue

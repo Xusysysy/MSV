@@ -76,8 +76,14 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         when (event) {
             is ViewerEvent.FilesSelected -> handleFilesSelected(event.uris)
             is ViewerEvent.GoToPage -> goToPage(event.page)
-            ViewerEvent.NextPage -> goToPage(_uiState.value.currentPage + 1)
-            ViewerEvent.PrevPage -> goToPage(_uiState.value.currentPage - 1)
+            ViewerEvent.NextPage -> {
+                val step = if (_uiState.value.isSpreadMode) 2 else 1
+                goToPage(_uiState.value.currentPage + step)
+            }
+            ViewerEvent.PrevPage -> {
+                val step = if (_uiState.value.isSpreadMode) 2 else 1
+                goToPage(_uiState.value.currentPage - step)
+            }
             is ViewerEvent.SetZoom -> setZoom(event.zoom)
             is ViewerEvent.PanBy -> panBy(event.dx, event.dy)
             is ViewerEvent.UpdateViewportSize -> updateViewportSize(event.width, event.height)
@@ -91,6 +97,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             is ViewerEvent.OpenShelfFile -> openShelfFile(event.uri)
             is ViewerEvent.RenameShelfFile -> renameShelfFile(event.uri, event.newName)
             ViewerEvent.ToggleShelfSort -> toggleShelfSort()
+            is ViewerEvent.SetSpreadMode -> setSpreadMode(event.spread)
         }
     }
 
@@ -317,6 +324,15 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         val next = if (current == ShelfSort.DATE) ShelfSort.NAME else ShelfSort.DATE
         _uiState.update { it.copy(shelfSortBy = next) }
         loadShelfFiles()
+    }
+
+    private fun setSpreadMode(spread: Boolean) {
+        val state = _uiState.value
+        if (state.isSpreadMode == spread) return
+        _uiState.update { it.copy(isSpreadMode = spread) }
+        if (spread && state.currentPage % 2 != 0) {
+            goToPage(state.currentPage + 1)
+        }
     }
 
     private fun loadShelfFiles() {

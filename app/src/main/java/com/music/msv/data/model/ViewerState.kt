@@ -23,7 +23,8 @@ data class ViewerState(
     val viewportHeight: Int = 0,
     val thumbnailsLoading: Boolean = false,
     val shelfFiles: List<ShelfFile> = emptyList(),
-    val shelfSortBy: ShelfSort = ShelfSort.DATE
+    val shelfSortBy: ShelfSort = ShelfSort.DATE,
+    val isSpreadMode: Boolean = false
 )
 
 enum class ShelfSort { NAME, DATE }
@@ -52,6 +53,7 @@ sealed class ViewerEvent {
     data class OpenShelfFile(val uri: Uri) : ViewerEvent()
     data class RenameShelfFile(val uri: Uri, val newName: String) : ViewerEvent()
     data object ToggleShelfSort : ViewerEvent()
+    data class SetSpreadMode(val spread: Boolean) : ViewerEvent()
 }
 
 data class ShelfFile(
