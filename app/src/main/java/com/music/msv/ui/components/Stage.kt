@@ -141,8 +141,8 @@ fun Stage(
                 }
             } finally {
                 withContext(NonCancellable) {
-                    if (dir > 0) onNextPage() else onPrevPage()
                     transition.snapTo(0f)
+                    if (dir > 0) onNextPage() else onPrevPage()
                 }
             }
         }
