@@ -11,8 +11,11 @@ import android.os.SystemClock
 import androidx.camera.core.ImageProxy
 import com.google.mediapipe.framework.image.BitmapImageBuilder
 import com.google.mediapipe.tasks.core.BaseOptions
+import com.google.mediapipe.tasks.components.containers.NormalizedLandmark
 import com.google.mediapipe.tasks.vision.facelandmarker.FaceLandmarker
-import com.google.mediapipe.tasks.vision.facelandmarker.FaceLandmarkerResult
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.io.ByteArrayOutputStream
 
 class FaceRecognitionManager(private val context: Context) {
@@ -45,21 +48,22 @@ class FaceRecognitionManager(private val context: Context) {
 
     data class FaceDebugInfo(
         val fps: Int = 0,
-        val scores: GestureScores = GestureScores()
+        val scores: GestureScores = GestureScores(),
+        val landmarks: List<NormalizedLandmark>? = null
     )
 
     private var landmarker: FaceLandmarker? = null
     private var state = FaceState()
     private var onGestureDetected: ((Gesture) -> Unit)? = null
-    private var onResult: ((FaceLandmarkerResult) -> Unit)? = null
-    private var currentScores = GestureScores()
-    private var currentDebugInfo = FaceDebugInfo()
-    private var fpsFrameCount = 0
-    private var fpsLastTime = System.currentTimeMillis()
+
+    private val _debugInfoFlow = MutableStateFlow(FaceDebugInfo())
+    val debugInfoFlow: StateFlow<FaceDebugInfo> = _debugInfoFlow.asStateFlow()
 
     private val smoothState = mutableMapOf<String, Float>()
     private val activeState = mutableMapOf<String, Boolean>()
     private var lastActionTime = 0L
+    private var fpsFrameCount = 0
+    private var fpsLastTime = System.currentTimeMillis()
 
     private val eyeAttack = 0.94f
     private val eyeRelease = 0.40f
@@ -72,19 +76,11 @@ class FaceRecognitionManager(private val context: Context) {
         onGestureDetected = listener
     }
 
-    fun setOnResult(listener: (FaceLandmarkerResult) -> Unit) {
-        onResult = listener
-    }
-
     fun getState(): FaceState = state
 
     fun updateState(newState: FaceState) {
         state = newState
     }
-
-    fun getScores(): GestureScores = currentScores
-
-    fun getDebugInfo(): FaceDebugInfo = currentDebugInfo
 
     fun isInitialized(): Boolean = landmarker != null
 
@@ -119,17 +115,39 @@ class FaceRecognitionManager(private val context: Context) {
             val mpImage = BitmapImageBuilder(bitmap).build()
             val result = currentLandmarker.detectForVideo(mpImage, SystemClock.elapsedRealtime())
 
-            onResult?.invoke(result)
+            var lm: List<NormalizedLandmark>? = null
+            try {
+                val allLandmarks = result.faceLandmarks()
+                if (allLandmarks != null && allLandmarks.isNotEmpty()) {
+                    lm = allLandmarks[0]
+                }
+            } catch (_: Exception) { }
 
+            var scores = GestureScores()
             if (result.faceBlendshapes().isPresent) {
                 val blendshapesList = result.faceBlendshapes().get()
                 if (blendshapesList.isNotEmpty()) {
                     val categories = blendshapesList[0]
                     val gesture = processBlendshapes(categories)
+                    scores = _debugInfoFlow.value.scores
+
+                    fpsFrameCount++
+                    val now = System.currentTimeMillis()
+                    val fps = if (now - fpsLastTime >= 1000) {
+                        val f = fpsFrameCount
+                        fpsFrameCount = 0
+                        fpsLastTime = now
+                        f
+                    } else {
+                        _debugInfoFlow.value.fps
+                    }
+
+                    _debugInfoFlow.value = FaceDebugInfo(fps = fps, scores = scores, landmarks = lm)
+
                     if (gesture != Gesture.NONE) {
-                        val now = System.currentTimeMillis()
-                        if (now - lastActionTime >= state.cooldownMs) {
-                            lastActionTime = now
+                        val gestureNow = System.currentTimeMillis()
+                        if (gestureNow - lastActionTime >= state.cooldownMs) {
+                            lastActionTime = gestureNow
                             onGestureDetected?.invoke(gesture)
                         }
                     }
@@ -191,15 +209,7 @@ class FaceRecognitionManager(private val context: Context) {
         val cPL = if (isLPuck) ((puck * biasL.coerceAtLeast(0f)) / 0.25f).coerceIn(0f, 1f) else 0f
         val cPR = if (isRPuck) ((puck * biasR.coerceAtLeast(0f)) / 0.25f).coerceIn(0f, 1f) else 0f
 
-        currentScores = GestureScores(cWL, cWR, cPL, cPR)
-
-        fpsFrameCount++
-        val now = System.currentTimeMillis()
-        if (now - fpsLastTime >= 1000) {
-            currentDebugInfo = FaceDebugInfo(fps = fpsFrameCount, scores = currentScores)
-            fpsFrameCount = 0
-            fpsLastTime = now
-        }
+        _debugInfoFlow.value = _debugInfoFlow.value.copy(scores = GestureScores(cWL, cWR, cPL, cPR))
 
         val allowWink = state.triggerMode != TriggerMode.PUCKER
         val allowPucker = state.triggerMode != TriggerMode.WINK
