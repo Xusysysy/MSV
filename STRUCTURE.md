@@ -163,22 +163,21 @@ Single-screen app — no Navigation component. State-based content switching via
 | Parameters (17): | isDark, pageUris, currentPage, pageCount, pageWidth, pageHeight, zoom, panOffsetX, panOffsetY, onCenterTap, onDoubleTap, onZoomChange, onPanChange, onNextPage, onPrevPage, onViewportSizeChanged, onPreloadAround(default={}), modifier(default=Modifier) | L47-L65 |
 | `bg` | derived val background color | L67 |
 | `stageWidth` | mutableStateOf(0) | L68 |
-| `currentZoom` | mutableFloatStateOf(zoom) | L69 |
-| `transition` | Animatable(0f) | L70 |
-| `scope` | rememberCoroutineScope | L71 |
-| `flipJob` | mutableStateOf<Job?>(null) | L72 |
-| `dragOffset` | mutableFloatStateOf(0f) | L73 |
-| `isZoomed` / `pw` | derived vals | L75-L76 |
-| `currentIsZoomed` etc. | 4× rememberUpdatedState | L78-L81 |
-| `baseX(pageIndex)` | local fun — static x offset | L83-L86 |
-| `pageX(pageIndex)` | local fun — animated x offset | L88-L96 |
-| `doFlip(dir, fromOffset, easing)` | local fun — page flip animation (spring-based) | L107-L132 |
-| `pagesToShow` | derived val — visible page window (±3) | L119-L122 |
-| `pageSizeModifier` | derived Modifier — converts pageWidth/pageHeight px to dp via LocalDensity | L144-L150 |
-| Root Box | composable (gestures + rendering) | L131-L240 |
-| — `.pointerInput(pageCount)` (outer) | coroutineScope: drag detector + tap detector, key=pageCount for cold start init | L138-L209 |
-| — `.pointerInput(isZoomed)` (inner) | detectTransformGestures (zoom 0.5x–8x + pan) | L210-L218 |
-| — `for (pageIndex in pagesToShow)` | page Box with AsyncImage (no background, white-filled PDF bitmaps) | L220-L237 |
+| `stageHeight` | mutableStateOf(0) | L69 |
+| `currentZoom` | mutableFloatStateOf(zoom) | L70 |
+| `transition` | Animatable(0f) | L71 |
+| `scope` | rememberCoroutineScope | L72 |
+| `flipJob` | mutableStateOf<Job?>(null) | L73 |
+| `dragOffset` | mutableFloatStateOf(0f) | L74 |
+| `isZoomed` / `pw` | derived vals | L86-L87 |
+| `displaySize` | derived Pair — fit-to-viewport display dimensions maintaining aspect ratio | L88-L102 |
+| `currentIsZoomed` etc. | 4× rememberUpdatedState + displayW | L104-L108 |
+| `baseX(pageIndex)` | local fun — static x offset (uses displayW) | L110-L113 |
+| `pageX(pageIndex)` | local fun — animated x offset | L115-L123 |
+| `doFlip(dir, fromOffset, easing)` | local fun — page flip animation (spring-based, uses displayW) | L126-L150 |
+| `pagesToShow` | derived val — visible page window (±3) | L163-L166 |
+| Root Box | composable (gestures + rendering, centered display) | L168-L277 |
+| — `for (pageIndex in pagesToShow)` | page Box with AsyncImage, centered via displaySize | L280-L298 |
 
 ---
 

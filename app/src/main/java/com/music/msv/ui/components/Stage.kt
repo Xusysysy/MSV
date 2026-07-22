@@ -75,6 +75,7 @@ fun Stage(
 ) {
     val bg = if (isDark) Color(0xFF0F1220) else Color(0xFFDFE6F5)
     var stageWidth by remember { mutableStateOf(0) }
+    var stageHeight by remember { mutableStateOf(0) }
     var currentZoom by remember { mutableFloatStateOf(zoom) }
     val transition = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
@@ -84,14 +85,31 @@ fun Stage(
     val isZoomed = zoom > 1.01f || abs(panOffsetX) > 1f || abs(panOffsetY) > 1f
     val pw = if (pageWidth > 0) pageWidth.toFloat() else stageWidth.toFloat()
 
+    val displaySize = if (pageWidth > 0 && pageHeight > 0 && stageWidth > 0 && stageHeight > 0) {
+        val pageAspect = pageWidth.toFloat() / pageHeight.toFloat()
+        val stageAspect = stageWidth.toFloat() / stageHeight.toFloat()
+        if (pageAspect > stageAspect) {
+            val dw = stageWidth.toFloat()
+            val dh = dw / pageAspect
+            Pair(dw, dh)
+        } else {
+            val dh = stageHeight.toFloat()
+            val dw = dh * pageAspect
+            Pair(dw, dh)
+        }
+    } else {
+        null
+    }
+
     val currentIsZoomed by rememberUpdatedState(isZoomed)
     val currentPageIndex by rememberUpdatedState(currentPage)
     val currentPageCount by rememberUpdatedState(pageCount)
     val currentPw by rememberUpdatedState(pw)
+    val displayW = displaySize?.first ?: pw
 
     fun baseX(pageIndex: Int): Float {
         val cp = currentPage
-        return if (pageIndex >= cp) 0f else -(cp - pageIndex).toFloat() * pw
+        return if (pageIndex >= cp) 0f else -(cp - pageIndex).toFloat() * displayW
     }
 
     fun pageX(pageIndex: Int): Float {
@@ -105,7 +123,7 @@ fun Stage(
     }
 
     fun doFlip(dir: Int, fromOffset: Float, easing: Boolean) {
-        if (currentPw <= 0f) return
+        if (displayW <= 0f) return
         if (currentPageIndex + dir !in 0 until currentPageCount) return
         flipJob?.cancel()
         flipJob = scope.launch {
@@ -113,12 +131,12 @@ fun Stage(
             try {
                 if (easing) {
                     transition.animateTo(
-                        -dir * currentPw,
+                        -dir * displayW,
                         spring(dampingRatio = 0.75f, stiffness = 280f)
                     )
                 } else {
                     transition.animateTo(
-                        -dir * currentPw,
+                        -dir * displayW,
                         spring(dampingRatio = 0.8f, stiffness = 300f)
                     )
                 }
@@ -132,11 +150,11 @@ fun Stage(
     }
 
     fun doBounce(dir: Int) {
-        if (currentPw <= 0f) return
+        if (displayW <= 0f) return
         flipJob?.cancel()
         flipJob = scope.launch {
             transition.snapTo(0f)
-            val overshoot = -dir * currentPw * 0.06f
+            val overshoot = -dir * displayW * 0.06f
             transition.animateTo(overshoot, tween(80, easing = FastOutSlowInEasing))
             transition.animateTo(0f, spring(dampingRatio = 0.55f, stiffness = 450f))
         }
@@ -147,20 +165,13 @@ fun Stage(
             .sortedByDescending { it }
     } else emptyList()
 
-    val pageSizeModifier: Modifier = if (pageWidth > 0) {
-        with(LocalDensity.current) {
-            Modifier.size(pageWidth.toDp(), pageHeight.toDp())
-        }
-    } else {
-        Modifier.fillMaxSize()
-    }
-
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(bg)
             .onSizeChanged {
                 stageWidth = it.width
+                stageHeight = it.height
                 if (pageWidth <= 0) onViewportSizeChanged(it.width, it.height)
             }
             .pointerInput(pageCount) {
@@ -207,7 +218,7 @@ fun Stage(
                             if (amount * activeDir > 0) reversed = true
                             val inRange = currentPageIndex + activeDir in 0 until currentPageCount
                             val factor = if (inRange) 1f else 0.25f
-                            val limit = if (inRange) currentPw else currentPw * 0.25f
+                            val limit = if (inRange) displayW else displayW * 0.25f
                             dragOffset = if (activeDir > 0)
                                 (dragOffset + amount * factor).coerceIn(-limit, 0f)
                             else
@@ -257,12 +268,24 @@ fun Stage(
                 }
             }
     ) {
+        val (dw, dh) = displaySize ?: Pair(stageWidth.toFloat(), stageHeight.toFloat())
+        val centerX = if (stageWidth > 0) (stageWidth - dw) / 2f else 0f
+        val centerY = if (stageHeight > 0) (stageHeight - dh) / 2f else 0f
+
         for (pageIndex in pagesToShow) {
             val uri = pageUris[pageIndex] ?: continue
             Box(
                 modifier = Modifier
-                    .offset { IntOffset(pageX(pageIndex).roundToInt(), 0) }
-                    .then(pageSizeModifier)
+                    .offset {
+                        IntOffset(
+                            (pageX(pageIndex) + centerX).roundToInt(),
+                            centerY.roundToInt()
+                        )
+                    }
+                    .size(
+                        with(LocalDensity.current) { dw.toDp() },
+                        with(LocalDensity.current) { dh.toDp() }
+                    )
             ) {
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current).data(uri).build(),
