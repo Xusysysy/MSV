@@ -234,20 +234,12 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         if (pageW <= 0) return
         if (center !in 0 until total) return
         val zoom = state.zoom
+        val keepMin = (center - 5).coerceAtLeast(0)
+        val keepMax = (center + 5).coerceAtMost(total - 1)
         viewModelScope.launch(Dispatchers.IO) {
             val newUris = mutableMapOf<Int, Uri>()
-            if (!state.pageUris.containsKey(center)) {
-                val uri = when (state.mode) {
-                    is Mode.Pdf -> renderPage(center, pageW, pageH, zoom)
-                    is Mode.Image -> imageUris.getOrNull(center)
-                    else -> null
-                }
-                if (uri != null) {
-                    newUris[center] = uri
-                }
-            }
-            for (i in (center - 3)..(center + 3)) {
-                if (i == center || i !in 0 until total || state.pageUris.containsKey(i)) continue
+            for (i in keepMin..keepMax) {
+                if (state.pageUris.containsKey(i)) continue
                 val uri = when (state.mode) {
                     is Mode.Pdf -> renderPage(i, pageW, pageH, zoom)
                     is Mode.Image -> imageUris.getOrNull(i)
@@ -255,13 +247,19 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 }
                 if (uri != null) newUris[i] = uri
             }
-            if (newUris.isNotEmpty()) {
-                _uiState.update { it.copy(pageUris = it.pageUris + newUris) }
+            val currentUris = _uiState.value.pageUris.toMutableMap()
+            currentUris.putAll(newUris)
+            val toRemove = currentUris.keys.filter { it !in keepMin..keepMax }
+            for (page in toRemove) {
+                val uri = currentUris.remove(page)
+                if (uri != null) {
+                    try { java.io.File(uri.path!!).delete() } catch (_: Exception) {}
+                }
             }
+            _uiState.update { it.copy(pageUris = currentUris) }
             if (_uiState.value.isLoading) {
                 val loaded = _uiState.value.pageUris
-                val required = listOf(center - 1, center, center + 1, center + 2)
-                    .filter { it in 0 until total }
+                val required = (center - 1..center + 2).filter { it in 0 until total }
                 if (required.all { loaded.containsKey(it) }) {
                     _uiState.update { it.copy(isLoading = false) }
                 }
