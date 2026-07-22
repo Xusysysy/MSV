@@ -37,6 +37,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     private var imageUris: List<Uri> = emptyList()
     private var pdfUri: Uri? = null
     private var loadJob: Job? = null
+    private var preloadJob: Job? = null
     private val thumbnailCache = java.util.concurrent.ConcurrentHashMap<Int, Uri>()
 
     init {
@@ -229,6 +230,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun preloadAround(center: Int) {
+        preloadJob?.cancel()
         val state = _uiState.value
         val total = state.pageCount
         val pageW = state.pageWidth
@@ -238,8 +240,9 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         val zoom = state.zoom
         val keepMin = (center - 5).coerceAtLeast(0)
         val keepMax = (center + 5).coerceAtMost(total - 1)
-        viewModelScope.launch(Dispatchers.IO) {
-            val toRender = (keepMin..keepMax).filter { !state.pageUris.containsKey(it) }
+        val oldUris = state.pageUris
+        preloadJob = viewModelScope.launch(Dispatchers.IO) {
+            val toRender = (keepMin..keepMax).filter { !oldUris.containsKey(it) }
             val rendered = toRender.map { i ->
                 async {
                     val uri = when (state.mode) {
@@ -250,16 +253,18 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                     if (uri != null) i to uri else null
                 }
             }.awaitAll().filterNotNull().toMap()
-            val currentUris = _uiState.value.pageUris.toMutableMap()
-            currentUris.putAll(rendered)
-            val toRemove = currentUris.keys.filter { it !in keepMin..keepMax }
-            for (page in toRemove) {
-                val uri = currentUris.remove(page)
-                if (uri != null) {
-                    try { java.io.File(uri.path!!).delete() } catch (_: Exception) {}
+            _uiState.update { prev ->
+                val merged = prev.pageUris.toMutableMap()
+                merged.putAll(rendered)
+                val toRemove = merged.keys.filter { it !in keepMin..keepMax }
+                for (page in toRemove) {
+                    val uri = merged.remove(page)
+                    if (uri != null) {
+                        try { java.io.File(uri.path!!).delete() } catch (_: Exception) {}
+                    }
                 }
+                prev.copy(pageUris = merged)
             }
-            _uiState.update { it.copy(pageUris = currentUris) }
             if (_uiState.value.isLoading) {
                 val loaded = _uiState.value.pageUris
                 val required = (center - 1..center + 2).filter { it in 0 until total }

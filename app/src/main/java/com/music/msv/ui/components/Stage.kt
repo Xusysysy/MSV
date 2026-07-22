@@ -160,7 +160,7 @@ fun Stage(
     }
 
     val pagesToShow = if (pageCount > 0) {
-        val spreadPages = if (currentIsSpread) 6 else 3
+        val spreadPages = if (currentIsSpread) 6 else 5
         ((currentPage - spreadPages).coerceAtLeast(0)..(currentPage + spreadPages).coerceAtMost(pageCount - 1))
             .sortedByDescending { it }
     } else emptyList()
