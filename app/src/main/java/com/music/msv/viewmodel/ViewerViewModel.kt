@@ -39,8 +39,12 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     private var loadJob: Job? = null
     private var preloadJob: Job? = null
     private val thumbnailCache = java.util.concurrent.ConcurrentHashMap<Int, Uri>()
+    private var pageMap = mapOf<String, Int>()
 
     init {
+        viewModelScope.launch {
+            sessionRepo.getPageMap().collect { pageMap = it }
+        }
         restoreSession()
     }
 
@@ -458,9 +462,10 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         thumbnailCache.clear()
         viewModelScope.launch {
             val name = fileRepo.getFileName(uri)
+            val restorePage = pageMap[name] ?: 0
             when {
-                fileRepo.isPdf(name) -> openPdf(uri, name)
-                fileRepo.isImage(name) -> openImages(listOf(uri), name)
+                fileRepo.isPdf(name) -> openPdf(uri, name, restorePage)
+                fileRepo.isImage(name) -> openImages(listOf(uri), name, restorePage)
             }
         }
     }
