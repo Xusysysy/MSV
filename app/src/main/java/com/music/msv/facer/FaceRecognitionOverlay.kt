@@ -2,6 +2,7 @@ package com.music.msv.facer
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -51,15 +52,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import com.google.mediapipe.tasks.components.containers.NormalizedLandmark
 import java.util.concurrent.Executors
+
+private const val TAG = "FaceRec"
 
 private val FACE_CONNS = intArrayOf(10,338,338,297,297,332,332,284,284,251,251,389,389,356,356,454,454,323,323,361,361,288,288,397,397,365,365,379,379,378,378,400,400,377,377,152,152,148,148,176,176,149,149,150,150,136,136,172,172,58,58,132,132,93,93,234,234,127,127,162,162,21,21,54,54,103,103,67,67,109,109,10)
 private val EYE_CONNS = intArrayOf(33,7,7,163,163,144,144,145,145,153,153,154,154,155,155,133,133,173,173,157,157,158,158,159,159,160,160,161,161,246,246,33,362,382,382,381,381,380,380,374,374,373,373,390,390,249,249,263,263,466,466,388,388,387,387,386,386,385,385,384,384,398,398,362)
@@ -82,14 +86,32 @@ fun FaceRecognitionOverlay(
     var hasPermission by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
     }
+    var debugLog by remember { mutableStateOf("等待初始化...") }
 
     val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         hasPermission = granted
+        debugLog = if (granted) "✓ 相机权限已授予" else "✗ 相机权限被拒绝"
         if (!granted) Toast.makeText(context, "需要相机权限", Toast.LENGTH_SHORT).show()
     }
 
     LaunchedEffect(visible) {
-        if (visible && !hasPermission) permLauncher.launch(Manifest.permission.CAMERA)
+        if (visible && !hasPermission) {
+            debugLog = "请求相机权限..."
+            permLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    LaunchedEffect(visible) {
+        if (visible) {
+            debugLog = "初始化模型..."
+            if (!manager.isInitialized()) {
+                val ok = manager.initialize()
+                debugLog = if (ok) "✓ 模型加载成功" else "✗ 模型加载失败"
+                Log.e(TAG, "Model init: $ok")
+            } else {
+                debugLog = "✓ 模型已就绪"
+            }
+        }
     }
 
     val debugInfo by manager.debugInfoFlow.collectAsState()
@@ -98,9 +120,7 @@ fun FaceRecognitionOverlay(
     val panelBg = if (isDark) Color(0xF00F121C) else Color(0xF8FFFFFF)
     val cardBg = if (isDark) Color(0xFF1A1E2E) else Color(0x141A2230)
     val bdr = if (isDark) Color(0x28FFFFFF) else Color(0x201A2230)
-    val white = Color.White
-    val black = Color.Black
-    val textOn = if (isDark) white else black
+    val textOn = if (isDark) Color.White else Color.Black
     val textMuted = if (isDark) Color(0xCCFFFFFF) else Color(0xCC000000)
     val accent = if (isDark) Color(0xFF8CC8FF) else Color(0xFF2F6AD9)
     val danger = if (isDark) Color(0xFFFF9AA8) else Color(0xFFD9455D)
@@ -133,7 +153,20 @@ fun FaceRecognitionOverlay(
                     Text("面部识别", color = textOn, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         val running = manager.getState().isRunning
-                        Box(Modifier.clip(RoundedCornerShape(8.dp)).background(if (running) green.copy(alpha = 0.2f) else cardBg).border(1.dp, if (running) green else bdr, RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 3.dp)) {
+                        Box(Modifier.clip(RoundedCornerShape(8.dp)).background(if (running) green.copy(alpha = 0.2f) else cardBg).border(1.dp, if (running) green else bdr, RoundedCornerShape(8.dp)).clickable {
+                            if (running) {
+                                manager.updateState(manager.getState().copy(isRunning = false, isEnabled = false))
+                                debugLog = "已停止识别"
+                            } else {
+                                if (!manager.isInitialized()) {
+                                    debugLog = "模型未加载，正在初始化..."
+                                    val ok = manager.initialize()
+                                    if (!ok) { debugLog = "✗ 模型加载失败"; return@clickable }
+                                }
+                                manager.updateState(manager.getState().copy(isRunning = true, isEnabled = true))
+                                debugLog = "✓ 识别已启动"
+                            }
+                        }.padding(horizontal = 8.dp, vertical = 3.dp)) {
                             Text(if (running) "LIVE ${debugInfo.fps}fps" else "OFF", color = if (running) green else textMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                         Box(Modifier.size(28.dp).clip(RoundedCornerShape(8.dp)).background(cardBg).border(1.dp, bdr, RoundedCornerShape(8.dp)).clickable { manager.updateState(manager.getState().copy(isEnabled = true)); onDismiss() }, contentAlignment = Alignment.Center) {
@@ -142,31 +175,20 @@ fun FaceRecognitionOverlay(
                     }
                 }
 
-                // Preview + Action cards (responsive)
+                // Preview + Action cards
                 if (isLandscape) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        // Left: Preview
                         Box(Modifier.weight(1f).aspectRatio(0.75f).clip(RoundedCornerShape(12.dp)).background(Color(0xFF0A0D18)).border(1.dp, bdr, RoundedCornerShape(12.dp))) {
-                            if (hasPermission) {
-                                CamPreview(manager, lifecycleOwner, Modifier.fillMaxSize())
-                            } else {
-                                PermPlaceholder(permLauncher, textMuted, accent)
-                            }
+                            if (hasPermission) CamPreviewMesh(manager, lifecycleOwner, Modifier.fillMaxSize()) else PermPlaceholder(permLauncher, textMuted, accent)
                         }
-                        // Right: Cards + Sliders
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             ActionCardsRow(scores, accent, danger, cardBg, bdr, textOn, textMuted)
                             ThresholdSection(manager, textOn, textMuted, accent, cardBg, bdr)
                         }
                     }
                 } else {
-                    // Portrait: stacked
                     Box(Modifier.fillMaxWidth().aspectRatio(1.2f).clip(RoundedCornerShape(12.dp)).background(Color(0xFF0A0D18)).border(1.dp, bdr, RoundedCornerShape(12.dp))) {
-                        if (hasPermission) {
-                            CamPreview(manager, lifecycleOwner, Modifier.fillMaxSize())
-                        } else {
-                            PermPlaceholder(permLauncher, textMuted, accent)
-                        }
+                        if (hasPermission) CamPreviewMesh(manager, lifecycleOwner, Modifier.fillMaxSize()) else PermPlaceholder(permLauncher, textMuted, accent)
                     }
                     ActionCardsRow(scores, accent, danger, cardBg, bdr, textOn, textMuted)
                     ThresholdSection(manager, textOn, textMuted, accent, cardBg, bdr)
@@ -174,39 +196,26 @@ fun FaceRecognitionOverlay(
 
                 // Mode selector
                 ModeSelector(manager, textOn, textMuted, accent, cardBg, bdr, green)
+
+                // Debug log
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Color(0xFF0A0D18)).border(1.dp, bdr, RoundedCornerShape(8.dp)).padding(8.dp)) {
+                    Text("诊断", color = Color(0xFF888888), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(4.dp))
+                    Text(debugLog, color = Color(0xFF4ADE80), fontSize = 10.sp)
+                    val lm = debugInfo.landmarks
+                    if (lm != null) {
+                        Text("关键点: ${lm.size}个", color = Color(0xFF8CC8FF), fontSize = 10.sp)
+                    } else {
+                        Text("关键点: 未检测到面部", color = Color(0xFFFF9AA8), fontSize = 10.sp)
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun CamPreview(manager: FaceRecognitionManager, lifecycleOwner: androidx.lifecycle.LifecycleOwner, modifier: Modifier = Modifier) {
-    val exec = remember { Executors.newSingleThreadExecutor() }
-    DisposableEffect(Unit) { onDispose { exec.shutdown() } }
-
-    AndroidView(factory = { ctx ->
-        PreviewView(ctx).apply {
-            scaleType = PreviewView.ScaleType.FIT_CENTER
-            val pf = ProcessCameraProvider.getInstance(ctx)
-            pf.addListener({
-                val provider = pf.get()
-                val preview = Preview.Builder().build().also { it.setSurfaceProvider(surfaceProvider) }
-                val analyzer = ImageAnalysis.Builder().setTargetResolution(android.util.Size(320, 240)).setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).build()
-                analyzer.setAnalyzer(exec) { ip: ImageProxy ->
-                    if (manager.getState().isRunning && manager.getState().isEnabled) {
-                        manager.processImageProxy(ip)
-                    } else {
-                        ip.close()
-                    }
-                }
-                try { provider.unbindAll(); provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_FRONT_CAMERA, preview, analyzer) } catch (_: Exception) {}
-            }, ctx.mainExecutor)
-        }
-    }, modifier)
-}
-
-@Composable
-private fun CamPreviewWithMesh(manager: FaceRecognitionManager, lifecycleOwner: androidx.lifecycle.LifecycleOwner, modifier: Modifier = Modifier) {
+private fun CamPreviewMesh(manager: FaceRecognitionManager, lifecycleOwner: androidx.lifecycle.LifecycleOwner, modifier: Modifier = Modifier) {
     val exec = remember { Executors.newSingleThreadExecutor() }
     val debugInfo by manager.debugInfoFlow.collectAsState()
     DisposableEffect(Unit) { onDispose { exec.shutdown() } }
@@ -221,13 +230,18 @@ private fun CamPreviewWithMesh(manager: FaceRecognitionManager, lifecycleOwner: 
                     val preview = Preview.Builder().build().also { it.setSurfaceProvider(surfaceProvider) }
                     val analyzer = ImageAnalysis.Builder().setTargetResolution(android.util.Size(320, 240)).setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).build()
                     analyzer.setAnalyzer(exec) { ip: ImageProxy ->
-                        if (manager.getState().isRunning && manager.getState().isEnabled) {
-                            manager.processImageProxy(ip)
-                        } else {
+                        try {
+                            if (manager.getState().isRunning && manager.getState().isEnabled) {
+                                manager.processImageProxy(ip)
+                            } else {
+                                ip.close()
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Analyzer error", e)
                             ip.close()
                         }
                     }
-                    try { provider.unbindAll(); provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_FRONT_CAMERA, preview, analyzer) } catch (_: Exception) {}
+                    try { provider.unbindAll(); provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_FRONT_CAMERA, preview, analyzer) } catch (e: Exception) { Log.e(TAG, "Camera bind failed", e) }
                 }, ctx.mainExecutor)
             }
         }, Modifier.fillMaxSize())
@@ -240,8 +254,11 @@ private fun CamPreviewWithMesh(manager: FaceRecognitionManager, lifecycleOwner: 
                     if (lm == null) return
                     var i = 0
                     while (i < conns.size - 1) {
-                        val p1 = lm!![conns[i]]; val p2 = lm!![conns[i + 1]]
-                        drawLine(color, Offset((1f - p1.x()) * w, p1.y() * h), Offset((1f - p2.x()) * w, p2.y() * h), strokeWidth = sw)
+                        val idx1 = conns[i]; val idx2 = conns[i + 1]
+                        if (idx1 < lm!!.size && idx2 < lm!!.size) {
+                            val p1 = lm!![idx1]; val p2 = lm!![idx2]
+                            drawLine(color, Offset((1f - p1.x()) * w, p1.y() * h), Offset((1f - p2.x()) * w, p2.y() * h), strokeWidth = sw)
+                        }
                         i += 2
                     }
                 }
@@ -262,8 +279,7 @@ private fun PermPlaceholder(launcher: androidx.activity.result.ActivityResultLau
             Spacer(Modifier.height(4.dp))
             Text("需要相机权限", color = muted, fontSize = 12.sp)
             Spacer(Modifier.height(4.dp))
-            Text("点击授予权限", color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                modifier = Modifier.clickable { launcher.launch(Manifest.permission.CAMERA) })
+            Text("点击授予权限", color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { launcher.launch(Manifest.permission.CAMERA) })
         }
     }
 }
@@ -289,7 +305,7 @@ private fun ActionCard(mod: Modifier, emoji: String, label: String, score: Float
         Text("${(score * 100).toInt()}%", color = if (on) activeColor else textMuted, fontSize = 13.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(4.dp))
         Box(Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)).background(bdr)) {
-            Box(Modifier.height(4.dp).width((Modifier.fillMaxWidth().let { 40.dp }) * score.coerceIn(0f, 1f)).clip(RoundedCornerShape(2.dp)).background(activeColor))
+            Box(Modifier.height(4.dp).width(40.dp * score.coerceIn(0f, 1f)).clip(RoundedCornerShape(2.dp)).background(activeColor))
         }
     }
 }
@@ -312,8 +328,7 @@ private fun ThresholdSection(manager: FaceRecognitionManager, textOn: Color, tex
 private fun ThresholdRow(label: String, value: Float, range: ClosedFloatingPointRange<Float>, textOn: Color, textMuted: Color, accent: Color, bdr: Color, onChange: (Float) -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(label, color = textOn, fontSize = 12.sp, modifier = Modifier.width(80.dp))
-        Slider(value = value, onValueChange = onChange, valueRange = range, modifier = Modifier.weight(1f),
-            colors = SliderDefaults.colors(thumbColor = accent, activeTrackColor = accent, inactiveTrackColor = bdr))
+        Slider(value = value, onValueChange = onChange, valueRange = range, modifier = Modifier.weight(1f), colors = SliderDefaults.colors(thumbColor = accent, activeTrackColor = accent, inactiveTrackColor = bdr))
         Text(String.format("%.2f", value), color = accent, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(40.dp))
     }
 }
@@ -325,9 +340,18 @@ private fun ModeSelector(manager: FaceRecognitionManager, textOn: Color, textMut
         Text("触发模式", color = textOn, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             ModeBtn(Modifier.weight(1f), "关闭", !state.isEnabled, cardBg, bdr, textMuted) { manager.updateState(state.copy(isEnabled = false, isRunning = false)) }
-            ModeBtn(Modifier.weight(1f), "Wink", state.triggerMode == FaceRecognitionManager.TriggerMode.WINK && state.isEnabled, cardBg, bdr, accent) { manager.updateState(state.copy(isEnabled = true, isRunning = true, triggerMode = FaceRecognitionManager.TriggerMode.WINK)) }
-            ModeBtn(Modifier.weight(1f), "撅嘴", state.triggerMode == FaceRecognitionManager.TriggerMode.PUCKER && state.isEnabled, cardBg, bdr, accent) { manager.updateState(state.copy(isEnabled = true, isRunning = true, triggerMode = FaceRecognitionManager.TriggerMode.PUCKER)) }
-            ModeBtn(Modifier.weight(1f), "两者", state.triggerMode == FaceRecognitionManager.TriggerMode.BOTH && state.isEnabled, cardBg, bdr, accent) { manager.updateState(state.copy(isEnabled = true, isRunning = true, triggerMode = FaceRecognitionManager.TriggerMode.BOTH)) }
+            ModeBtn(Modifier.weight(1f), "Wink", state.triggerMode == FaceRecognitionManager.TriggerMode.WINK && state.isEnabled, cardBg, bdr, accent) {
+                if (!manager.isInitialized()) manager.initialize()
+                manager.updateState(state.copy(isEnabled = true, isRunning = true, triggerMode = FaceRecognitionManager.TriggerMode.WINK))
+            }
+            ModeBtn(Modifier.weight(1f), "撅嘴", state.triggerMode == FaceRecognitionManager.TriggerMode.PUCKER && state.isEnabled, cardBg, bdr, accent) {
+                if (!manager.isInitialized()) manager.initialize()
+                manager.updateState(state.copy(isEnabled = true, isRunning = true, triggerMode = FaceRecognitionManager.TriggerMode.PUCKER))
+            }
+            ModeBtn(Modifier.weight(1f), "两者", state.triggerMode == FaceRecognitionManager.TriggerMode.BOTH && state.isEnabled, cardBg, bdr, accent) {
+                if (!manager.isInitialized()) manager.initialize()
+                manager.updateState(state.copy(isEnabled = true, isRunning = true, triggerMode = FaceRecognitionManager.TriggerMode.BOTH))
+            }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StatusDot("模型", manager.isInitialized(), green, textMuted)

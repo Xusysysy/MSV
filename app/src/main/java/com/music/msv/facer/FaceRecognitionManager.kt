@@ -8,6 +8,7 @@ import android.graphics.Matrix
 import android.graphics.Rect
 import android.graphics.YuvImage
 import android.os.SystemClock
+import android.util.Log
 import androidx.camera.core.ImageProxy
 import com.google.mediapipe.framework.image.BitmapImageBuilder
 import com.google.mediapipe.tasks.core.BaseOptions
@@ -17,6 +18,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.io.ByteArrayOutputStream
+
+private const val TAG = "FaceRecMgr"
 
 class FaceRecognitionManager(private val context: Context) {
 
@@ -106,6 +109,7 @@ class FaceRecognitionManager(private val context: Context) {
     fun processImageProxy(imageProxy: ImageProxy) {
         val currentLandmarker = landmarker
         if (currentLandmarker == null) {
+            Log.w(TAG, "landmarker is null, skipping frame")
             imageProxy.close()
             return
         }
@@ -121,37 +125,49 @@ class FaceRecognitionManager(private val context: Context) {
                 if (allLandmarks != null && allLandmarks.isNotEmpty()) {
                     lm = allLandmarks[0]
                 }
-            } catch (_: Exception) { }
+            } catch (e: Exception) {
+                Log.w(TAG, "faceLandmarks access failed: ${e.message}")
+            }
 
             var scores = GestureScores()
-            if (result.faceBlendshapes().isPresent) {
-                val blendshapesList = result.faceBlendshapes().get()
-                if (blendshapesList.isNotEmpty()) {
-                    val categories = blendshapesList[0]
-                    val gesture = processBlendshapes(categories)
-                    scores = _debugInfoFlow.value.scores
+            try {
+                val blendshapesOpt = result.faceBlendshapes()
+                if (blendshapesOpt != null && blendshapesOpt.isPresent) {
+                    val bsList = blendshapesOpt.get()
+                    if (bsList.isNotEmpty()) {
+                        val categories = bsList[0]
+                        val gesture = processBlendshapes(categories)
 
-                    fpsFrameCount++
-                    val now = System.currentTimeMillis()
-                    val fps = if (now - fpsLastTime >= 1000) {
-                        val f = fpsFrameCount
-                        fpsFrameCount = 0
-                        fpsLastTime = now
-                        f
-                    } else {
-                        _debugInfoFlow.value.fps
-                    }
-
-                    _debugInfoFlow.value = FaceDebugInfo(fps = fps, scores = scores, landmarks = lm)
-
-                    if (gesture != Gesture.NONE) {
-                        val gestureNow = System.currentTimeMillis()
-                        if (gestureNow - lastActionTime >= state.cooldownMs) {
-                            lastActionTime = gestureNow
-                            onGestureDetected?.invoke(gesture)
+                        fpsFrameCount++
+                        val now = System.currentTimeMillis()
+                        val fps = if (now - fpsLastTime >= 1000) {
+                            val f = fpsFrameCount
+                            fpsFrameCount = 0
+                            fpsLastTime = now
+                            f
+                        } else {
+                            _debugInfoFlow.value.fps
                         }
+
+                        scores = _debugInfoFlow.value.scores
+                        _debugInfoFlow.value = FaceDebugInfo(fps = fps, scores = scores, landmarks = lm)
+
+                        if (gesture != Gesture.NONE) {
+                            val gestureNow = System.currentTimeMillis()
+                            if (gestureNow - lastActionTime >= state.cooldownMs) {
+                                lastActionTime = gestureNow
+                                Log.d(TAG, "Gesture detected: $gesture")
+                                onGestureDetected?.invoke(gesture)
+                            }
+                        }
+                    } else {
+                        Log.w(TAG, "No blendshapes in result")
                     }
+                } else {
+                    Log.w(TAG, "blendshapes is null or empty")
                 }
+            } catch (e: Exception) {
+                Log.e(TAG, "blendshapes error: ${e.message}")
             }
         } catch (e: Exception) {
             e.printStackTrace()
