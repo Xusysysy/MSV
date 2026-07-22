@@ -149,7 +149,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 _uiState.update {
                     it.copy(
                         mode = Mode.Pdf,
-                        isLoading = false,
+                        isLoading = true,
                         pageCount = pageCount,
                         currentPage = rp,
                         fileName = name,
@@ -180,7 +180,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         _uiState.update {
             it.copy(
                 mode = Mode.Image,
-                isLoading = false,
+                isLoading = true,
                 pageCount = uris.size,
                 currentPage = page,
                 fileName = name,
@@ -222,8 +222,13 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             }
             if (uri != null) {
                 _uiState.update {
-                    it.copy(pageUris = it.pageUris + (pageIndex to uri))
+                    it.copy(
+                        pageUris = it.pageUris + (pageIndex to uri),
+                        isLoading = false
+                    )
                 }
+            } else {
+                _uiState.update { it.copy(isLoading = false) }
             }
         }
     }

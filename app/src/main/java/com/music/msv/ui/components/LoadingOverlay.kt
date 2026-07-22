@@ -8,6 +8,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.music.msv.ui.theme.DarkAccent
 import com.music.msv.ui.theme.DarkOverlayBg
@@ -31,7 +33,14 @@ fun LoadingOverlay(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(bg),
+            .background(bg)
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        awaitPointerEvent().changes.forEach { it.consume() }
+                    }
+                }
+            },
         contentAlignment = Alignment.Center
     ) {
         CircularProgressIndicator(
