@@ -31,11 +31,11 @@ class FaceRecognitionManager(context: Context) {
     data class FaceState(
         val running: Boolean = false, val enabled: Boolean = true, val triggerMode: TriggerMode = TriggerMode.BOTH,
         val thresholds: Thresholds = Thresholds(), val mirrored: Boolean = true,
-        val faceOffsetX: Float = 0f, val faceOffsetY: Float = 0f, val actionThreshold: Float = 0.1f,
+        val actionThreshold: Float = 0.1f,
         val fps: Int = 0, val scores: GestureScores = GestureScores(),
         val landmarks: List<NormalizedLandmark>? = null, val status: String = ""
     )
-    data class Thresholds(val blink: Float = 0.35f, val pucker: Float = 0.25f)
+    data class Thresholds(val blink: Float = 0.35f, val pucker: Float = 0.25f, val puckerBiasL: Float = 0.21f, val puckerBiasR: Float = 0.21f)
     data class GestureScores(val lWink: Float = 0f, val rWink: Float = 0f, val lPucker: Float = 0f, val rPucker: Float = 0f)
     enum class TriggerMode { WINK, PUCKER, BOTH }
     enum class Gesture { LEFT_WINK, RIGHT_WINK, LEFT_PUCKER, RIGHT_PUCKER, NONE }
@@ -89,7 +89,7 @@ class FaceRecognitionManager(context: Context) {
         val blink = hyst("b",avg,th.blink) && diff<0.14f
         val lW = !blink && hyst("w",eBL,th.blink) && diff>=0.14f; val rW = !blink && hyst("x",eBR,th.blink) && diff>=0.14f
         val puck = maxOf(mP,mF*0.7f); val bL = mL-mR; val bR = mR-mL
-        val lP = hyst("p",puck,th.pucker) && bL>=0.21f; val rP = hyst("q",puck,th.pucker) && bR>=0.21f
+        val lP = hyst("p",puck,th.pucker) && bL>=th.puckerBiasL; val rP = hyst("q",puck,th.pucker) && bR>=th.puckerBiasR
         val cWL = if(lW) (diff/0.5f).coerceIn(0f,1f) else 0f; val cWR = if(rW) (diff/0.5f).coerceIn(0f,1f) else 0f
         val cPL = if(lP) ((puck*maxOf(bL,0f))/0.25f).coerceIn(0f,1f) else 0f; val cPR = if(rP) ((puck*maxOf(bR,0f))/0.25f).coerceIn(0f,1f) else 0f
         _state.update { it.copy(scores = GestureScores(cWL,cWR,cPL,cPR)) }
@@ -115,7 +115,6 @@ class FaceRecognitionManager(context: Context) {
         val jpg=out.toByteArray();out.close(); val bmp=BitmapFactory.decodeByteArray(jpg,0,jpg.size)
         val mat = Matrix(); mat.postRotate(ip.imageInfo.rotationDegrees.toFloat())
         if(_state.value.mirrored) mat.preScale(-1f,1f)
-        val s = _state.value; mat.postTranslate(s.faceOffsetX, s.faceOffsetY)
         return Bitmap.createBitmap(bmp,0,0,bmp.width,bmp.height,mat,true).also{bmp.recycle()}
     }
     fun close() { landmarker?.close();landmarker=null;smooth.clear();act.clear() }
