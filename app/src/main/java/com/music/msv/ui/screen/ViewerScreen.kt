@@ -47,6 +47,7 @@ import com.music.msv.ui.components.ShelfPanel
 import com.music.msv.ui.components.Stage
 import com.music.msv.ui.components.ThumbnailPanel
 import com.music.msv.ui.components.TopBar
+import com.music.msv.facer.FaceCamera
 import com.music.msv.facer.FaceRecognitionOverlay
 import com.music.msv.viewmodel.ViewerViewModel
 
@@ -282,6 +283,7 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
             )
         }
 
+        FaceCamera(manager = viewModel.faceManager)
         FaceRecognitionOverlay(
             visible = state.showFaceOverlay,
             onDismiss = { viewModel.onEvent(ViewerEvent.HideFaceOverlay) },

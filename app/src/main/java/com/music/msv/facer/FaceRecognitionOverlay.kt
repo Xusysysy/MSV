@@ -83,7 +83,6 @@ fun FaceRecognitionOverlay(visible: Boolean, onDismiss: () -> Unit, onToggle: (B
         if (isLand) Row(Modifier.fillMaxWidth(0.92f).heightIn(max = maxH).clip(RoundedCornerShape(16.dp)).background(bg).border(1.dp, b, RoundedCornerShape(16.dp)).clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) {}.padding(10.dp), Arrangement.spacedBy(10.dp)) {
             Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), Arrangement.spacedBy(6.dp)) {
                 Header(state, manager, gr, card, b, t, t2, onToggle)
-                Box(Modifier.fillMaxWidth().aspectRatio(4f/3f).clip(RoundedCornerShape(12.dp)).border(1.dp, b, RoundedCornerShape(12.dp))) { if (hasPerm) Cam(manager, lc, state) else PH(pL, t, ac) }
                 AR(sc, ac, dn, card, b, t)
             }
             Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), Arrangement.spacedBy(6.dp)) {
@@ -99,7 +98,6 @@ fun FaceRecognitionOverlay(visible: Boolean, onDismiss: () -> Unit, onToggle: (B
         }
         else Column(Modifier.fillMaxWidth(0.9f).heightIn(max = maxH).clip(RoundedCornerShape(16.dp)).background(bg).border(1.dp, b, RoundedCornerShape(16.dp)).clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) {}.verticalScroll(rememberScrollState()).padding(12.dp), Arrangement.spacedBy(8.dp)) {
             Header(state, manager, gr, card, b, t, t2, onToggle)
-            Box(Modifier.fillMaxWidth().aspectRatio(4f/3f).clip(RoundedCornerShape(12.dp)).border(1.dp, b, RoundedCornerShape(12.dp))) { if (hasPerm) Cam(manager, lc, state) else PH(pL, t, ac) }
             AR(sc, ac, dn, card, b, t)
             Modes(state, manager, card, b, ac)
             SliderCard("眨眼阈值", state.thresholds.blink, 0.10f..0.95f, card, b, t, ac) { manager.updateState { s -> s.copy(thresholds = s.thresholds.copy(blink = it)) } }
@@ -141,7 +139,7 @@ fun FaceRecognitionOverlay(visible: Boolean, onDismiss: () -> Unit, onToggle: (B
 
 @Composable private fun Modes(state: FaceRecognitionManager.FaceState, manager: FaceRecognitionManager, card: Color, b: Color, ac: Color) {
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(card).border(1.dp, b, RoundedCornerShape(10.dp)).padding(8.dp), Arrangement.spacedBy(4.dp)) {
-        Text("触发模式", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        Text("触发模式", color = Color.Black, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(4.dp)) {
             MBtn(Modifier.weight(1f), "Wink", state.triggerMode == FaceRecognitionManager.TriggerMode.WINK) { if (!manager.isReady()) manager.init(); manager.updateState { it.copy(enabled = true, running = true, triggerMode = FaceRecognitionManager.TriggerMode.WINK) } }
             MBtn(Modifier.weight(1f), "撅嘴", state.triggerMode == FaceRecognitionManager.TriggerMode.PUCKER) { if (!manager.isReady()) manager.init(); manager.updateState { it.copy(enabled = true, running = true, triggerMode = FaceRecognitionManager.TriggerMode.PUCKER) } }

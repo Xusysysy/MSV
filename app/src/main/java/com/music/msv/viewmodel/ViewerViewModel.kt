@@ -15,6 +15,7 @@ import com.music.msv.data.pdf.PdfPageRenderer
 import com.music.msv.data.repository.FileRepository
 import com.music.msv.data.repository.SessionRepository
 import com.music.msv.facer.FaceRecognitionManager
+import com.music.msv.facer.FaceRecognitionRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -32,6 +33,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     private val sessionRepo = SessionRepository(application)
     private val pdfRenderer = PdfPageRenderer(application)
     val faceManager = FaceRecognitionManager(application)
+    private val faceRepo = FaceRecognitionRepository(application)
 
     private val _uiState = MutableStateFlow(ViewerState())
     val uiState: StateFlow<ViewerState> = _uiState.asStateFlow()
@@ -48,6 +50,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             sessionRepo.getPageMap().collect { pageMap = it }
         }
         viewModelScope.launch {
+            faceRepo.load(faceManager)
             faceManager.stateFlow.collect { faceState ->
                 _uiState.update { it.copy(faceActive = faceState.actionActive, faceEnabled = faceState.running) }
             }
@@ -510,6 +513,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun hideFaceOverlay() {
         _uiState.update { it.copy(showFaceOverlay = false) }
+        viewModelScope.launch { faceRepo.save(faceManager) }
     }
 
     private fun resetZoom() {
