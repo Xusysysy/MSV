@@ -116,8 +116,10 @@ fun Stage(
     val currentPageCount by rememberUpdatedState(pageCount)
     val currentPw by rememberUpdatedState(pw)
     val displayW = displaySize?.first ?: pw
+    val currentDisplayW by rememberUpdatedState(displayW)
     val currentIsSpread by rememberUpdatedState(isSpreadMode)
     val flipUnit = if (currentIsSpread) displayW * 2f else displayW
+    val currentFlipUnit by rememberUpdatedState(flipUnit)
     val touchSlop = LocalViewConfiguration.current.touchSlop
 
     LaunchedEffect(pageWidth, pageHeight) {
@@ -125,7 +127,7 @@ fun Stage(
     }
 
     fun doFlip(dir: Int, fromOffset: Float, easing: Boolean) {
-        if (flipUnit <= 0f) return
+        if (currentFlipUnit <= 0f) return
         val step = if (currentIsSpread) 2 else 1
         if (currentPageIndex + dir * step !in 0 until currentPageCount) return
         flipJob?.cancel()
@@ -134,12 +136,12 @@ fun Stage(
             try {
                 if (easing) {
                     transition.animateTo(
-                        -dir * flipUnit,
+                        -dir * currentFlipUnit,
                         spring(dampingRatio = 0.75f, stiffness = 280f)
                     )
                 } else {
                     transition.animateTo(
-                        -dir * flipUnit,
+                        -dir * currentFlipUnit,
                         spring(dampingRatio = 0.8f, stiffness = 300f)
                     )
                 }
@@ -153,11 +155,11 @@ fun Stage(
     }
 
     fun doBounce(dir: Int) {
-        if (flipUnit <= 0f) return
+        if (currentFlipUnit <= 0f) return
         flipJob?.cancel()
         flipJob = scope.launch {
             transition.snapTo(0f)
-            val overshoot = -dir * flipUnit * 0.06f
+            val overshoot = -dir * currentFlipUnit * 0.06f
             transition.animateTo(overshoot, tween(80, easing = FastOutSlowInEasing))
             transition.animateTo(0f, spring(dampingRatio = 0.55f, stiffness = 450f))
         }
@@ -248,7 +250,7 @@ fun Stage(
                             val step = if (currentIsSpread) 2 else 1
                             val inRange = currentPageIndex + activeDir * step in 0 until currentPageCount
                             val factor = if (inRange) 1f else 0.25f
-                            val limit = if (inRange) flipUnit else flipUnit * 0.25f
+                            val limit = if (inRange) currentFlipUnit else currentFlipUnit * 0.25f
                             dragOffset = if (activeDir > 0)
                                 (dragOffset + amount * factor).coerceIn(-limit, 0f)
                             else
