@@ -160,7 +160,7 @@ private fun CameraPreview(manager: FaceRecognitionManager, lc: androidx.lifecycl
             scaleType = PreviewView.ScaleType.FIT_CENTER
             val pf = ProcessCameraProvider.getInstance(ctx); pf.addListener({
                 val p = pf.get(); val preview = Preview.Builder().build().also { it.setSurfaceProvider(surfaceProvider) }
-                val a = ImageAnalysis.Builder().setTargetResolution(android.util.Size(320, 240)).setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).build()
+                    val a = ImageAnalysis.Builder().setTargetResolution(android.util.Size(640, 480)).setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).build()
                 a.setAnalyzer(exec) { ip: ImageProxy -> try { manager.process(ip) } catch (e: Exception) { ip.close() } }
                 try { p.unbindAll(); p.bindToLifecycle(lc, CameraSelector.DEFAULT_FRONT_CAMERA, preview, a) } catch (_: Exception) {}
             }, ctx.mainExecutor)

@@ -59,9 +59,9 @@ class FaceRecognitionManager(context: Context) {
             landmarker = FaceLandmarker.createFromOptions(appContext,
                 FaceLandmarker.FaceLandmarkerOptions.builder()
                     .setBaseOptions(BaseOptions.builder().setModelAssetPath("face_landmarker.task").build())
-                    .setOutputFaceBlendshapes(true).setNumFaces(1).setRunningMode(RunningMode.VIDEO)
+                    .setOutputFaceBlendshapes(true).setNumFaces(1).setRunningMode(RunningMode.IMAGE)
                     .build())
-            _state.update { it.copy(status = "模型就绪") }
+            _state.update { it.copy(status = "模型就绪(IMAGE)") }
             return true
         } catch (e: Exception) {
             _state.update { it.copy(status = "加载失败: ${e.message}") }
@@ -79,10 +79,11 @@ class FaceRecognitionManager(context: Context) {
         if (!_state.value.running) { ip.close(); return }
         try {
             val bmp = decode(ip)
-            val result = l.detectForVideo(BitmapImageBuilder(bmp).build(), SystemClock.elapsedRealtime())
+            val result = l.detect(BitmapImageBuilder(bmp).build())
             bmp.recycle()
 
-            val lm = if (result.faceLandmarks().isNotEmpty()) result.faceLandmarks()[0] else null
+            val rawLM = result.faceLandmarks()
+            val lm = if (rawLM.isNotEmpty()) rawLM[0] else null
             val bs = result.faceBlendshapes()
             val cats: List<Category>? = if (bs.isPresent) { val b = bs.get(); if (b.isNotEmpty()) b[0] else null } else null
 
@@ -90,12 +91,10 @@ class FaceRecognitionManager(context: Context) {
 
             fpsC++; val now = System.currentTimeMillis()
             val fps = if (now - fpsT >= 1000) { val f = fpsC; fpsC = 0; fpsT = now; f } else _state.value.fps
-            val newScores = GestureScores(
-                _state.value.scores.lWink, _state.value.scores.rWink,
-                _state.value.scores.lPucker, _state.value.scores.rPucker
-            )
 
-            _state.update { it.copy(fps = fps, landmarks = lm, scores = newScores, status = "OK ${lm?.size ?: 0}pts") }
+            val lmSize = if (lm != null) lm.size else 0
+            val bsInfo = if (cats != null) "BS:${cats.size}" else if (bs.isPresent) "BS:empty" else "BS:absent"
+            _state.update { it.copy(fps = fps, landmarks = lm, status = "LM:${rawLM.size}faces ${lmSize}pts ${bsInfo}") }
 
             if (gesture != Gesture.NONE && System.currentTimeMillis() - lastAct >= 800) {
                 lastAct = System.currentTimeMillis()
