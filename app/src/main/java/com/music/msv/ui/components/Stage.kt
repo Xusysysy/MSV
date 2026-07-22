@@ -173,7 +173,7 @@ fun Stage(
                 stageHeight = it.height
                 if (pageWidth <= 0) onViewportSizeChanged(it.width, it.height)
             }
-            .pointerInput(pageCount) {
+            .pointerInput(Unit) {
                 coroutineScope {
                     launch {
                         var activeDir = 0
