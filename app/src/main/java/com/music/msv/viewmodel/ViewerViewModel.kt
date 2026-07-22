@@ -242,20 +242,36 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         val keepMax = (center + 5).coerceAtMost(total - 1)
         val oldUris = state.pageUris
         preloadJob = viewModelScope.launch(Dispatchers.IO) {
-            val toRender = (keepMin..keepMax).filter { !oldUris.containsKey(it) }
-            val rendered = toRender.map { i ->
-                async {
-                    val uri = when (state.mode) {
-                        is Mode.Pdf -> renderPage(i, pageW, pageH, zoom)
-                        is Mode.Image -> imageUris.getOrNull(i)
-                        else -> null
-                    }
-                    if (uri != null) i to uri else null
+            if (center !in oldUris) {
+                val uri = when (state.mode) {
+                    is Mode.Pdf -> renderPage(center, pageW, pageH, zoom)
+                    is Mode.Image -> imageUris.getOrNull(center)
+                    else -> null
                 }
-            }.awaitAll().filterNotNull().toMap()
+                if (uri != null) {
+                    _uiState.update { prev -> prev.copy(pageUris = prev.pageUris + (center to uri)) }
+                }
+            }
+            val rest = (keepMin..keepMax).filter { it != center && !oldUris.containsKey(it) }
+                .sortedBy { kotlin.math.abs(it - center) }
+            val batchSize = 4
+            for (batch in rest.chunked(batchSize)) {
+                val rendered = batch.map { i ->
+                    async {
+                        val uri = when (state.mode) {
+                            is Mode.Pdf -> renderPage(i, pageW, pageH, zoom)
+                            is Mode.Image -> imageUris.getOrNull(i)
+                            else -> null
+                        }
+                        if (uri != null) i to uri else null
+                    }
+                }.awaitAll().filterNotNull().toMap()
+                if (rendered.isNotEmpty()) {
+                    _uiState.update { prev -> prev.copy(pageUris = prev.pageUris + rendered) }
+                }
+            }
             _uiState.update { prev ->
                 val merged = prev.pageUris.toMutableMap()
-                merged.putAll(rendered)
                 val toRemove = merged.keys.filter { it !in keepMin..keepMax }
                 for (page in toRemove) {
                     val uri = merged.remove(page)
