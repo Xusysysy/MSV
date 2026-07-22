@@ -242,33 +242,42 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         val keepMax = (center + 5).coerceAtMost(total - 1)
         val oldUris = state.pageUris
         preloadJob = viewModelScope.launch(Dispatchers.IO) {
-            if (center !in oldUris) {
-                val uri = when (state.mode) {
-                    is Mode.Pdf -> renderPage(center, pageW, pageH, zoom)
-                    is Mode.Image -> imageUris.getOrNull(center)
-                    else -> null
-                }
-                if (uri != null) {
-                    _uiState.update { prev -> prev.copy(pageUris = prev.pageUris + (center to uri)) }
+            val needRender = (keepMin..keepMax).filter { !oldUris.containsKey(it) }
+            for (i in needRender) {
+                if (i == center) {
+                    val uri = renderPage(i, pageW, pageH, zoom, 95)
+                    if (uri != null) _uiState.update { it.copy(pageUris = it.pageUris + (i to uri)) }
                 }
             }
-            val rest = (keepMin..keepMax).filter { it != center && !oldUris.containsKey(it) }
-                .sortedBy { kotlin.math.abs(it - center) }
-            val batchSize = 4
-            for (batch in rest.chunked(batchSize)) {
-                val rendered = batch.map { i ->
-                    async {
-                        val uri = when (state.mode) {
-                            is Mode.Pdf -> renderPage(i, pageW, pageH, zoom)
-                            is Mode.Image -> imageUris.getOrNull(i)
-                            else -> null
-                        }
-                        if (uri != null) i to uri else null
-                    }
+            val next = center + 1
+            if (next in needRender && next in 0 until total) {
+                val uri = renderPage(next, pageW, pageH, zoom, 95)
+                if (uri != null) _uiState.update { it.copy(pageUris = it.pageUris + (next to uri)) }
+            }
+            val near = needRender.filter { it != center && it != next && kotlin.math.abs(it - center) <= 1 }
+            if (near.isNotEmpty()) {
+                val rendered = near.map { i ->
+                    async { renderPage(i, pageW, pageH, zoom, 90)?.let { i to it } }
                 }.awaitAll().filterNotNull().toMap()
-                if (rendered.isNotEmpty()) {
-                    _uiState.update { prev -> prev.copy(pageUris = prev.pageUris + rendered) }
-                }
+                if (rendered.isNotEmpty()) _uiState.update { it.copy(pageUris = it.pageUris + rendered) }
+            }
+            val mid = needRender.filter { kotlin.math.abs(it - center) in 2..3 }
+            if (mid.isNotEmpty()) {
+                val sW = (pageW * 0.6f).toInt().coerceAtLeast(1)
+                val sH = (pageH * 0.6f).toInt().coerceAtLeast(1)
+                val rendered = mid.map { i ->
+                    async { renderPage(i, sW, sH, zoom, 85)?.let { i to it } }
+                }.awaitAll().filterNotNull().toMap()
+                if (rendered.isNotEmpty()) _uiState.update { it.copy(pageUris = it.pageUris + rendered) }
+            }
+            val far = needRender.filter { kotlin.math.abs(it - center) >= 4 }
+            if (far.isNotEmpty()) {
+                val sW = (pageW * 0.4f).toInt().coerceAtLeast(1)
+                val sH = (pageH * 0.4f).toInt().coerceAtLeast(1)
+                val rendered = far.map { i ->
+                    async { renderPage(i, sW, sH, zoom, 80)?.let { i to it } }
+                }.awaitAll().filterNotNull().toMap()
+                if (rendered.isNotEmpty()) _uiState.update { it.copy(pageUris = it.pageUris + rendered) }
             }
             _uiState.update { prev ->
                 val merged = prev.pageUris.toMutableMap()
@@ -294,7 +303,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     private val docCacheKey: String
         get() = pdfUri?.path?.hashCode()?.toString(36) ?: "0"
 
-    private fun renderPage(pageIndex: Int, pageW: Int, pageH: Int, zoom: Float): Uri? {
+    private fun renderPage(pageIndex: Int, pageW: Int, pageH: Int, zoom: Float, quality: Int = 95): Uri? {
         if (pageW <= 0 || pageH <= 0) return null
         val bmp = pdfRenderer.renderPage(pageIndex, pageW, pageH, zoom) ?: return null
         val cachedFile = java.io.File(
@@ -302,7 +311,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             "page_${docCacheKey}_$pageIndex.jpg"
         )
         cachedFile.delete()
-        bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 95, cachedFile.outputStream())
+        bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, quality, cachedFile.outputStream())
         bmp.recycle()
         return Uri.fromFile(cachedFile)
     }
