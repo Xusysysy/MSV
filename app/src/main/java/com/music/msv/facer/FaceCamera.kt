@@ -13,7 +13,7 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -25,12 +25,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import java.util.concurrent.Executors
 
 @Composable
-fun FaceCamera(manager: FaceRecognitionManager, modifier: Modifier = Modifier) {
+fun FaceCamera(manager: FaceRecognitionManager, visible: Boolean = false, modifier: Modifier = Modifier) {
     val ctx = LocalContext.current
     val lc = LocalLifecycleOwner.current
     var hasPerm by remember { mutableStateOf(ContextCompat.checkSelfPermission(ctx, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) }
@@ -41,7 +42,7 @@ fun FaceCamera(manager: FaceRecognitionManager, modifier: Modifier = Modifier) {
     val exec = remember { Executors.newSingleThreadExecutor() }
     DisposableEffect(Unit) { onDispose { exec.shutdown() } }
 
-    Box(modifier) {
+    Box(if (visible) modifier else Modifier.size(1.dp).then(modifier)) {
         if (hasPerm) {
             AndroidView(factory = { ctx2 -> PreviewView(ctx2).apply {
                 scaleType = PreviewView.ScaleType.FIT_CENTER
@@ -53,9 +54,9 @@ fun FaceCamera(manager: FaceRecognitionManager, modifier: Modifier = Modifier) {
                     a.setAnalyzer(exec) { ip: ImageProxy -> try { manager.process(ip) } catch (_: Exception) { ip.close() } }
                     try { p.unbindAll(); p.bindToLifecycle(lc, CameraSelector.DEFAULT_FRONT_CAMERA, preview, a) } catch (_: Exception) {}
                 }, ctx2.mainExecutor)
-            } }, Modifier.fillMaxSize())
+            } }, Modifier.size(if (visible) 999999.dp else 1.dp))
         } else {
-            Box(Modifier.fillMaxSize().background(Color(0xFF0A0D18)))
+            Box(Modifier.size(1.dp).background(Color(0xFF0A0D18)))
         }
     }
 }
