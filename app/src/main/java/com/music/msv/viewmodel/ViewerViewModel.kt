@@ -519,12 +519,23 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     private fun toggleFace() {
         val newState = !_uiState.value.faceEnabled
         _uiState.update { it.copy(faceEnabled = newState) }
+        if (newState) {
+            if (!faceManager.isInitialized()) {
+                val ok = faceManager.initialize()
+                if (!ok) {
+                    _uiState.update { it.copy(faceEnabled = false, statusMessage = "面部识别模型加载失败") }
+                    return
+                }
+            }
+            faceManager.updateState(faceManager.getState().copy(isEnabled = true, isRunning = true))
+        } else {
+            faceManager.updateState(faceManager.getState().copy(isEnabled = false, isRunning = false))
+        }
         val managerState = faceManager.getState()
-        faceManager.updateState(managerState.copy(isEnabled = newState))
         viewModelScope.launch {
             faceRepo.savePrefs(
                 FaceRecognitionRepository.FacePrefs(
-                    enabled = newState,
+                    enabled = managerState.isEnabled,
                     showMesh = managerState.showMesh,
                     triggerMode = managerState.triggerMode.name,
                     blinkThreshold = managerState.thresholds.blink,

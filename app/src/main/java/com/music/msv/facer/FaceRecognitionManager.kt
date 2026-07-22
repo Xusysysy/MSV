@@ -7,10 +7,8 @@ import android.graphics.ImageFormat
 import android.graphics.Matrix
 import android.graphics.Rect
 import android.graphics.YuvImage
-import android.media.Image
 import android.os.SystemClock
-import androidx.annotation.OptIn
-import androidx.camera.core.ExperimentalGetImage
+import androidx.camera.core.ImageProxy
 import com.google.mediapipe.framework.image.BitmapImageBuilder
 import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.vision.facelandmarker.FaceLandmarker
@@ -68,6 +66,8 @@ class FaceRecognitionManager(private val context: Context) {
         state = newState
     }
 
+    fun isInitialized(): Boolean = landmarker != null
+
     fun initialize(): Boolean {
         return try {
             val options = FaceLandmarker.FaceLandmarkerOptions.builder()
@@ -87,13 +87,16 @@ class FaceRecognitionManager(private val context: Context) {
         }
     }
 
-    @OptIn(ExperimentalGetImage::class)
-    fun processImageProxy(image: Image, rotation: Int) {
-        if (!state.isRunning || !state.isEnabled) return
-        val currentLandmarker = landmarker ?: return
+    fun processImageProxy(imageProxy: ImageProxy) {
+        val currentLandmarker = landmarker
+        if (currentLandmarker == null) {
+            imageProxy.close()
+            return
+        }
 
         try {
-            val mpImage = BitmapImageBuilder(imageToBitmap(image)).build()
+            val bitmap = imageProxyToBitmap(imageProxy)
+            val mpImage = BitmapImageBuilder(bitmap).build()
             val result = currentLandmarker.detectForVideo(mpImage, SystemClock.elapsedRealtime())
 
             onResult?.invoke(result)
@@ -114,25 +117,32 @@ class FaceRecognitionManager(private val context: Context) {
             }
         } catch (e: Exception) {
             e.printStackTrace()
+        } finally {
+            imageProxy.close()
         }
     }
 
-    private fun imageToBitmap(image: Image): Bitmap {
-        val yBuffer = image.planes[0].buffer
-        val uBuffer = image.planes[1].buffer
-        val vBuffer = image.planes[2].buffer
-        val ySize = yBuffer.remaining()
-        val uSize = uBuffer.remaining()
-        val vSize = vBuffer.remaining()
-        val nv21 = ByteArray(ySize + uSize + vSize)
-        yBuffer.get(nv21, 0, ySize)
-        vBuffer.get(nv21, ySize, vSize)
-        uBuffer.get(nv21, ySize + vSize, uSize)
-        val yuvImage = YuvImage(nv21, ImageFormat.NV21, image.width, image.height, null)
+    private fun imageProxyToBitmap(imageProxy: ImageProxy): Bitmap {
+        val buffer = imageProxy.planes[0].buffer
+        val bytes = ByteArray(buffer.remaining())
+        buffer.get(bytes)
+        val yuvImage = YuvImage(bytes, ImageFormat.NV21, imageProxy.width, imageProxy.height, null)
         val out = ByteArrayOutputStream()
-        yuvImage.compressToJpeg(Rect(0, 0, image.width, image.height), 90, out)
-        val bytes = out.toByteArray()
-        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        yuvImage.compressToJpeg(Rect(0, 0, imageProxy.width, imageProxy.height), 90, out)
+        val jpegBytes = out.toByteArray()
+        val bitmap = BitmapFactory.decodeByteArray(jpegBytes, 0, jpegBytes.size)
+
+        val rotation = imageProxy.imageInfo.rotationDegrees
+        return if (rotation != 0) {
+            val matrix = Matrix()
+            matrix.postRotate(rotation.toFloat())
+            matrix.preScale(-1f, 1f)
+            Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+        } else {
+            val matrix = Matrix()
+            matrix.preScale(-1f, 1f)
+            Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+        }
     }
 
     private fun processBlendshapes(categories: List<com.google.mediapipe.tasks.components.containers.Category>): Gesture {

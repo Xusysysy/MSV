@@ -5,6 +5,12 @@ import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageProxy
+import androidx.camera.core.Preview
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -16,7 +22,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -44,11 +49,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.camera.core.CameraSelector
-import androidx.camera.core.Preview
-import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
+import java.util.concurrent.Executors
 
 @Composable
 fun FaceRecognitionOverlay(
@@ -59,46 +61,28 @@ fun FaceRecognitionOverlay(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    var hasCameraPermission by remember {
+    var hasPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
         )
     }
-    var cameraProvider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
 
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
+    val permLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
     ) { granted ->
-        hasCameraPermission = granted
-        if (granted) {
-            Toast.makeText(context, "相机权限已授予", Toast.LENGTH_SHORT).show()
-        }
+        hasPermission = granted
+        if (!granted) Toast.makeText(context, "需要相机权限才能使用面部识别", Toast.LENGTH_SHORT).show()
     }
 
     LaunchedEffect(visible) {
-        if (visible && !hasCameraPermission) {
-            permissionLauncher.launch(Manifest.permission.CAMERA)
-        }
+        if (visible && !hasPermission) permLauncher.launch(Manifest.permission.CAMERA)
     }
 
-    LaunchedEffect(hasCameraPermission, visible) {
-        if (hasCameraPermission && visible) {
-            try {
-                cameraProvider = ProcessCameraProvider.getInstance(context).get()
-            } catch (_: Exception) { }
-        }
-    }
-
-    AnimatedVisibility(
-        visible = visible,
-        enter = fadeIn(),
-        exit = fadeOut(),
-        modifier = modifier.fillMaxSize()
-    ) {
+    AnimatedVisibility(visible = visible, enter = fadeIn(), exit = fadeOut(), modifier = modifier) {
         Box(
             modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.6f))
+                .fillMaxWidth()
+                .background(Color.Black.copy(alpha = 0.5f))
                 .clickable(
                     indication = null,
                     interactionSource = remember { MutableInteractionSource() }
@@ -110,269 +94,201 @@ fun FaceRecognitionOverlay(
         ) {
             Column(
                 modifier = Modifier
-                    .fillMaxWidth(0.9f)
-                    .fillMaxWidth(0.9f)
-                    .clip(RoundedCornerShape(24.dp))
+                    .fillMaxWidth(0.88f)
+                    .clip(RoundedCornerShape(20.dp))
                     .background(Color(0xFF0F1220))
                     .clickable(
                         indication = null,
                         interactionSource = remember { MutableInteractionSource() }
                     ) { }
-                    .padding(20.dp)
+                    .padding(16.dp)
                     .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    text = "面部识别设置",
-                    color = Color(0xFFF5F7FF),
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Text("面部识别设置", color = Color(0xFFF5F7FF), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(12.dp))
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                if (hasCameraPermission) {
-                    CameraPreview(
-                        cameraProvider = cameraProvider,
-                        lifecycleOwner = lifecycleOwner,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(200.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                    )
+                if (hasPermission) {
+                    CameraPreviewCard(manager, lifecycleOwner)
                 } else {
                     Box(
-                        modifier = Modifier
+                        Modifier
                             .fillMaxWidth()
-                            .height(200.dp)
-                            .clip(RoundedCornerShape(16.dp))
+                            .height(120.dp)
+                            .clip(RoundedCornerShape(12.dp))
                             .background(Color(0xFF1A1E2E)),
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("📷", fontSize = 28.sp)
+                            Spacer(Modifier.height(4.dp))
+                            Text("需要相机权限", color = Color(0xFFB0B8C8), fontSize = 13.sp)
                             Text(
-                                text = "📷",
-                                fontSize = 32.sp
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "需要相机权限",
-                                color = Color(0xFFB0B8C8),
-                                fontSize = 14.sp
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "点击授予权限",
+                                "点击授予",
                                 color = Color(0xFF8CC8FF),
-                                fontSize = 12.sp,
-                                modifier = Modifier.clickable {
-                                    permissionLauncher.launch(Manifest.permission.CAMERA)
-                                }
+                                fontSize = 11.sp,
+                                modifier = Modifier.clickable { permLauncher.launch(Manifest.permission.CAMERA) }
                             )
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                TriggerModeSelector(
-                    currentMode = manager.getState().triggerMode,
-                    onModeSelected = { mode ->
-                        manager.updateState(manager.getState().copy(triggerMode = mode))
-                    }
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                ThresholdSlider(
-                    label = "眨眼阈值",
-                    value = manager.getState().thresholds.blink,
-                    onValueChange = { value ->
-                        val t = manager.getState().thresholds
-                        manager.updateState(manager.getState().copy(thresholds = t.copy(blink = value)))
-                    },
-                    valueRange = 0.10f..0.95f
-                )
-
-                ThresholdSlider(
-                    label = "Wink 差值",
-                    value = manager.getState().thresholds.winkDiff,
-                    onValueChange = { value ->
-                        val t = manager.getState().thresholds
-                        manager.updateState(manager.getState().copy(thresholds = t.copy(winkDiff = value)))
-                    },
-                    valueRange = 0.05f..0.80f
-                )
-
-                ThresholdSlider(
-                    label = "撅嘴阈值",
-                    value = manager.getState().thresholds.pucker,
-                    onValueChange = { value ->
-                        val t = manager.getState().thresholds
-                        manager.updateState(manager.getState().copy(thresholds = t.copy(pucker = value)))
-                    },
-                    valueRange = 0.05f..0.90f
-                )
-
-                ThresholdSlider(
-                    label = "撅嘴偏移",
-                    value = manager.getState().thresholds.puckerBias,
-                    onValueChange = { value ->
-                        val t = manager.getState().thresholds
-                        manager.updateState(manager.getState().copy(thresholds = t.copy(puckerBias = value)))
-                    },
-                    valueRange = 0.02f..0.60f
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(Modifier.height(12.dp))
 
                 Row(
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     modifier = Modifier.fillMaxWidth()
                 ) {
+                    ModeBtn("仅 Wink", manager.getState().triggerMode == FaceRecognitionManager.TriggerMode.WINK) {
+                        manager.updateState(manager.getState().copy(triggerMode = FaceRecognitionManager.TriggerMode.WINK))
+                    }
+                    ModeBtn("仅撅嘴", manager.getState().triggerMode == FaceRecognitionManager.TriggerMode.PUCKER) {
+                        manager.updateState(manager.getState().copy(triggerMode = FaceRecognitionManager.TriggerMode.PUCKER))
+                    }
+                    ModeBtn("两者", manager.getState().triggerMode == FaceRecognitionManager.TriggerMode.BOTH) {
+                        manager.updateState(manager.getState().copy(triggerMode = FaceRecognitionManager.TriggerMode.BOTH))
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                SliderRow("眨眼阈值", manager.getState().thresholds.blink, 0.10f..0.95f) {
+                    manager.updateState(manager.getState().copy(thresholds = manager.getState().thresholds.copy(blink = it)))
+                }
+                SliderRow("Wink 差值", manager.getState().thresholds.winkDiff, 0.05f..0.80f) {
+                    manager.updateState(manager.getState().copy(thresholds = manager.getState().thresholds.copy(winkDiff = it)))
+                }
+                SliderRow("撅嘴阈值", manager.getState().thresholds.pucker, 0.05f..0.90f) {
+                    manager.updateState(manager.getState().copy(thresholds = manager.getState().thresholds.copy(pucker = it)))
+                }
+                SliderRow("撅嘴偏移", manager.getState().thresholds.puckerBias, 0.02f..0.60f) {
+                    manager.updateState(manager.getState().copy(thresholds = manager.getState().thresholds.copy(puckerBias = it)))
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                Row(
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    StatusChip("状态", if (manager.getState().isRunning) "运行中" else "未启动", manager.getState().isRunning)
                     StatusChip(
-                        label = "状态",
-                        value = if (manager.getState().isRunning) "运行中" else "未启动",
-                        isActive = manager.getState().isRunning
-                    )
-                    StatusChip(
-                        label = "模式",
-                        value = when (manager.getState().triggerMode) {
-                            FaceRecognitionManager.TriggerMode.WINK -> "仅 Wink"
+                        "模式", when (manager.getState().triggerMode) {
+                            FaceRecognitionManager.TriggerMode.WINK -> "仅Wink"
                             FaceRecognitionManager.TriggerMode.PUCKER -> "仅撅嘴"
                             FaceRecognitionManager.TriggerMode.BOTH -> "两者皆可"
-                        },
-                        isActive = true
+                        }, true
                     )
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
-
-                Text(
-                    text = "点击外部区域保存并关闭",
-                    color = Color(0xFF8CC8FF),
-                    fontSize = 12.sp,
-                    textAlign = TextAlign.Center
-                )
+                Spacer(Modifier.height(12.dp))
+                Text("点击外部保存并关闭", color = Color(0xFF8CC8FF), fontSize = 11.sp, textAlign = TextAlign.Center)
             }
         }
     }
 }
 
 @Composable
-private fun CameraPreview(
-    cameraProvider: ProcessCameraProvider?,
-    lifecycleOwner: androidx.lifecycle.LifecycleOwner,
-    modifier: Modifier = Modifier
-) {
-    val context = LocalContext.current
+private fun CameraPreviewCard(manager: FaceRecognitionManager, lifecycleOwner: androidx.lifecycle.LifecycleOwner) {
+    val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
 
-    AndroidView(
-        factory = { ctx ->
-            PreviewView(ctx).apply {
-                scaleType = PreviewView.ScaleType.FILL_CENTER
-                cameraProvider?.let { provider ->
-                    val preview = Preview.Builder().build().also {
-                        it.setSurfaceProvider(surfaceProvider)
-                    }
-                    try {
-                        provider.unbindAll()
-                        provider.bindToLifecycle(
-                            lifecycleOwner,
-                            CameraSelector.DEFAULT_FRONT_CAMERA,
-                            preview
-                        )
-                    } catch (_: Exception) { }
-                }
-            }
-        },
-        modifier = modifier
-    )
-}
+    DisposableEffect(Unit) {
+        onDispose { analysisExecutor.shutdown() }
+    }
 
-@Composable
-private fun TriggerModeSelector(
-    currentMode: FaceRecognitionManager.TriggerMode,
-    onModeSelected: (FaceRecognitionManager.TriggerMode) -> Unit
-) {
-    Row(
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        modifier = Modifier.fillMaxWidth()
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFF1A1E2E))
+            .padding(8.dp)
     ) {
-        ModeButton(
-            text = "仅 Wink",
-            isSelected = currentMode == FaceRecognitionManager.TriggerMode.WINK,
-            onClick = { onModeSelected(FaceRecognitionManager.TriggerMode.WINK) }
+        AndroidView(
+            factory = { ctx ->
+                PreviewView(ctx).apply {
+                    scaleType = PreviewView.ScaleType.FIT_CENTER
+                    val providerFuture = ProcessCameraProvider.getInstance(ctx)
+                    providerFuture.addListener({
+                        val provider = providerFuture.get()
+                        val preview = Preview.Builder().build().also { it.setSurfaceProvider(surfaceProvider) }
+                        val analyzer = ImageAnalysis.Builder()
+                            .setTargetResolution(android.util.Size(640, 480))
+                            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                            .build()
+                        analyzer.setAnalyzer(analysisExecutor) { imageProxy: ImageProxy ->
+                            if (manager.getState().isRunning && manager.getState().isEnabled) {
+                                manager.processImageProxy(imageProxy)
+                            } else {
+                                imageProxy.close()
+                            }
+                        }
+                        try {
+                            provider.unbindAll()
+                            provider.bindToLifecycle(
+                                lifecycleOwner,
+                                CameraSelector.DEFAULT_FRONT_CAMERA,
+                                preview,
+                                analyzer
+                            )
+                        } catch (_: Exception) { }
+                    }, ctx.mainExecutor)
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(100.dp)
+                .clip(RoundedCornerShape(8.dp))
         )
-        ModeButton(
-            text = "仅撅嘴",
-            isSelected = currentMode == FaceRecognitionManager.TriggerMode.PUCKER,
-            onClick = { onModeSelected(FaceRecognitionManager.TriggerMode.PUCKER) }
-        )
-        ModeButton(
-            text = "两者皆可",
-            isSelected = currentMode == FaceRecognitionManager.TriggerMode.BOTH,
-            onClick = { onModeSelected(FaceRecognitionManager.TriggerMode.BOTH) }
-        )
+
+        Spacer(Modifier.height(6.dp))
+
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = if (manager.getState().isRunning) "● LIVE" else "○ OFF",
+                color = if (manager.getState().isRunning) Color(0xFF4ADE80) else Color(0xFF6B7280),
+                fontSize = 11.sp, fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = if (manager.getState().isEnabled) "识别: 开" else "识别: 关",
+                color = if (manager.getState().isEnabled) Color(0xFF8CC8FF) else Color(0xFF6B7280),
+                fontSize = 11.sp
+            )
+        }
     }
 }
 
 @Composable
-private fun ModeButton(
-    text: String,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
+private fun ModeBtn(text: String, selected: Boolean, onClick: () -> Unit) {
     Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(if (isSelected) Color(0xFF8CC8FF) else Color(0xFF1A1E2E))
+        Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (selected) Color(0xFF8CC8FF) else Color(0xFF1A1E2E))
             .clickable { onClick() }
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 14.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = text,
-            color = if (isSelected) Color.Black else Color(0xFFB0B8C8),
-            fontSize = 13.sp,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+            text, color = if (selected) Color.Black else Color(0xFFB0B8C8), fontSize = 12.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
         )
     }
 }
 
 @Composable
-private fun ThresholdSlider(
-    label: String,
-    value: Float,
-    onValueChange: (Float) -> Unit,
-    valueRange: ClosedFloatingPointRange<Float>
-) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = label,
-                color = Color(0xFFB0B8C8),
-                fontSize = 13.sp
-            )
-            Text(
-                text = String.format("%.2f", value),
-                color = Color(0xFF8CC8FF),
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold
-            )
+private fun SliderRow(label: String, value: Float, range: ClosedFloatingPointRange<Float>, onChange: (Float) -> Unit) {
+    Column(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(label, color = Color(0xFFB0B8C8), fontSize = 12.sp)
+            Text(String.format("%.2f", value), color = Color(0xFF8CC8FF), fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
-        Spacer(modifier = Modifier.height(4.dp))
         androidx.compose.material3.Slider(
-            value = value,
-            onValueChange = onValueChange,
-            valueRange = valueRange,
+            value = value, onValueChange = onChange, valueRange = range,
             colors = androidx.compose.material3.SliderDefaults.colors(
-                thumbColor = Color(0xFF8CC8FF),
-                activeTrackColor = Color(0xFF8CC8FF),
-                inactiveTrackColor = Color(0xFF1A1E2E)
+                thumbColor = Color(0xFF8CC8FF), activeTrackColor = Color(0xFF8CC8FF), inactiveTrackColor = Color(0xFF1A1E2E)
             ),
             modifier = Modifier.fillMaxWidth()
         )
@@ -380,29 +296,15 @@ private fun ThresholdSlider(
 }
 
 @Composable
-private fun StatusChip(
-    label: String,
-    value: String,
-    isActive: Boolean
-) {
+private fun StatusChip(label: String, value: String, active: Boolean) {
     Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
+        Modifier
+            .clip(RoundedCornerShape(10.dp))
             .background(Color(0xFF1A1E2E))
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = 14.dp, vertical = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = label,
-            color = Color(0xFF6B7280),
-            fontSize = 11.sp
-        )
-        Spacer(modifier = Modifier.height(2.dp))
-        Text(
-            text = value,
-            color = if (isActive) Color(0xFF4ADE80) else Color(0xFFB0B8C8),
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold
-        )
+        Text(label, color = Color(0xFF6B7280), fontSize = 10.sp)
+        Text(value, color = if (active) Color(0xFF4ADE80) else Color(0xFFB0B8C8), fontSize = 12.sp, fontWeight = FontWeight.Bold)
     }
 }
