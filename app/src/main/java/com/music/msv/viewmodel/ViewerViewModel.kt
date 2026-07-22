@@ -16,6 +16,8 @@ import com.music.msv.data.repository.FileRepository
 import com.music.msv.data.repository.SessionRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -237,18 +239,19 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         val keepMin = (center - 5).coerceAtLeast(0)
         val keepMax = (center + 5).coerceAtMost(total - 1)
         viewModelScope.launch(Dispatchers.IO) {
-            val newUris = mutableMapOf<Int, Uri>()
-            for (i in keepMin..keepMax) {
-                if (state.pageUris.containsKey(i)) continue
-                val uri = when (state.mode) {
-                    is Mode.Pdf -> renderPage(i, pageW, pageH, zoom)
-                    is Mode.Image -> imageUris.getOrNull(i)
-                    else -> null
+            val toRender = (keepMin..keepMax).filter { !state.pageUris.containsKey(it) }
+            val rendered = toRender.map { i ->
+                async {
+                    val uri = when (state.mode) {
+                        is Mode.Pdf -> renderPage(i, pageW, pageH, zoom)
+                        is Mode.Image -> imageUris.getOrNull(i)
+                        else -> null
+                    }
+                    if (uri != null) i to uri else null
                 }
-                if (uri != null) newUris[i] = uri
-            }
+            }.awaitAll().filterNotNull().toMap()
             val currentUris = _uiState.value.pageUris.toMutableMap()
-            currentUris.putAll(newUris)
+            currentUris.putAll(rendered)
             val toRemove = currentUris.keys.filter { it !in keepMin..keepMax }
             for (page in toRemove) {
                 val uri = currentUris.remove(page)
