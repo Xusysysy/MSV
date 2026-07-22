@@ -121,9 +121,7 @@ fun Stage(
     val touchSlop = LocalViewConfiguration.current.touchSlop
 
     LaunchedEffect(pageWidth, pageHeight) {
-        if (pageWidth > 0 && pageHeight > 0) {
-            transition.snapTo(0f)
-        }
+        transition.snapTo(0f)
     }
 
     fun doFlip(dir: Int, fromOffset: Float, easing: Boolean) {
