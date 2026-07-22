@@ -12,9 +12,6 @@ import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -32,7 +29,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -71,13 +68,17 @@ private val BROW_CONNS = intArrayOf(276,283,283,282,282,295,295,285,285,300,300,
 fun FaceRecognitionOverlay(
     visible: Boolean,
     onDismiss: () -> Unit,
+    onToggleRunning: (Boolean) -> Unit,
     manager: FaceRecognitionManager,
     isDark: Boolean,
     modifier: Modifier = Modifier
 ) {
+    if (!visible) return
+
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val cfg = LocalConfiguration.current
+    val isLandscape = cfg.screenWidthDp > cfg.screenHeightDp
 
     var hasPermission by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
@@ -105,93 +106,139 @@ fun FaceRecognitionOverlay(
     val dn = if (isDark) Color(0xFFFF9AA8) else Color(0xFFD9455D)
     val gr = Color(0xFF4ADE80)
 
-    AnimatedVisibility(visible = visible, enter = fadeIn(), exit = fadeOut(), modifier = modifier) {
-        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f))
-            .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { onDismiss() },
-            contentAlignment = Alignment.Center
-        ) {
-            val maxH = cfg.screenHeightDp.dp * 0.85f
+    val blinkVal = remember { mutableStateOf(manager.getState().thresholds.blink) }
+    val puckerVal = remember { mutableStateOf(manager.getState().thresholds.pucker) }
+
+    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f))
+        .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { onDismiss() },
+        contentAlignment = Alignment.Center
+    ) {
+        val maxH = cfg.screenHeightDp.dp * 0.9f
+        if (isLandscape) {
+            Row(
+                Modifier.fillMaxWidth(0.92f).heightIn(max = maxH).clip(RoundedCornerShape(16.dp)).background(bg).border(1.dp, bdr, RoundedCornerShape(16.dp))
+                    .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) {}
+                    .padding(10.dp), Arrangement.spacedBy(10.dp)
+            ) {
+                // Left column: preview + action cards
+                Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), Arrangement.spacedBy(6.dp)) {
+                    HeaderBar(manager, running, debugInfo.fps, gr, tMu, cardBg, bdr, tOn, onToggleRunning)
+                    Box(Modifier.fillMaxWidth().aspectRatio(4f/3f).clip(RoundedCornerShape(12.dp)).border(1.dp, bdr, RoundedCornerShape(12.dp))) {
+                        if (hasPermission) CameraPreview(manager, lifecycleOwner, debugInfo, Modifier.fillMaxSize())
+                        else PermPlaceholder(tOn, ac, permLauncher)
+                    }
+                    ActionCardsRow(scores, ac, dn, cardBg, bdr, tOn, tMu)
+                }
+                // Right column: controls
+                Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), Arrangement.spacedBy(8.dp)) {
+                    ModeSelector(manager, cardBg, bdr, tMu, ac)
+                    SliderSection("眨眼阈值", blinkVal, 0.10f..0.95f, tOn, ac, bdr) {
+                        blinkVal.value = it; val s = manager.getState(); manager.updateState(s.copy(thresholds = s.thresholds.copy(blink = it)))
+                    }
+                    SliderSection("撅嘴阈值", puckerVal, 0.05f..0.90f, tOn, ac, bdr) {
+                        puckerVal.value = it; val s = manager.getState(); manager.updateState(s.copy(thresholds = s.thresholds.copy(pucker = it)))
+                    }
+                    DebugBox(manager, hasPermission, running, debugInfo, bdr)
+                }
+            }
+        } else {
             Column(
                 Modifier.fillMaxWidth(0.9f).heightIn(max = maxH).clip(RoundedCornerShape(16.dp)).background(bg).border(1.dp, bdr, RoundedCornerShape(16.dp))
                     .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) {}
                     .verticalScroll(rememberScrollState()).padding(12.dp),
                 Arrangement.spacedBy(8.dp)
             ) {
-                // Header
-                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                    Text("面部识别", color = tOn, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                    Box(Modifier.clip(RoundedCornerShape(8.dp)).background(if (running) gr.copy(alpha = 0.2f) else cardBg).border(1.dp, if (running) gr else bdr, RoundedCornerShape(8.dp)).clickable {
-                        val s = manager.getState()
-                        if (s.isRunning) manager.updateState(s.copy(isRunning = false, isEnabled = false))
-                        else { if (!manager.isInitialized()) manager.initialize(); manager.updateState(s.copy(isRunning = true, isEnabled = true)) }
-                    }.padding(horizontal = 8.dp, vertical = 4.dp)) {
-                        Text(if (running) "● LIVE ${debugInfo.fps}fps" else "○ OFF", color = if (running) gr else tMu, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    }
+                HeaderBar(manager, running, debugInfo.fps, gr, tMu, cardBg, bdr, tOn, onToggleRunning)
+                Box(Modifier.fillMaxWidth().aspectRatio(4f/3f).clip(RoundedCornerShape(12.dp)).border(1.dp, bdr, RoundedCornerShape(12.dp))) {
+                    if (hasPermission) CameraPreview(manager, lifecycleOwner, debugInfo, Modifier.fillMaxSize())
+                    else PermPlaceholder(tOn, ac, permLauncher)
                 }
-
-                // Preview
-                Box(Modifier.fillMaxWidth().aspectRatio(4f / 3f).clip(RoundedCornerShape(12.dp)).border(1.dp, bdr, RoundedCornerShape(12.dp))) {
-                    if (hasPermission) {
-                        CameraPreview(manager, lifecycleOwner, debugInfo, Modifier.fillMaxSize())
-                    } else {
-                        Box(Modifier.fillMaxSize().background(Color(0xFF0A0D18)), contentAlignment = Alignment.Center) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("📷", fontSize = 32.sp); Spacer(Modifier.height(4.dp))
-                                Text("需要相机权限", color = tOn, fontSize = 13.sp)
-                                Spacer(Modifier.height(4.dp))
-                                Text("点击授予", color = ac, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { permLauncher.launch(Manifest.permission.CAMERA) })
-                            }
-                        }
-                    }
+                ActionCardsRow(scores, ac, dn, cardBg, bdr, tOn, tMu)
+                ModeSelector(manager, cardBg, bdr, tMu, ac)
+                SliderSection("眨眼阈值", blinkVal, 0.10f..0.95f, tOn, ac, bdr) {
+                    blinkVal.value = it; val s = manager.getState(); manager.updateState(s.copy(thresholds = s.thresholds.copy(blink = it)))
                 }
-
-                // Action cards
-                Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(4.dp)) {
-                    ActionCard(Modifier.weight(1f), "😜", "左Wink", scores.leftWink, ac, cardBg, bdr, tOn, tMu)
-                    ActionCard(Modifier.weight(1f), "😉", "右Wink", scores.rightWink, ac, cardBg, bdr, tOn, tMu)
-                    ActionCard(Modifier.weight(1f), "😗", "左撅嘴", scores.leftPucker, dn, cardBg, bdr, tOn, tMu)
-                    ActionCard(Modifier.weight(1f), "😙", "右撅嘴", scores.rightPucker, dn, cardBg, bdr, tOn, tMu)
+                SliderSection("撅嘴阈值", puckerVal, 0.05f..0.90f, tOn, ac, bdr) {
+                    puckerVal.value = it; val s = manager.getState(); manager.updateState(s.copy(thresholds = s.thresholds.copy(pucker = it)))
                 }
-
-                // Mode buttons
-                Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(4.dp)) {
-                    val s = manager.getState()
-                    ModeBtn(Modifier.weight(1f), "关闭", !s.isEnabled, cardBg, bdr, tMu) { manager.updateState(s.copy(isEnabled = false, isRunning = false)) }
-                    ModeBtn(Modifier.weight(1f), "Wink", s.isEnabled && s.triggerMode == FaceRecognitionManager.TriggerMode.WINK, cardBg, bdr, ac) {
-                        if (!manager.isInitialized()) manager.initialize()
-                        manager.updateState(s.copy(isEnabled = true, isRunning = true, triggerMode = FaceRecognitionManager.TriggerMode.WINK))
-                    }
-                    ModeBtn(Modifier.weight(1f), "撅嘴", s.isEnabled && s.triggerMode == FaceRecognitionManager.TriggerMode.PUCKER, cardBg, bdr, ac) {
-                        if (!manager.isInitialized()) manager.initialize()
-                        manager.updateState(s.copy(isEnabled = true, isRunning = true, triggerMode = FaceRecognitionManager.TriggerMode.PUCKER))
-                    }
-                    ModeBtn(Modifier.weight(1f), "两者", s.isEnabled && s.triggerMode == FaceRecognitionManager.TriggerMode.BOTH, cardBg, bdr, ac) {
-                        if (!manager.isInitialized()) manager.initialize()
-                        manager.updateState(s.copy(isEnabled = true, isRunning = true, triggerMode = FaceRecognitionManager.TriggerMode.BOTH))
-                    }
-                }
-
-                // Threshold sliders - use local state to track value
-                var blinkVal by remember { mutableStateOf(manager.getState().thresholds.blink) }
-                var puckerVal by remember { mutableStateOf(manager.getState().thresholds.pucker) }
-                SliderRow("眨眼阈值", blinkVal, 0.10f..0.95f, tOn, ac, bdr) { v ->
-                    blinkVal = v
-                    val ms = manager.getState()
-                    manager.updateState(ms.copy(thresholds = ms.thresholds.copy(blink = v)))
-                }
-                SliderRow("撅嘴阈值", puckerVal, 0.05f..0.90f, tOn, ac, bdr) { v ->
-                    puckerVal = v
-                    val ms = manager.getState()
-                    manager.updateState(ms.copy(thresholds = ms.thresholds.copy(pucker = v)))
-                }
-
-                // Debug
-                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Color(0xFF0A0D18)).border(1.dp, bdr, RoundedCornerShape(8.dp)).padding(6.dp)) {
-                    Text("诊断", color = Color(0xFF888888), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(2.dp))
-                    Text("模型: ${if (manager.isInitialized()) "✓" else "✗"} 相机: ${if (hasPermission) "✓" else "✗"} 运行: ${if (running) "✓" else "○"} FPS: ${debugInfo.fps} 关键点: ${debugInfo.landmarks?.size ?: 0}", color = Color(0xFF8CC8FF), fontSize = 10.sp)
-                }
+                DebugBox(manager, hasPermission, running, debugInfo, bdr)
             }
+        }
+    }
+}
+
+@Composable
+private fun HeaderBar(manager: FaceRecognitionManager, running: Boolean, fps: Int, gr: Color, tMu: Color, cardBg: Color, bdr: Color, tOn: Color, onToggle: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+        Text("面部识别", color = tOn, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+        Box(Modifier.clip(RoundedCornerShape(8.dp)).background(if (running) gr.copy(alpha = 0.2f) else cardBg).border(1.dp, if (running) gr else bdr, RoundedCornerShape(8.dp)).clickable {
+            val s = manager.getState()
+            val newRunning = !s.isRunning
+            if (newRunning && !manager.isInitialized()) manager.initialize()
+            manager.updateState(s.copy(isRunning = newRunning, isEnabled = newRunning))
+            onToggle(newRunning)
+        }.padding(horizontal = 8.dp, vertical = 4.dp)) {
+            Text(if (running) "● LIVE ${fps}fps" else "○ OFF", color = if (running) gr else tMu, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+private fun ActionCardsRow(scores: FaceRecognitionManager.GestureScores, ac: Color, dn: Color, cardBg: Color, bdr: Color, tOn: Color, tMu: Color) {
+    Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(4.dp)) {
+        ActionCard(Modifier.weight(1f), "😜", "左Wink", scores.leftWink, ac, cardBg, bdr, tOn, tMu)
+        ActionCard(Modifier.weight(1f), "😉", "右Wink", scores.rightWink, ac, cardBg, bdr, tOn, tMu)
+        ActionCard(Modifier.weight(1f), "😗", "左撅嘴", scores.leftPucker, dn, cardBg, bdr, tOn, tMu)
+        ActionCard(Modifier.weight(1f), "😙", "右撅嘴", scores.rightPucker, dn, cardBg, bdr, tOn, tMu)
+    }
+}
+
+@Composable
+private fun ModeSelector(manager: FaceRecognitionManager, cardBg: Color, bdr: Color, tMu: Color, ac: Color) {
+    val s = manager.getState()
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(cardBg).border(1.dp, bdr, RoundedCornerShape(10.dp)).padding(8.dp), Arrangement.spacedBy(4.dp)) {
+        Text("触发模式", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(4.dp)) {
+            ModeBtn(Modifier.weight(1f), "关闭", !s.isEnabled, cardBg, bdr, tMu) { manager.updateState(s.copy(isEnabled = false, isRunning = false)) }
+            ModeBtn(Modifier.weight(1f), "Wink", s.isEnabled && s.triggerMode == FaceRecognitionManager.TriggerMode.WINK, cardBg, bdr, ac) {
+                if (!manager.isInitialized()) manager.initialize(); manager.updateState(s.copy(isEnabled = true, isRunning = true, triggerMode = FaceRecognitionManager.TriggerMode.WINK))
+            }
+            ModeBtn(Modifier.weight(1f), "撅嘴", s.isEnabled && s.triggerMode == FaceRecognitionManager.TriggerMode.PUCKER, cardBg, bdr, ac) {
+                if (!manager.isInitialized()) manager.initialize(); manager.updateState(s.copy(isEnabled = true, isRunning = true, triggerMode = FaceRecognitionManager.TriggerMode.PUCKER))
+            }
+            ModeBtn(Modifier.weight(1f), "两者", s.isEnabled && s.triggerMode == FaceRecognitionManager.TriggerMode.BOTH, cardBg, bdr, ac) {
+                if (!manager.isInitialized()) manager.initialize(); manager.updateState(s.copy(isEnabled = true, isRunning = true, triggerMode = FaceRecognitionManager.TriggerMode.BOTH))
+            }
+        }
+    }
+}
+
+@Composable
+private fun SliderSection(label: String, state: androidx.compose.runtime.MutableState<Float>, range: ClosedFloatingPointRange<Float>, tOn: Color, ac: Color, bdr: Color, onChange: (Float) -> Unit) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color(0xFF1A1E2E)).border(1.dp, bdr, RoundedCornerShape(10.dp)).padding(8.dp)) {
+        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+            Text(label, color = tOn, fontSize = 11.sp)
+            Text(String.format("%.2f", state.value), color = ac, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        }
+        Slider(value = state.value, onValueChange = onChange, valueRange = range, modifier = Modifier.fillMaxWidth(), colors = SliderDefaults.colors(thumbColor = ac, activeTrackColor = ac, inactiveTrackColor = bdr))
+    }
+}
+
+@Composable
+private fun DebugBox(manager: FaceRecognitionManager, hasPerm: Boolean, running: Boolean, debugInfo: FaceRecognitionManager.FaceDebugInfo, bdr: Color) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Color(0xFF0A0D18)).border(1.dp, bdr, RoundedCornerShape(8.dp)).padding(6.dp)) {
+        Text("诊断", color = Color(0xFF888888), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(2.dp))
+        Text("模型:${if (manager.isInitialized()) "✓" else "✗"} 相机:${if (hasPerm) "✓" else "✗"} 运行:${if (running) "✓" else "○"} FPS:${debugInfo.fps} 关键点:${debugInfo.landmarks?.size ?: 0}", color = Color(0xFF8CC8FF), fontSize = 10.sp)
+    }
+}
+
+@Composable
+private fun PermPlaceholder(tOn: Color, ac: Color, launcher: androidx.activity.result.ActivityResultLauncher<String>) {
+    Box(Modifier.fillMaxSize().background(Color(0xFF0A0D18)), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("📷", fontSize = 32.sp); Spacer(Modifier.height(4.dp)); Text("需要相机权限", color = tOn, fontSize = 13.sp)
+            Spacer(Modifier.height(4.dp)); Text("点击授予", color = ac, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { launcher.launch(Manifest.permission.CAMERA) })
         }
     }
 }
@@ -231,10 +278,8 @@ private fun CameraPreview(manager: FaceRecognitionManager, lifecycleOwner: andro
                         i += 2
                     }
                 }
-                d(FACE_CONNS, Color(0x60B08CFF), 1.5f)
-                d(EYE_CONNS, Color(0x9000D4FF), 1.5f)
-                d(BROW_CONNS, Color(0x6000D4FF), 1.2f)
-                d(LIP_CONNS, Color(0xA0FF3D8F), 1.6f)
+                d(FACE_CONNS, Color(0x60B08CFF), 1.5f); d(EYE_CONNS, Color(0x9000D4FF), 1.5f)
+                d(BROW_CONNS, Color(0x6000D4FF), 1.2f); d(LIP_CONNS, Color(0xA0FF3D8F), 1.6f)
             }
         }
     }
@@ -244,9 +289,7 @@ private fun CameraPreview(manager: FaceRecognitionManager, lifecycleOwner: andro
 private fun ActionCard(mod: Modifier, emoji: String, label: String, score: Float, activeColor: Color, cardBg: Color, bdr: Color, tOn: Color, tMu: Color) {
     val on = score > 0.01f
     Column(mod.clip(RoundedCornerShape(10.dp)).background(if (on) activeColor.copy(alpha = 0.15f) else cardBg).border(1.dp, if (on) activeColor.copy(alpha = 0.5f) else bdr, RoundedCornerShape(10.dp)).padding(vertical = 6.dp, horizontal = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(emoji, fontSize = 16.sp)
-        Spacer(Modifier.height(1.dp))
-        Text(label, color = tOn, fontSize = 9.sp, maxLines = 1)
+        Text(emoji, fontSize = 16.sp); Spacer(Modifier.height(1.dp)); Text(label, color = tOn, fontSize = 9.sp, maxLines = 1)
         Text("${(score * 100).toInt()}%", color = if (on) activeColor else tMu, fontSize = 11.sp, fontWeight = FontWeight.Bold)
     }
 }
@@ -255,16 +298,5 @@ private fun ActionCard(mod: Modifier, emoji: String, label: String, score: Float
 private fun ModeBtn(mod: Modifier, text: String, sel: Boolean, cardBg: Color, bdr: Color, activeColor: Color, onClick: () -> Unit) {
     Box(mod.clip(RoundedCornerShape(8.dp)).background(if (sel) activeColor.copy(alpha = 0.2f) else cardBg).border(1.dp, if (sel) activeColor else bdr, RoundedCornerShape(8.dp)).clickable { onClick() }.padding(vertical = 6.dp), contentAlignment = Alignment.Center) {
         Text(text, color = if (sel) activeColor else Color(0xFF888888), fontSize = 11.sp, fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal)
-    }
-}
-
-@Composable
-private fun SliderRow(label: String, value: Float, range: ClosedFloatingPointRange<Float>, tOn: Color, ac: Color, bdr: Color, onChange: (Float) -> Unit) {
-    Column(Modifier.fillMaxWidth()) {
-        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-            Text(label, color = tOn, fontSize = 11.sp)
-            Text(String.format("%.2f", value), color = ac, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-        }
-        Slider(value = value, onValueChange = onChange, valueRange = range, modifier = Modifier.fillMaxWidth(), colors = SliderDefaults.colors(thumbColor = ac, activeTrackColor = ac, inactiveTrackColor = bdr))
     }
 }
