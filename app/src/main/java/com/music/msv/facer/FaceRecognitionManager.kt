@@ -142,9 +142,14 @@ class FaceRecognitionManager(context: Context) {
     }
 
     private fun decode(ip: ImageProxy): Bitmap {
-        val buf = ip.planes[0].buffer; val bytes = ByteArray(buf.remaining()); buf.get(bytes)
-        val yuv = YuvImage(bytes, ImageFormat.NV21, ip.width, ip.height, null)
-        val out = ByteArrayOutputStream(); yuv.compressToJpeg(Rect(0, 0, ip.width, ip.height), 90, out)
+        val y = ip.planes[0].buffer; val u = ip.planes[1].buffer; val v = ip.planes[2].buffer
+        val ySize = y.remaining(); val uSize = u.remaining(); val vSize = v.remaining()
+        val nv21 = ByteArray(ySize + uSize + vSize)
+        y.get(nv21, 0, ySize)
+        v.get(nv21, ySize, vSize)
+        u.get(nv21, ySize + vSize, uSize)
+        val yuv = YuvImage(nv21, ImageFormat.NV21, ip.width, ip.height, null)
+        val out = ByteArrayOutputStream(); yuv.compressToJpeg(Rect(0, 0, ip.width, ip.height), 95, out)
         val jpg = out.toByteArray(); out.close()
         val bmp = BitmapFactory.decodeByteArray(jpg, 0, jpg.size)
         val mat = Matrix(); mat.postRotate(ip.imageInfo.rotationDegrees.toFloat()); mat.preScale(-1f, 1f)
