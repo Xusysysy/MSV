@@ -56,6 +56,7 @@ class FaceRecognitionManager(private val context: Context) {
     )
 
     private var landmarker: FaceLandmarker? = null
+    @Volatile
     private var state = FaceState()
     private var onGestureDetected: ((Gesture) -> Unit)? = null
 
