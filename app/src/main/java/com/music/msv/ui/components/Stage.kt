@@ -112,14 +112,20 @@ fun Stage(
             transition.snapTo(fromOffset)
             try {
                 if (easing) {
-                    transition.animateTo(-dir * currentPw, tween(200, easing = FastOutSlowInEasing))
+                    transition.animateTo(
+                        -dir * currentPw,
+                        spring(dampingRatio = 0.75f, stiffness = 280f)
+                    )
                 } else {
-                    transition.animateTo(-dir * currentPw, spring(dampingRatio = 0.85f, stiffness = 350f))
+                    transition.animateTo(
+                        -dir * currentPw,
+                        spring(dampingRatio = 0.8f, stiffness = 300f)
+                    )
                 }
             } finally {
                 withContext(NonCancellable) {
-                    transition.snapTo(0f)
                     if (dir > 0) onNextPage() else onPrevPage()
+                    transition.snapTo(0f)
                 }
             }
         }
@@ -130,9 +136,9 @@ fun Stage(
         flipJob?.cancel()
         flipJob = scope.launch {
             transition.snapTo(0f)
-            val overshoot = -dir * currentPw * 0.08f
-            transition.animateTo(overshoot, tween(100, easing = FastOutSlowInEasing))
-            transition.animateTo(0f, spring(dampingRatio = 0.6f, stiffness = 400f))
+            val overshoot = -dir * currentPw * 0.06f
+            transition.animateTo(overshoot, tween(80, easing = FastOutSlowInEasing))
+            transition.animateTo(0f, spring(dampingRatio = 0.55f, stiffness = 450f))
         }
     }
 
@@ -176,7 +182,7 @@ fun Stage(
                             val atBoundary = currentPageIndex + dir !in 0 until currentPageCount
                             if (atBoundary || reversed) {
                                 flipJob = scope.launch {
-                                    transition.animateTo(0f, spring(dampingRatio = 0.7f, stiffness = 350f))
+                                    transition.animateTo(0f, spring(dampingRatio = 0.75f, stiffness = 400f))
                                 }
                             } else {
                                 doFlip(dir, dragOffset, easing = false)
@@ -184,7 +190,7 @@ fun Stage(
                         },
                         onDragCancel = {
                             flipJob = scope.launch {
-                                transition.animateTo(0f, spring(dampingRatio = 0.95f, stiffness = 500f))
+                                transition.animateTo(0f, spring(dampingRatio = 0.8f, stiffness = 450f))
                             }
                         },
                         onHorizontalDrag = { _, amount ->

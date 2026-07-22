@@ -172,7 +172,7 @@ Single-screen app — no Navigation component. State-based content switching via
 | `currentIsZoomed` etc. | 4× rememberUpdatedState | L78-L81 |
 | `baseX(pageIndex)` | local fun — static x offset | L83-L86 |
 | `pageX(pageIndex)` | local fun — animated x offset | L88-L96 |
-| `doFlip(dir, fromOffset, easing)` | local fun — page flip animation | L98-L117 |
+| `doFlip(dir, fromOffset, easing)` | local fun — page flip animation (spring-based) | L107-L132 |
 | `pagesToShow` | derived val — visible page window (±3) | L119-L122 |
 | `pageSizeModifier` | derived Modifier — converts pageWidth/pageHeight px to dp via LocalDensity | L144-L150 |
 | Root Box | composable (gestures + rendering) | L131-L240 |
