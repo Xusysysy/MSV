@@ -23,11 +23,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
@@ -39,6 +37,7 @@ import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.abs
@@ -175,93 +174,97 @@ fun Stage(
                 if (pageWidth <= 0) onViewportSizeChanged(it.width, it.height)
             }
             .pointerInput(pageCount) {
-                var activeDir = 0
-                var reversed = false
-                while (true) {
-                    detectHorizontalDragGestures(
-                        onDragStart = {
-                            flipJob?.cancel()
-                            activeDir = 0
-                            reversed = false
-                            dragOffset = 0f
-                            scope.launch { transition.snapTo(0f) }
-                        },
-                        onDragEnd = {
-                            if (currentIsZoomed || currentPw <= 0f) return@detectHorizontalDragGestures
-                            if (activeDir == 0) return@detectHorizontalDragGestures
-                            val dir = activeDir
-                            val step = if (currentIsSpread) 2 else 1
-                            val atBoundary = currentPageIndex + dir * step !in 0 until currentPageCount
-                            if (atBoundary || reversed) {
-                                flipJob = scope.launch {
-                                    transition.animateTo(0f, spring(dampingRatio = 0.75f, stiffness = 400f))
+                coroutineScope {
+                    launch {
+                        var activeDir = 0
+                        var reversed = false
+                        while (true) {
+                            detectHorizontalDragGestures(
+                                onDragStart = {
+                                    flipJob?.cancel()
+                                    activeDir = 0
+                                    reversed = false
+                                    dragOffset = 0f
+                                    scope.launch { transition.snapTo(0f) }
+                                },
+                                onDragEnd = {
+                                    if (currentIsZoomed || currentPw <= 0f) return@detectHorizontalDragGestures
+                                    if (activeDir == 0) return@detectHorizontalDragGestures
+                                    val dir = activeDir
+                                    val step = if (currentIsSpread) 2 else 1
+                                    val atBoundary = currentPageIndex + dir * step !in 0 until currentPageCount
+                                    if (atBoundary || reversed) {
+                                        flipJob = scope.launch {
+                                            transition.animateTo(0f, spring(dampingRatio = 0.75f, stiffness = 400f))
+                                        }
+                                    } else {
+                                        doFlip(dir, dragOffset, easing = false)
+                                    }
+                                },
+                                onDragCancel = {
+                                    flipJob = scope.launch {
+                                        transition.animateTo(0f, spring(dampingRatio = 0.8f, stiffness = 450f))
+                                    }
+                                },
+                                onHorizontalDrag = { _, amount ->
+                                    if (currentIsZoomed) return@detectHorizontalDragGestures
+                                    if (activeDir == 0) {
+                                        val dir = if (amount < 0) 1 else -1
+                                        val step = if (currentIsSpread) 2 else 1
+                                        val inRange = currentPageIndex + dir * step in 0 until currentPageCount
+                                        flipJob?.cancel()
+                                        activeDir = dir
+                                        dragOffset = 0f
+                                        reversed = false
+                                        if (inRange) onPreloadAround(currentPageIndex + dir * step)
+                                    }
+                                    if (amount * activeDir > 0) reversed = true
+                                    val step = if (currentIsSpread) 2 else 1
+                                    val inRange = currentPageIndex + activeDir * step in 0 until currentPageCount
+                                    val factor = if (inRange) 1f else 0.25f
+                                    val limit = if (inRange) flipUnit else flipUnit * 0.25f
+                                    dragOffset = if (activeDir > 0)
+                                        (dragOffset + amount * factor).coerceIn(-limit, 0f)
+                                    else
+                                        (dragOffset + amount * factor).coerceIn(0f, limit)
+                                    scope.launch { transition.snapTo(dragOffset) }
                                 }
-                            } else {
-                                doFlip(dir, dragOffset, easing = false)
-                            }
-                        },
-                        onDragCancel = {
-                            flipJob = scope.launch {
-                                transition.animateTo(0f, spring(dampingRatio = 0.8f, stiffness = 450f))
-                            }
-                        },
-                        onHorizontalDrag = { _, amount ->
-                            if (currentIsZoomed) return@detectHorizontalDragGestures
-                            if (activeDir == 0) {
-                                val dir = if (amount < 0) 1 else -1
-                                val step = if (currentIsSpread) 2 else 1
-                                val inRange = currentPageIndex + dir * step in 0 until currentPageCount
-                                flipJob?.cancel()
-                                activeDir = dir
-                                dragOffset = 0f
-                                reversed = false
-                                if (inRange) onPreloadAround(currentPageIndex + dir * step)
-                            }
-                            if (amount * activeDir > 0) reversed = true
-                            val step = if (currentIsSpread) 2 else 1
-                            val inRange = currentPageIndex + activeDir * step in 0 until currentPageCount
-                            val factor = if (inRange) 1f else 0.25f
-                            val limit = if (inRange) flipUnit else flipUnit * 0.25f
-                            dragOffset = if (activeDir > 0)
-                                (dragOffset + amount * factor).coerceIn(-limit, 0f)
-                            else
-                                (dragOffset + amount * factor).coerceIn(0f, limit)
-                            scope.launch { transition.snapTo(dragOffset) }
+                            )
                         }
-                    )
+                    }
+                    launch {
+                        detectTapGestures(
+                            onTap = { pos ->
+                                if (currentIsZoomed) return@detectTapGestures
+                                val sw = stageWidth
+                                if (sw <= 0) return@detectTapGestures
+                                val third = sw / 3f
+                                when {
+                                    pos.x < third -> {
+                                        val step = if (currentIsSpread) 2 else 1
+                                        if (currentPageIndex > 0) {
+                                            onPreloadAround(currentPageIndex - step)
+                                            doFlip(-1, 0f, easing = true)
+                                        } else {
+                                            doBounce(-1)
+                                        }
+                                    }
+                                    pos.x > sw - third -> {
+                                        val step = if (currentIsSpread) 2 else 1
+                                        if (currentPageIndex < currentPageCount - 1) {
+                                            onPreloadAround(currentPageIndex + step)
+                                            doFlip(1, 0f, easing = true)
+                                        } else {
+                                            doBounce(1)
+                                        }
+                                    }
+                                    else -> onCenterTap()
+                                }
+                            },
+                            onDoubleTap = { onDoubleTap() }
+                        )
+                    }
                 }
-            }
-            .pointerInput(pageCount) {
-                detectTapGestures(
-                    onTap = { pos ->
-                        if (currentIsZoomed) return@detectTapGestures
-                        val sw = stageWidth
-                        if (sw <= 0) return@detectTapGestures
-                        val third = sw / 3f
-                        when {
-                            pos.x < third -> {
-                                val step = if (currentIsSpread) 2 else 1
-                                if (currentPageIndex > 0) {
-                                    onPreloadAround(currentPageIndex - step)
-                                    doFlip(-1, 0f, easing = true)
-                                } else {
-                                    doBounce(-1)
-                                }
-                            }
-                            pos.x > sw - third -> {
-                                val step = if (currentIsSpread) 2 else 1
-                                if (currentPageIndex < currentPageCount - 1) {
-                                    onPreloadAround(currentPageIndex + step)
-                                    doFlip(1, 0f, easing = true)
-                                } else {
-                                    doBounce(1)
-                                }
-                            }
-                            else -> onCenterTap()
-                        }
-                    },
-                    onDoubleTap = { onDoubleTap() }
-                )
             }
             .pointerInput(isZoomed) {
                 if (isZoomed) {
@@ -318,7 +321,6 @@ fun Stage(
                         colorFilter = if (isDark) ColorFilter.colorMatrix(invertColorMatrix) else null,
                         modifier = Modifier
                             .fillMaxSize()
-                            .shadow(6.dp, RectangleShape)
                     )
                 }
             }
@@ -355,7 +357,6 @@ fun Stage(
                         colorFilter = if (isDark) ColorFilter.colorMatrix(invertColorMatrix) else null,
                         modifier = Modifier
                             .fillMaxSize()
-                            .shadow(6.dp, RectangleShape)
                     )
                 }
             }
