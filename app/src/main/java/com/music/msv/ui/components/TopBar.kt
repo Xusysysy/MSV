@@ -42,6 +42,7 @@ fun TopBar(
     onResetClick: () -> Unit,
     onThemeLongClick: () -> Unit,
     faceEnabled: Boolean = false,
+    faceActive: Boolean = false,
     onFaceClick: () -> Unit = {},
     onFaceLongClick: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -124,19 +125,22 @@ fun TopBar(
             }
 
             // Face recognition button
+            val faceColor = when {
+                faceActive -> Color(0xFFFF4444)
+                faceEnabled -> accent
+                else -> text
+            }
+            val faceBg = when {
+                faceActive -> Color(0x44FF0000)
+                faceEnabled -> accent.copy(alpha = 0.2f)
+                else -> ctrlBg
+            }
             Box(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(ButtonShape)
-                    .background(
-                        if (faceEnabled) accent.copy(alpha = 0.2f) else ctrlBg,
-                        ButtonShape
-                    )
-                    .border(
-                        1.dp,
-                        if (faceEnabled) accent else ctrlBorder,
-                        ButtonShape
-                    )
+                    .background(faceBg, ButtonShape)
+                    .border(1.dp, if (faceActive) Color(0xAAFF4444) else if (faceEnabled) accent else ctrlBorder, ButtonShape)
                     .combinedClickable(
                         onClick = { onFaceClick() },
                         onLongClick = { onFaceLongClick() }
@@ -145,7 +149,7 @@ fun TopBar(
             ) {
                 Text(
                     "👁",
-                    color = if (faceEnabled) accent else text,
+                    color = faceColor,
                     fontSize = 16.sp,
                     textAlign = TextAlign.Center
                 )

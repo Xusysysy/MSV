@@ -47,6 +47,11 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             sessionRepo.getPageMap().collect { pageMap = it }
         }
+        viewModelScope.launch {
+            faceManager.stateFlow.collect { faceState ->
+                _uiState.update { it.copy(faceActive = faceState.actionActive, faceEnabled = faceState.running) }
+            }
+        }
         faceManager.onGesture = { gesture ->
             when (gesture) {
                 FaceRecognitionManager.Gesture.RIGHT_WINK,

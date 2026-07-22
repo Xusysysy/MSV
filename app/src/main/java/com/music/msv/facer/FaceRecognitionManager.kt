@@ -31,7 +31,7 @@ class FaceRecognitionManager(context: Context) {
     data class FaceState(
         val running: Boolean = false, val enabled: Boolean = true, val triggerMode: TriggerMode = TriggerMode.BOTH,
         val thresholds: Thresholds = Thresholds(), val mirrored: Boolean = true,
-        val actionThreshold: Float = 0.1f,
+        val actionThreshold: Float = 0.1f, val actionActive: Boolean = false,
         val fps: Int = 0, val scores: GestureScores = GestureScores(),
         val landmarks: List<NormalizedLandmark>? = null, val status: String = ""
     )
@@ -94,6 +94,8 @@ class FaceRecognitionManager(context: Context) {
         val cPL = if(lP) ((puck*maxOf(bL,0f))/0.25f).coerceIn(0f,1f) else 0f; val cPR = if(rP) ((puck*maxOf(bR,0f))/0.25f).coerceIn(0f,1f) else 0f
         _state.update { it.copy(scores = GestureScores(cWL,cWR,cPL,cPR)) }
         val at = _state.value.actionThreshold; val aw = _state.value.triggerMode!=TriggerMode.PUCKER; val ap = _state.value.triggerMode!=TriggerMode.WINK
+        val active = cWL >= at || cWR >= at || cPL >= at || cPR >= at
+        _state.update { it.copy(scores = GestureScores(cWL,cWR,cPL,cPR), actionActive = active) }
         return when { aw&&rW&&cWR>=at->Gesture.RIGHT_WINK; aw&&lW&&cWL>=at->Gesture.LEFT_WINK; ap&&lP&&cPL>=at->Gesture.LEFT_PUCKER; ap&&rP&&cPR>=at->Gesture.RIGHT_PUCKER; else->Gesture.NONE }
     }
 

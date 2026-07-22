@@ -155,6 +155,7 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                     onResetClick = { showResetDialog = true },
                     onThemeLongClick = { viewModel.onEvent(ViewerEvent.ToggleTheme) },
                     faceEnabled = state.faceEnabled,
+                    faceActive = state.faceActive,
                     onFaceClick = { viewModel.onEvent(ViewerEvent.ToggleFace) },
                     onFaceLongClick = { viewModel.onEvent(ViewerEvent.ShowFaceOverlay) }
                 )

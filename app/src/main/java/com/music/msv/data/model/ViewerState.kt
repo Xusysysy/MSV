@@ -26,6 +26,7 @@ data class ViewerState(
     val shelfSortBy: ShelfSort = ShelfSort.DATE,
     val isSpreadMode: Boolean = false,
     val faceEnabled: Boolean = false,
+    val faceActive: Boolean = false,
     val showFaceOverlay: Boolean = false
 )
 
