@@ -109,17 +109,6 @@ fun TopBar(
         // Spacer
         Spacer(modifier = Modifier.weight(1f))
 
-        // File name
-        if (fileName.isNotEmpty()) {
-            Text(
-                text = fileName,
-                color = muted,
-                fontSize = 12.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-
         if (showPageNav) {
             // Thumbnail button
             Box(

@@ -1,5 +1,10 @@
 package com.music.msv.facer
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -12,7 +17,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -25,9 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -36,17 +38,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.camera.core.CameraSelector
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
-import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
+import androidx.core.content.ContextCompat
 
 @Composable
 fun FaceRecognitionOverlay(
@@ -55,6 +57,38 @@ fun FaceRecognitionOverlay(
     manager: FaceRecognitionManager,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var hasCameraPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+    var cameraProvider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        hasCameraPermission = granted
+        if (granted) {
+            Toast.makeText(context, "相机权限已授予", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    LaunchedEffect(visible) {
+        if (visible && !hasCameraPermission) {
+            permissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    LaunchedEffect(hasCameraPermission, visible) {
+        if (hasCameraPermission && visible) {
+            try {
+                cameraProvider = ProcessCameraProvider.getInstance(context).get()
+            } catch (_: Exception) { }
+        }
+    }
+
     AnimatedVisibility(
         visible = visible,
         enter = fadeIn(),
@@ -77,7 +111,7 @@ fun FaceRecognitionOverlay(
             Column(
                 modifier = Modifier
                     .fillMaxWidth(0.9f)
-                    .fillMaxHeight(0.85f)
+                    .fillMaxWidth(0.9f)
                     .clip(RoundedCornerShape(24.dp))
                     .background(Color(0xFF0F1220))
                     .clickable(
@@ -97,12 +131,47 @@ fun FaceRecognitionOverlay(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                CameraPreview(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(200.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                )
+                if (hasCameraPermission) {
+                    CameraPreview(
+                        cameraProvider = cameraProvider,
+                        lifecycleOwner = lifecycleOwner,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color(0xFF1A1E2E)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = "📷",
+                                fontSize = 32.sp
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "需要相机权限",
+                                color = Color(0xFFB0B8C8),
+                                fontSize = 14.sp
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "点击授予权限",
+                                color = Color(0xFF8CC8FF),
+                                fontSize = 12.sp,
+                                modifier = Modifier.clickable {
+                                    permissionLauncher.launch(Manifest.permission.CAMERA)
+                                }
+                            )
+                        }
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -191,29 +260,30 @@ fun FaceRecognitionOverlay(
 }
 
 @Composable
-private fun CameraPreview(modifier: Modifier = Modifier) {
+private fun CameraPreview(
+    cameraProvider: ProcessCameraProvider?,
+    lifecycleOwner: androidx.lifecycle.LifecycleOwner,
+    modifier: Modifier = Modifier
+) {
     val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
 
     AndroidView(
         factory = { ctx ->
             PreviewView(ctx).apply {
                 scaleType = PreviewView.ScaleType.FILL_CENTER
-                val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
-                cameraProviderFuture.addListener({
-                    val cameraProvider = cameraProviderFuture.get()
+                cameraProvider?.let { provider ->
                     val preview = Preview.Builder().build().also {
                         it.setSurfaceProvider(surfaceProvider)
                     }
                     try {
-                        cameraProvider.unbindAll()
-                        cameraProvider.bindToLifecycle(
+                        provider.unbindAll()
+                        provider.bindToLifecycle(
                             lifecycleOwner,
-                            androidx.camera.core.CameraSelector.DEFAULT_FRONT_CAMERA,
+                            CameraSelector.DEFAULT_FRONT_CAMERA,
                             preview
                         )
                     } catch (_: Exception) { }
-                }, ctx.mainExecutor)
+                }
             }
         },
         modifier = modifier
