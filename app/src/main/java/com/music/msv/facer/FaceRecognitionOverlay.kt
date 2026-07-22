@@ -171,12 +171,16 @@ fun FaceRecognitionOverlay(
                     }
                 }
 
-                // Threshold sliders - read state fresh in each callback
-                SliderRow("眨眼阈值", manager.getState().thresholds.blink, 0.10f..0.95f, tOn, ac, bdr) { v ->
+                // Threshold sliders - use local state to track value
+                var blinkVal by remember { mutableStateOf(manager.getState().thresholds.blink) }
+                var puckerVal by remember { mutableStateOf(manager.getState().thresholds.pucker) }
+                SliderRow("眨眼阈值", blinkVal, 0.10f..0.95f, tOn, ac, bdr) { v ->
+                    blinkVal = v
                     val ms = manager.getState()
                     manager.updateState(ms.copy(thresholds = ms.thresholds.copy(blink = v)))
                 }
-                SliderRow("撅嘴阈值", manager.getState().thresholds.pucker, 0.05f..0.90f, tOn, ac, bdr) { v ->
+                SliderRow("撅嘴阈值", puckerVal, 0.05f..0.90f, tOn, ac, bdr) { v ->
+                    puckerVal = v
                     val ms = manager.getState()
                     manager.updateState(ms.copy(thresholds = ms.thresholds.copy(pucker = v)))
                 }

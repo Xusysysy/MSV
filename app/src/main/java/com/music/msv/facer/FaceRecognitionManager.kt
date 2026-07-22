@@ -114,19 +114,43 @@ class FaceRecognitionManager(private val context: Context) {
     private fun onLandmarkResult(result: FaceLandmarkerResult) {
         try {
             var lm: List<NormalizedLandmark>? = null
-            val allLM = result.faceLandmarks()
-            if (allLM.isNotEmpty()) lm = allLM[0]
+            try {
+                val raw = result.faceLandmarks()
+                when (raw) {
+                    is List<*> -> {
+                        if (raw.isNotEmpty()) {
+                            val first = raw[0]
+                            if (first is List<*>) lm = first.filterIsInstance<NormalizedLandmark>().ifEmpty { null }
+                            else if (first is NormalizedLandmark) lm = raw.filterIsInstance<NormalizedLandmark>().ifEmpty { null }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w("FaceMgr", "landmarks parse: ${e.message}")
+            }
 
             var gesture = Gesture.NONE
             var scores = GestureScores()
 
-            val bsOpt = result.faceBlendshapes()
-            if (bsOpt != null && bsOpt.isPresent) {
-                val bsList = bsOpt.get()
-                if (bsList.isNotEmpty()) {
-                    gesture = processBlendshapes(bsList[0])
-                    scores = _debugInfoFlow.value.scores
+            try {
+                val bsOpt = result.faceBlendshapes()
+                val bsList = when (bsOpt) {
+                    is java.util.Optional<*> -> if (bsOpt.isPresent) bsOpt.get() else null
+                    is List<*> -> bsOpt
+                    else -> null
                 }
+                if (bsList is List<*> && bsList.isNotEmpty()) {
+                    val first = bsList[0]
+                    if (first is List<*>) {
+                        val cats = first.filterIsInstance<com.google.mediapipe.tasks.components.containers.Category>()
+                        if (cats.isNotEmpty()) {
+                            gesture = processBlendshapes(cats)
+                            scores = _debugInfoFlow.value.scores
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w("FaceMgr", "blendshapes parse: ${e.message}")
             }
 
             fpsFrames++
