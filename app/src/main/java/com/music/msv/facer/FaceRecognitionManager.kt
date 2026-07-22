@@ -13,13 +13,14 @@ import androidx.camera.core.ImageProxy
 import com.google.mediapipe.framework.image.BitmapImageBuilder
 import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.components.containers.NormalizedLandmark
+import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.facelandmarker.FaceLandmarker
+import com.google.mediapipe.tasks.vision.facelandmarker.FaceLandmarkerResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.io.ByteArrayOutputStream
-
-private const val TAG = "FaceRecMgr"
+import java.util.Optional
 
 class FaceRecognitionManager(private val context: Context) {
 
@@ -59,226 +60,147 @@ class FaceRecognitionManager(private val context: Context) {
     @Volatile
     private var state = FaceState()
     private var onGestureDetected: ((Gesture) -> Unit)? = null
-
     private val _debugInfoFlow = MutableStateFlow(FaceDebugInfo())
     val debugInfoFlow: StateFlow<FaceDebugInfo> = _debugInfoFlow.asStateFlow()
 
     private val smoothState = mutableMapOf<String, Float>()
     private val activeState = mutableMapOf<String, Boolean>()
     private var lastActionTime = 0L
-    private var fpsFrameCount = 0
-    private var fpsLastTime = System.currentTimeMillis()
+    private var fpsFrames = 0
+    private var fpsTime = System.currentTimeMillis()
 
-    private val eyeAttack = 0.94f
-    private val eyeRelease = 0.40f
-    private val mouthAttack = 0.18f
-    private val mouthRelease = 0.45f
-    private val hystAttack = 1.0f
-    private val hystDeact = 0.60f
+    private val eyeAtk = 0.94f; private val eyeRel = 0.40f
+    private val mouthAtk = 0.18f; private val mouthRel = 0.45f
+    private val hystAtk = 1.0f; private val hystDeact = 0.60f
 
-    fun setOnGestureDetected(listener: (Gesture) -> Unit) {
-        onGestureDetected = listener
-    }
-
+    fun setOnGestureDetected(listener: (Gesture) -> Unit) { onGestureDetected = listener }
     fun getState(): FaceState = state
-
-    fun updateState(newState: FaceState) {
-        state = newState
-    }
-
+    fun updateState(newState: FaceState) { state = newState }
     fun isInitialized(): Boolean = landmarker != null
 
     fun initialize(): Boolean {
         return try {
             val options = FaceLandmarker.FaceLandmarkerOptions.builder()
-                .setBaseOptions(
-                    BaseOptions.builder()
-                        .setModelAssetPath("face_landmarker.task")
-                        .build()
-                )
+                .setBaseOptions(BaseOptions.builder().setModelAssetPath("face_landmarker.task").build())
                 .setOutputFaceBlendshapes(true)
                 .setNumFaces(1)
+                .setRunningMode(RunningMode.LIVE_STREAM)
+                .setResultListener({ result, _ -> onLandmarkResult(result!!) })
                 .build()
             landmarker = FaceLandmarker.createFromOptions(context, options)
+            Log.d("FaceMgr", "FaceLandmarker created OK")
             true
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("FaceMgr", "FaceLandmarker create failed", e)
             false
         }
     }
 
     fun processImageProxy(imageProxy: ImageProxy) {
-        val currentLandmarker = landmarker
-        if (currentLandmarker == null) {
-            Log.w(TAG, "landmarker is null, skipping frame")
-            imageProxy.close()
-            return
-        }
-
+        val l = landmarker ?: run { imageProxy.close(); return }
+        if (!state.isRunning || !state.isEnabled) { imageProxy.close(); return }
         try {
-            val bitmap = imageProxyToBitmap(imageProxy)
-            val mpImage = BitmapImageBuilder(bitmap).build()
-            val result = currentLandmarker.detectForVideo(mpImage, SystemClock.elapsedRealtime())
-
-            var lm: List<NormalizedLandmark>? = null
-            try {
-                val allLandmarks = result.faceLandmarks()
-                if (allLandmarks != null && allLandmarks.isNotEmpty()) {
-                    lm = allLandmarks[0]
-                }
-            } catch (e: Exception) {
-                Log.w(TAG, "faceLandmarks access failed: ${e.message}")
-            }
-
-            var scores = GestureScores()
-            try {
-                val blendshapesOpt = result.faceBlendshapes()
-                if (blendshapesOpt != null && blendshapesOpt.isPresent) {
-                    val bsList = blendshapesOpt.get()
-                    if (bsList.isNotEmpty()) {
-                        val categories = bsList[0]
-                        val gesture = processBlendshapes(categories)
-
-                        fpsFrameCount++
-                        val now = System.currentTimeMillis()
-                        val fps = if (now - fpsLastTime >= 1000) {
-                            val f = fpsFrameCount
-                            fpsFrameCount = 0
-                            fpsLastTime = now
-                            f
-                        } else {
-                            _debugInfoFlow.value.fps
-                        }
-
-                        scores = _debugInfoFlow.value.scores
-                        _debugInfoFlow.value = FaceDebugInfo(fps = fps, scores = scores, landmarks = lm)
-
-                        if (gesture != Gesture.NONE) {
-                            val gestureNow = System.currentTimeMillis()
-                            if (gestureNow - lastActionTime >= state.cooldownMs) {
-                                lastActionTime = gestureNow
-                                Log.d(TAG, "Gesture detected: $gesture")
-                                onGestureDetected?.invoke(gesture)
-                            }
-                        }
-                    } else {
-                        Log.w(TAG, "No blendshapes in result")
-                    }
-                } else {
-                    Log.w(TAG, "blendshapes is null or empty")
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "blendshapes error: ${e.message}")
-            }
+            val bmp = toBitmap(imageProxy)
+            val mpImg = BitmapImageBuilder(bmp).build()
+            l.detectAsync(mpImg, SystemClock.elapsedRealtime())
+            bmp.recycle()
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("FaceMgr", "processImageProxy error: ${e.message}")
         } finally {
             imageProxy.close()
         }
     }
 
-    private fun imageProxyToBitmap(imageProxy: ImageProxy): Bitmap {
-        val buffer = imageProxy.planes[0].buffer
-        val bytes = ByteArray(buffer.remaining())
-        buffer.get(bytes)
-        val yuvImage = YuvImage(bytes, ImageFormat.NV21, imageProxy.width, imageProxy.height, null)
-        val out = ByteArrayOutputStream()
-        yuvImage.compressToJpeg(Rect(0, 0, imageProxy.width, imageProxy.height), 90, out)
-        val jpegBytes = out.toByteArray()
-        val bitmap = BitmapFactory.decodeByteArray(jpegBytes, 0, jpegBytes.size)
+    private fun onLandmarkResult(result: FaceLandmarkerResult) {
+        try {
+            var lm: List<NormalizedLandmark>? = null
+            val allLM = result.faceLandmarks()
+            if (allLM.isNotEmpty()) lm = allLM[0]
 
-        val rotation = imageProxy.imageInfo.rotationDegrees
-        return if (rotation != 0) {
-            val matrix = Matrix()
-            matrix.postRotate(rotation.toFloat())
-            matrix.preScale(-1f, 1f)
-            Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
-        } else {
-            val matrix = Matrix()
-            matrix.preScale(-1f, 1f)
-            Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+            var gesture = Gesture.NONE
+            var scores = GestureScores()
+
+            val bsOpt = result.faceBlendshapes()
+            if (bsOpt != null && bsOpt.isPresent) {
+                val bsList = bsOpt.get()
+                if (bsList.isNotEmpty()) {
+                    gesture = processBlendshapes(bsList[0])
+                    scores = _debugInfoFlow.value.scores
+                }
+            }
+
+            fpsFrames++
+            val now = System.currentTimeMillis()
+            val fps = if (now - fpsTime >= 1000) { val f = fpsFrames; fpsFrames = 0; fpsTime = now; f } else _debugInfoFlow.value.fps
+            _debugInfoFlow.value = FaceDebugInfo(fps, scores, lm)
+
+            if (gesture != Gesture.NONE) {
+                val gn = System.currentTimeMillis()
+                if (gn - lastActionTime >= state.cooldownMs) {
+                    lastActionTime = gn
+                    onGestureDetected?.invoke(gesture)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("FaceMgr", "onResult error: ${e.message}")
         }
     }
 
-    private fun processBlendshapes(categories: List<com.google.mediapipe.tasks.components.containers.Category>): Gesture {
-        val eBL = emaAR("eBL", getScore(categories, "eyeBlinkLeft"), true)
-        val eBR = emaAR("eBR", getScore(categories, "eyeBlinkRight"), true)
-        val avg = (eBL + eBR) / 2f
-        val diff = kotlin.math.abs(eBL - eBR)
+    private fun toBitmap(proxy: ImageProxy): Bitmap {
+        val buf = proxy.planes[0].buffer
+        val bytes = ByteArray(buf.remaining()); buf.get(bytes)
+        val yuv = YuvImage(bytes, ImageFormat.NV21, proxy.width, proxy.height, null)
+        val out = ByteArrayOutputStream()
+        yuv.compressToJpeg(Rect(0, 0, proxy.width, proxy.height), 90, out)
+        val jpg = out.toByteArray(); out.close()
+        val bmp = BitmapFactory.decodeByteArray(jpg, 0, jpg.size)
+        val rot = proxy.imageInfo.rotationDegrees
+        val mat = Matrix(); mat.postRotate(rot.toFloat()); mat.preScale(-1f, 1f)
+        return Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, mat, true).also { bmp.recycle() }
+    }
 
-        val mP = emaAR("mP", getScore(categories, "mouthPucker"), false)
-        val mF = emaAR("mF", getScore(categories, "mouthFunnel"), false)
-        val mL = emaAR("mL", getScore(categories, "mouthLeft"), false)
-        val mR = emaAR("mR", getScore(categories, "mouthRight"), false)
+    private fun processBlendshapes(cats: List<com.google.mediapipe.tasks.components.containers.Category>): Gesture {
+        val eBL = ema("eBL", score(cats, "eyeBlinkLeft"), true)
+        val eBR = ema("eBR", score(cats, "eyeBlinkRight"), true)
+        val avg = (eBL + eBR) / 2f; val diff = kotlin.math.abs(eBL - eBR)
+        val mP = ema("mP", score(cats, "mouthPucker"), false)
+        val mF = ema("mF", score(cats, "mouthFunnel"), false)
+        val mL = ema("mL", score(cats, "mouthLeft"), false)
+        val mR = ema("mR", score(cats, "mouthRight"), false)
 
-        val isBlink = hyst("bl", avg, state.thresholds.blink) && diff < state.thresholds.winkDiff
-        val isLWink = !isBlink && hyst("wl", eBL, state.thresholds.blink) && diff >= state.thresholds.winkDiff
-        val isRWink = !isBlink && hyst("wr", eBR, state.thresholds.blink) && diff >= state.thresholds.winkDiff
+        val blink = hyst("bl", avg, state.thresholds.blink) && diff < state.thresholds.winkDiff
+        val lW = !blink && hyst("wl", eBL, state.thresholds.blink) && diff >= state.thresholds.winkDiff
+        val rW = !blink && hyst("wr", eBR, state.thresholds.blink) && diff >= state.thresholds.winkDiff
 
         val puck = maxOf(mP, mF * 0.7f)
-        val biasL = mL - mR
-        val biasR = mR - mL
-        val isLPuck = hyst("lp", puck, state.thresholds.pucker) && biasL >= state.thresholds.puckerBias
-        val isRPuck = hyst("rp", puck, state.thresholds.pucker) && biasR >= state.thresholds.puckerBias
+        val bL = mL - mR; val bR = mR - mL
+        val lP = hyst("lp", puck, state.thresholds.pucker) && bL >= state.thresholds.puckerBias
+        val rP = hyst("rp", puck, state.thresholds.pucker) && bR >= state.thresholds.puckerBias
 
-        val cWL = if (isLWink) (diff / 0.5f).coerceIn(0f, 1f) else 0f
-        val cWR = if (isRWink) (diff / 0.5f).coerceIn(0f, 1f) else 0f
-        val cPL = if (isLPuck) ((puck * biasL.coerceAtLeast(0f)) / 0.25f).coerceIn(0f, 1f) else 0f
-        val cPR = if (isRPuck) ((puck * biasR.coerceAtLeast(0f)) / 0.25f).coerceIn(0f, 1f) else 0f
-
+        val cWL = if (lW) (diff / 0.5f).coerceIn(0f, 1f) else 0f
+        val cWR = if (rW) (diff / 0.5f).coerceIn(0f, 1f) else 0f
+        val cPL = if (lP) ((puck * maxOf(bL, 0f)) / 0.25f).coerceIn(0f, 1f) else 0f
+        val cPR = if (rP) ((puck * maxOf(bR, 0f)) / 0.25f).coerceIn(0f, 1f) else 0f
         _debugInfoFlow.value = _debugInfoFlow.value.copy(scores = GestureScores(cWL, cWR, cPL, cPR))
 
-        val allowWink = state.triggerMode != TriggerMode.PUCKER
-        val allowPucker = state.triggerMode != TriggerMode.WINK
-
-        return when {
-            allowWink && isRWink -> Gesture.RIGHT_WINK
-            allowWink && isLWink -> Gesture.LEFT_WINK
-            allowPucker && isLPuck -> Gesture.LEFT_PUCKER
-            allowPucker && isRPuck -> Gesture.RIGHT_PUCKER
-            else -> Gesture.NONE
-        }
+        val aw = state.triggerMode != TriggerMode.PUCKER; val ap = state.triggerMode != TriggerMode.WINK
+        return when { aw && rW -> Gesture.RIGHT_WINK; aw && lW -> Gesture.LEFT_WINK; ap && lP -> Gesture.LEFT_PUCKER; ap && rP -> Gesture.RIGHT_PUCKER; else -> Gesture.NONE }
     }
 
-    private fun getScore(categories: List<com.google.mediapipe.tasks.components.containers.Category>, name: String): Float {
-        return categories.find { it.categoryName() == name }?.score() ?: 0f
+    private fun score(cats: List<com.google.mediapipe.tasks.components.containers.Category>, name: String) = cats.find { it.categoryName() == name }?.score() ?: 0f
+    private fun ema(k: String, raw: Float, eye: Boolean): Float {
+        val cur = smoothState[k] ?: raw
+        val f = if (raw > cur) (if (eye) eyeAtk else mouthAtk) else (if (eye) eyeRel else mouthRel)
+        val s = cur * (1f - f) + raw * f; smoothState[k] = s; return s
     }
-
-    private fun emaAR(key: String, raw: Float, isEye: Boolean): Float {
-        val current = smoothState[key] ?: raw
-        val f = if (raw > current) {
-            if (isEye) eyeAttack else mouthAttack
-        } else {
-            if (isEye) eyeRelease else mouthRelease
-        }
-        val smoothed = current * (1f - f) + raw * f
-        smoothState[key] = smoothed
-        return smoothed
-    }
-
-    private fun hyst(key: String, raw: Float, threshold: Float): Boolean {
-        val current = activeState[key] ?: false
-        return if (current) {
-            if (raw < threshold * hystDeact) {
-                activeState[key] = false
-                false
-            } else {
-                true
-            }
-        } else {
-            if (raw >= threshold * hystAttack) {
-                activeState[key] = true
-                true
-            } else {
-                false
-            }
-        }
+    private fun hyst(k: String, raw: Float, thr: Float): Boolean {
+        val cur = activeState[k] ?: false
+        return if (cur) { if (raw < thr * hystDeact) { activeState[k] = false; false } else true }
+        else { if (raw >= thr * hystAtk) { activeState[k] = true; true } else false }
     }
 
     fun release() {
-        landmarker?.close()
-        landmarker = null
-        smoothState.clear()
-        activeState.clear()
+        landmarker?.close(); landmarker = null
+        smoothState.clear(); activeState.clear()
     }
 }
