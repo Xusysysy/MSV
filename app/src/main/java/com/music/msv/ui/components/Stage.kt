@@ -120,6 +120,12 @@ fun Stage(
     val flipUnit = if (currentIsSpread) displayW * 2f else displayW
     val touchSlop = LocalViewConfiguration.current.touchSlop
 
+    LaunchedEffect(pageWidth, pageHeight) {
+        if (pageWidth > 0 && pageHeight > 0) {
+            transition.snapTo(0f)
+        }
+    }
+
     fun doFlip(dir: Int, fromOffset: Float, easing: Boolean) {
         if (flipUnit <= 0f) return
         val step = if (currentIsSpread) 2 else 1
