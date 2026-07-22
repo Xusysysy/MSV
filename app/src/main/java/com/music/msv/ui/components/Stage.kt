@@ -23,6 +23,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
@@ -315,6 +316,39 @@ fun Stage(
                         colorFilter = if (isDark) ColorFilter.colorMatrix(invertColorMatrix) else null,
                         modifier = Modifier
                             .fillMaxSize()
+                    )
+                }
+            }
+
+            val maskW = (dw * 2f).coerceAtMost(spreadCenterX.coerceAtLeast(0f))
+            if (maskW > 0f) {
+                with(LocalDensity.current) {
+                    Box(
+                        modifier = Modifier
+                            .offset { IntOffset(0, centerY.roundToInt()) }
+                            .size(maskW.toDp(), dh.toDp())
+                            .background(
+                                Brush.horizontalGradient(
+                                    0f to bg,
+                                    1f to Color.Transparent
+                                )
+                            )
+                    )
+                    Box(
+                        modifier = Modifier
+                            .offset {
+                                IntOffset(
+                                    (stageWidth - maskW).roundToInt(),
+                                    centerY.roundToInt()
+                                )
+                            }
+                            .size(maskW.toDp(), dh.toDp())
+                            .background(
+                                Brush.horizontalGradient(
+                                    0f to Color.Transparent,
+                                    1f to bg
+                                )
+                            )
                     )
                 }
             }
