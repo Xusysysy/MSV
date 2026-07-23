@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import android.util.Log
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
@@ -65,11 +66,12 @@ private val B = intArrayOf(276,283,283,282,282,295,295,285,285,300,300,293,293,3
 
 @Composable
 fun FaceRecognitionOverlay(visible: Boolean, onDismiss: () -> Unit, onToggle: (Boolean) -> Unit, manager: FaceRecognitionManager, isDark: Boolean, modifier: Modifier = Modifier) {
-    if (!visible) return
+    if (!visible) { Log.d("MSV_OVERLAY", "visible=false, return"); return }
+    Log.d("MSV_OVERLAY", ">>> Overlay进入 visible=true")
     val ctx = LocalContext.current; val lc = LocalLifecycleOwner.current; val cfg = LocalConfiguration.current; val isLand = cfg.screenWidthDp > cfg.screenHeightDp
     var hasPerm by remember { mutableStateOf(ContextCompat.checkSelfPermission(ctx, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) }
     val pL = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { hasPerm = it; if (!it) Toast.makeText(ctx, "需要相机权限", Toast.LENGTH_SHORT).show() }
-    LaunchedEffect(visible) { if (visible && !hasPerm) pL.launch(Manifest.permission.CAMERA) }
+    LaunchedEffect(visible) { if (visible && !hasPerm) { Log.w("MSV_OVERLAY", "无相机权限,请求中..."); pL.launch(Manifest.permission.CAMERA) } }
     val state by manager.stateFlow.collectAsState()
 
     val bg = if (isDark) Color(0xF0121628) else Color(0xF8FFFFFF); val card = if (isDark) Color(0xFF1A1E2E) else Color(0x141A2230)
@@ -116,6 +118,7 @@ fun FaceRecognitionOverlay(visible: Boolean, onDismiss: () -> Unit, onToggle: (B
         Text("面部识别", color = t, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         Box(Modifier.clip(RoundedCornerShape(8.dp)).background(if (state.running) gr.copy(alpha = 0.2f) else card).border(1.dp, if (state.running) gr else b, RoundedCornerShape(8.dp)).clickable {
             val nr = !state.running
+            Log.i("MSV_OVERLAY", "LIVE toggle: ${if (nr) "启用" else "停用"} isReady=${manager.isReady()}")
             if (nr) { if (!manager.isReady()) manager.init(); manager.updateState { it.copy(running = true, enabled = true) } }
             else { manager.updateState { it.copy(running = false, enabled = false) } }
             onToggle(nr)
@@ -174,16 +177,25 @@ fun FaceRecognitionOverlay(visible: Boolean, onDismiss: () -> Unit, onToggle: (B
 }
 
 @Composable private fun Cam(manager: FaceRecognitionManager, lc: androidx.lifecycle.LifecycleOwner, state: FaceRecognitionManager.FaceState, modifier: Modifier = Modifier) {
-    val exec = remember { Executors.newSingleThreadExecutor() }; DisposableEffect(Unit) { onDispose { exec.shutdown() } }
+    val exec = remember { Executors.newSingleThreadExecutor() }
+    DisposableEffect(Unit) {
+        Log.d("MSV_OVERLAY", "Cam: 进入组合")
+        onDispose { Log.d("MSV_OVERLAY", "Cam: 离开组合, shutdown executor"); exec.shutdown() }
+    }
     Box(modifier) {
-        AndroidView(factory = { ctx -> PreviewView(ctx).apply {
+        AndroidView(factory = { ctx ->
+            Log.d("MSV_OVERLAY", "Cam AndroidView factory: 创建PreviewView")
+            PreviewView(ctx).apply {
             scaleType = PreviewView.ScaleType.FIT_CENTER
             val future = ProcessCameraProvider.getInstance(ctx)
             future.addListener({
-                val p = future.get(); val preview = Preview.Builder().build().also { it.setSurfaceProvider(surfaceProvider) }
+                val p = future.get()
+                Log.d("MSV_OVERLAY", "Cam: CameraProvider就绪, 开始绑定相机...")
+                val preview = Preview.Builder().build().also { it.setSurfaceProvider(surfaceProvider) }
                 val a = ImageAnalysis.Builder().setTargetResolution(android.util.Size(320, 240)).setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).build()
-                a.setAnalyzer(exec) { ip: ImageProxy -> try { manager.process(ip) } catch (_: Exception) { ip.close() } }
-                try { p.unbindAll(); p.bindToLifecycle(lc, CameraSelector.DEFAULT_FRONT_CAMERA, preview, a) } catch (_: Exception) {}
+                a.setAnalyzer(exec) { ip: ImageProxy -> try { manager.process(ip) } catch (e: Exception) { Log.e("MSV_OVERLAY", "分析器异常: ${e.message}", e); ip.close() } }
+                try { p.unbindAll(); p.bindToLifecycle(lc, CameraSelector.DEFAULT_FRONT_CAMERA, preview, a); Log.d("MSV_OVERLAY", "Cam: 相机绑定成功") }
+                catch (e: Exception) { Log.e("MSV_OVERLAY", "Cam: 相机绑定失败 ${e.message}", e) }
             }, ctx.mainExecutor)
         } }, Modifier.fillMaxSize())
         if (state.landmarks != null) {
