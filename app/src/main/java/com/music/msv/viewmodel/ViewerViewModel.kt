@@ -505,7 +505,6 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         FaceLog.i("MSV_VM", "toggleFace: ${if (newState) "开启" else "关闭"}, isReady=${faceManager.isReady()}")
         _uiState.update { it.copy(faceEnabled = newState) }
         if (newState) {
-            if (!faceManager.isReady()) faceManager.init()
             faceManager.updateState { it.copy(running = true, enabled = true) }
         } else {
             faceManager.updateState { it.copy(running = false, enabled = false) }

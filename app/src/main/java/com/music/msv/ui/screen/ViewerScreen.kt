@@ -283,7 +283,9 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
             )
         }
 
-        FaceCamera(manager = viewModel.faceManager, visible = false)
+        if (state.faceEnabled) {
+            FaceCamera(manager = viewModel.faceManager)
+        }
         FaceRecognitionOverlay(
             visible = state.showFaceOverlay,
             onDismiss = { viewModel.onEvent(ViewerEvent.HideFaceOverlay) },

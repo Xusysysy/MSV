@@ -31,7 +31,7 @@ import androidx.core.content.ContextCompat
 import java.util.concurrent.Executors
 
 @Composable
-fun FaceCamera(manager: FaceRecognitionManager, visible: Boolean = false, modifier: Modifier = Modifier) {
+fun FaceCamera(manager: FaceRecognitionManager, modifier: Modifier = Modifier) {
     val ctx = LocalContext.current
     val lc = LocalLifecycleOwner.current
     var hasPerm by remember { mutableStateOf(ContextCompat.checkSelfPermission(ctx, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) }
@@ -39,24 +39,34 @@ fun FaceCamera(manager: FaceRecognitionManager, visible: Boolean = false, modifi
 
     LaunchedEffect(Unit) { if (!hasPerm) pL.launch(Manifest.permission.CAMERA) }
 
-    val exec = remember { Executors.newSingleThreadExecutor() }
-    DisposableEffect(Unit) { onDispose { exec.shutdown() } }
+    if (!hasPerm) return
 
-    Box(if (visible) modifier else Modifier.size(1.dp).then(modifier)) {
-        if (hasPerm) {
-            AndroidView(factory = { ctx2 -> PreviewView(ctx2).apply {
-                scaleType = PreviewView.ScaleType.FIT_CENTER
-                val future = ProcessCameraProvider.getInstance(ctx2)
-                future.addListener({
-                    val p = future.get()
-                    val preview = Preview.Builder().build().also { it.setSurfaceProvider(surfaceProvider) }
-                    val a = ImageAnalysis.Builder().setTargetResolution(android.util.Size(320, 240)).setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).build()
-                    a.setAnalyzer(exec) { ip: ImageProxy -> try { manager.process(ip) } catch (_: Exception) { ip.close() } }
-                    try { p.unbindAll(); p.bindToLifecycle(lc, CameraSelector.DEFAULT_FRONT_CAMERA, preview, a) } catch (_: Exception) {}
-                }, ctx2.mainExecutor)
-            } }, Modifier.size(if (visible) 999999.dp else 1.dp))
-        } else {
-            Box(Modifier.size(1.dp).background(Color(0xFF0A0D18)))
+    FaceLog.d("MSV_CAM", "FaceCamera进入组合, 确保模型就绪")
+    if (!manager.isReady()) {
+        val ok = manager.init()
+        if (!ok) {
+            FaceLog.e("MSV_CAM", "模型加载失败, 不启动相机")
+            return
         }
+    }
+
+    val exec = remember { Executors.newSingleThreadExecutor() }
+    DisposableEffect(Unit) { onDispose { FaceLog.d("MSV_CAM", "FaceCamera离开组合"); exec.shutdown() } }
+
+    Box(Modifier.size(1.dp).then(modifier)) {
+        AndroidView(factory = { ctx2 -> PreviewView(ctx2).apply {
+            scaleType = PreviewView.ScaleType.FIT_CENTER
+            val future = ProcessCameraProvider.getInstance(ctx2)
+            future.addListener({
+                val p = future.get()
+                val preview = Preview.Builder().build().also { it.setSurfaceProvider(surfaceProvider) }
+                val a = ImageAnalysis.Builder().setTargetResolution(android.util.Size(320, 240)).setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).build()
+                a.setAnalyzer(exec) { ip: ImageProxy ->
+                    try { manager.process(ip) } catch (e: Exception) { FaceLog.e("MSV_CAM", "分析器异常: ${e.message}", e); ip.close() }
+                }
+                try { p.unbindAll(); p.bindToLifecycle(lc, CameraSelector.DEFAULT_FRONT_CAMERA, preview, a); FaceLog.d("MSV_CAM", "FaceCamera绑定成功") }
+                catch (e: Exception) { FaceLog.e("MSV_CAM", "FaceCamera绑定失败: ${e.message}", e) }
+            }, ctx2.mainExecutor)
+        } }, Modifier.size(1.dp))
     }
 }
