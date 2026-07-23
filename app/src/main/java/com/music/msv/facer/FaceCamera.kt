@@ -100,7 +100,7 @@ fun FaceCamera(
             val lm = state.landmarks!!
             Canvas(Modifier.fillMaxSize()) { val w = size.width; val h = size.height
                 fun d(c: IntArray, cl: Color, sw: Float) { var i = 0; while (i < c.size - 1) { val a = c[i]; val bb = c[i + 1]; if (a < lm.size && bb < lm.size) { drawLine(cl, Offset((1f - lm[a].x()) * w, lm[a].y() * h), Offset((1f - lm[bb].x()) * w, lm[bb].y() * h), strokeWidth = sw) }; i += 2 } }
-                d(F, Color(0x60B08CFF), 1.5f); d(E, Color(0x9000D4FF), 1.5f); d(B, Color(0x6000D4FF), 1.2f); d(L, Color(0xA0FF3D8F), 1.6f)
+                d(F, Color(0xCCB08CFF), 3f); d(E, Color(0xDD00D4FF), 3f); d(B, Color(0xCC00D4FF), 2.5f); d(L, Color(0xDDFF3D8F), 3f)
             }
         }
     }
