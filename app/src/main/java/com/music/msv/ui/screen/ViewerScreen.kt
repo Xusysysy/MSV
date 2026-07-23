@@ -116,12 +116,14 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                         panOffsetX = state.panOffsetX,
                         panOffsetY = state.panOffsetY,
                         isSpreadMode = state.isSpreadMode,
+                        pendingFlip = state.pendingFlip,
                         onCenterTap = { viewModel.onEvent(ViewerEvent.ToggleUI) },
                         onDoubleTap = { viewModel.onEvent(ViewerEvent.ResetZoom) },
                         onZoomChange = { viewModel.onEvent(ViewerEvent.SetZoom(it)) },
                         onPanChange = { dx, dy -> viewModel.onEvent(ViewerEvent.PanBy(dx, dy)) },
                         onNextPage = { viewModel.onEvent(ViewerEvent.NextPage) },
                         onPrevPage = { viewModel.onEvent(ViewerEvent.PrevPage) },
+                        onFlipDone = { viewModel.onEvent(ViewerEvent.FlipDone) },
                         onViewportSizeChanged = { w, h ->
                             viewModel.onEvent(ViewerEvent.UpdateViewportSize(w, h))
                         },

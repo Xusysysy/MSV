@@ -62,9 +62,9 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             FaceLog.i("MSV_VM", "收到手势回调: $gesture")
             when (gesture) {
                 FaceRecognitionManager.Gesture.RIGHT_WINK,
-                FaceRecognitionManager.Gesture.LEFT_PUCKER -> onEvent(ViewerEvent.NextPage)
+                FaceRecognitionManager.Gesture.LEFT_PUCKER -> faceFlip(1)
                 FaceRecognitionManager.Gesture.LEFT_WINK,
-                FaceRecognitionManager.Gesture.RIGHT_PUCKER -> onEvent(ViewerEvent.PrevPage)
+                FaceRecognitionManager.Gesture.RIGHT_PUCKER -> faceFlip(-1)
                 FaceRecognitionManager.Gesture.NONE -> {}
             }
         }
@@ -131,6 +131,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             ViewerEvent.ToggleFace -> toggleFace()
             ViewerEvent.ShowFaceOverlay -> showFaceOverlay()
             ViewerEvent.HideFaceOverlay -> hideFaceOverlay()
+            ViewerEvent.FlipDone -> flipDone()
         }
     }
 
@@ -509,6 +510,18 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         } else {
             faceManager.updateState { it.copy(running = false, enabled = false) }
         }
+    }
+
+    private fun faceFlip(dir: Int) {
+        FaceLog.i("MSV_VM", "faceFlip: dir=$dir")
+        _uiState.update { it.copy(pendingFlip = dir) }
+    }
+
+    private fun flipDone() {
+        val dir = _uiState.value.pendingFlip ?: return
+        val step = if (_uiState.value.isSpreadMode) 2 else 1
+        goToPage(_uiState.value.currentPage + dir * step)
+        _uiState.update { it.copy(pendingFlip = null) }
     }
 
     private fun showFaceOverlay() {

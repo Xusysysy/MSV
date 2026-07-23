@@ -27,7 +27,8 @@ data class ViewerState(
     val isSpreadMode: Boolean = false,
     val faceEnabled: Boolean = false,
     val faceActive: Boolean = false,
-    val showFaceOverlay: Boolean = false
+    val showFaceOverlay: Boolean = false,
+    val pendingFlip: Int? = null
 )
 
 enum class ShelfSort { NAME, DATE }
@@ -60,6 +61,7 @@ sealed class ViewerEvent {
     data object ToggleFace : ViewerEvent()
     data object ShowFaceOverlay : ViewerEvent()
     data object HideFaceOverlay : ViewerEvent()
+    data object FlipDone : ViewerEvent()
 }
 
 data class ShelfFile(

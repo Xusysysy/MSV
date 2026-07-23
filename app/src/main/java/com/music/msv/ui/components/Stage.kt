@@ -65,12 +65,14 @@ fun Stage(
     panOffsetX: Float,
     panOffsetY: Float,
     isSpreadMode: Boolean,
+    pendingFlip: Int? = null,
     onCenterTap: () -> Unit,
     onDoubleTap: () -> Unit,
     onZoomChange: (Float) -> Unit,
     onPanChange: (Float, Float) -> Unit,
     onNextPage: () -> Unit,
     onPrevPage: () -> Unit,
+    onFlipDone: () -> Unit = {},
     onViewportSizeChanged: (Int, Int) -> Unit,
     onSpreadModeChanged: (Boolean) -> Unit,
     onPreloadAround: (Int) -> Unit = {},
@@ -122,6 +124,7 @@ fun Stage(
     val flipUnit = if (currentIsSpread) displayW * 2f else displayW
     val currentFlipUnit by rememberUpdatedState(flipUnit)
     val touchSlop = LocalViewConfiguration.current.touchSlop
+    val currentPendingFlip by rememberUpdatedState(pendingFlip)
 
     LaunchedEffect(pageWidth, pageHeight) {
         transition.snapTo(0f)
@@ -150,6 +153,7 @@ fun Stage(
                 withContext(NonCancellable) {
                     transition.snapTo(0f)
                     if (dir > 0) onNextPage() else onPrevPage()
+                    onFlipDone()
                 }
             }
         }
@@ -163,6 +167,15 @@ fun Stage(
             val overshoot = -dir * currentFlipUnit * 0.06f
             transition.animateTo(overshoot, tween(80, easing = FastOutSlowInEasing))
             transition.animateTo(0f, spring(dampingRatio = 0.55f, stiffness = 450f))
+        }
+    }
+
+    LaunchedEffect(currentPendingFlip) {
+        val dir = currentPendingFlip ?: return@LaunchedEffect
+        if (currentFlipUnit <= 0f) return@LaunchedEffect
+        val step = if (currentIsSpread) 2 else 1
+        if (currentPendingFlip != null) {
+            doFlip(dir, 0f, easing = true)
         }
     }
 
