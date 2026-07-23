@@ -4,7 +4,7 @@ import android.app.Application
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
-import android.util.Log
+import com.music.msv.facer.FaceLog
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.music.msv.data.model.Mode
@@ -47,19 +47,19 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     private var pageMap = mapOf<String, Int>()
 
     init {
-        Log.d("MSV_VM", "ViewerViewModel init")
+        FaceLog.d("MSV_VM", "ViewerViewModel init")
         viewModelScope.launch {
             sessionRepo.getPageMap().collect { pageMap = it }
         }
         viewModelScope.launch {
-            Log.d("MSV_VM", "开始加载面部偏好+监听stateFlow")
+            FaceLog.d("MSV_VM", "开始加载面部偏好+监听stateFlow")
             faceRepo.load(faceManager)
             faceManager.stateFlow.collect { faceState ->
                 _uiState.update { it.copy(faceActive = faceState.actionActive, faceEnabled = faceState.running) }
             }
         }
         faceManager.onGesture = { gesture ->
-            Log.i("MSV_VM", "收到手势回调: $gesture")
+            FaceLog.i("MSV_VM", "收到手势回调: $gesture")
             when (gesture) {
                 FaceRecognitionManager.Gesture.RIGHT_WINK,
                 FaceRecognitionManager.Gesture.LEFT_PUCKER -> onEvent(ViewerEvent.NextPage)
@@ -502,7 +502,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun toggleFace() {
         val newState = !_uiState.value.faceEnabled
-        Log.i("MSV_VM", "toggleFace: ${if (newState) "开启" else "关闭"}, isReady=${faceManager.isReady()}")
+        FaceLog.i("MSV_VM", "toggleFace: ${if (newState) "开启" else "关闭"}, isReady=${faceManager.isReady()}")
         _uiState.update { it.copy(faceEnabled = newState) }
         if (newState) {
             if (!faceManager.isReady()) faceManager.init()
@@ -513,12 +513,12 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun showFaceOverlay() {
-        Log.i("MSV_VM", "showFaceOverlay")
+        FaceLog.i("MSV_VM", "showFaceOverlay")
         _uiState.update { it.copy(showFaceOverlay = true) }
     }
 
     private fun hideFaceOverlay() {
-        Log.i("MSV_VM", "hideFaceOverlay")
+        FaceLog.i("MSV_VM", "hideFaceOverlay")
         _uiState.update { it.copy(showFaceOverlay = false) }
         viewModelScope.launch { faceRepo.save(faceManager) }
     }

@@ -9,7 +9,6 @@ import android.graphics.Rect
 import android.graphics.YuvImage
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
 import androidx.annotation.OptIn
 import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageProxy
@@ -51,16 +50,16 @@ class FaceRecognitionManager(context: Context) {
     private val eyeA = 0.94f; private val eyeR = 0.40f; private val mA = 0.18f; private val mR = 0.45f
 
     fun init(): Boolean {
-        Log.d(TAG, ">>> init() 开始加载face_landmarker.task")
+        FaceLog.d(TAG, ">>> init() 开始加载face_landmarker.task")
         return try {
             landmarker = FaceLandmarker.createFromOptions(appContext,
                 FaceLandmarker.FaceLandmarkerOptions.builder()
                     .setBaseOptions(BaseOptions.builder().setModelAssetPath("face_landmarker.task").build())
                     .setOutputFaceBlendshapes(true).setNumFaces(1).setRunningMode(RunningMode.IMAGE).build())
-            Log.d(TAG, "<<< init() 模型加载成功")
+            FaceLog.d(TAG, "<<< init() 模型加载成功")
             _state.update { it.copy(status = "模型就绪") }; true
         } catch (e: Exception) {
-            Log.e(TAG, "<<< init() 模型加载失败: ${e.message}", e)
+            FaceLog.e(TAG, "<<< init() 模型加载失败: ${e.message}", e)
             _state.update { it.copy(status = "加载失败: ${e.message}") }; false
         }
     }
@@ -72,14 +71,14 @@ class FaceRecognitionManager(context: Context) {
     private var frameCount = 0
     @OptIn(ExperimentalGetImage::class)
     fun process(ip: ImageProxy) {
-        val l = landmarker ?: run { Log.w(TAG, "process: landmarker为空,关闭ImageProxy"); ip.close(); return }
-        if (!_state.value.running) { Log.d(TAG, "process: 未运行,跳过"); ip.close(); return }
+        val l = landmarker ?: run { FaceLog.w(TAG, "process: landmarker为空,关闭ImageProxy"); ip.close(); return }
+        if (!_state.value.running) { FaceLog.d(TAG, "process: 未运行,跳过"); ip.close(); return }
         frameCount++
         try {
             val bmp = decode(ip)
-            if (frameCount <= 3) Log.d(TAG, "process $frameCount: decode完成 ${bmp.width}x${bmp.height}")
+            if (frameCount <= 3) FaceLog.d(TAG, "process $frameCount: decode完成 ${bmp.width}x${bmp.height}")
             val result = l.detect(BitmapImageBuilder(bmp).build()); bmp.recycle()
-            if (frameCount <= 3) Log.d(TAG, "process $frameCount: detect完成")
+            if (frameCount <= 3) FaceLog.d(TAG, "process $frameCount: detect完成")
             val rawLM = result.faceLandmarks(); val lm = if (rawLM.isNotEmpty()) rawLM[0] else null
             val bs = result.faceBlendshapes()
             val cats: List<Category>? = if (bs.isPresent) { val b = bs.get(); if (b.isNotEmpty()) b[0] else null } else null
@@ -89,11 +88,11 @@ class FaceRecognitionManager(context: Context) {
             _state.update { it.copy(fps = fps, landmarks = lm, status = "LM:${rawLM.size}f ${lm?.size ?: 0}pts") }
             if (gesture != Gesture.NONE && System.currentTimeMillis() - lastAct >= 800) {
                 lastAct = System.currentTimeMillis(); val g = gesture
-                Log.i(TAG, "process: 检测到手势 $g")
+                FaceLog.i(TAG, "process: 检测到手势 $g")
                 mainHandler.post { onGesture?.invoke(g) }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "process $frameCount: 异常 ${e.message}", e)
+            FaceLog.e(TAG, "process $frameCount: 异常 ${e.message}", e)
             _state.update { it.copy(status = "ERR: ${e.message}") }
         } finally { ip.close() }
     }
@@ -129,7 +128,7 @@ class FaceRecognitionManager(context: Context) {
     private fun decode(ip: ImageProxy): Bitmap {
         try {
             val planes = ip.planes
-            if (frameCount <= 3) Log.d(TAG, "decode $frameCount: format=${ip.format} w=${ip.width} h=${ip.height} planes=${planes.size}")
+            if (frameCount <= 3) FaceLog.d(TAG, "decode $frameCount: format=${ip.format} w=${ip.width} h=${ip.height} planes=${planes.size}")
             val y = planes[0].buffer; val u = planes[1].buffer; val v = planes[2].buffer
             val yS=y.remaining();val uS=u.remaining();val vS=v.remaining()
             val nv21 = ByteArray(yS+uS+vS); y.get(nv21,0,yS); v.get(nv21,yS,vS); u.get(nv21,yS+vS,uS)
@@ -141,7 +140,7 @@ class FaceRecognitionManager(context: Context) {
             if(_state.value.mirrored) mat.preScale(-1f,1f)
             return Bitmap.createBitmap(bmp,0,0,bmp.width,bmp.height,mat,true).also{bmp.recycle()}
         } catch (e: Exception) {
-            Log.e(TAG, "decode $frameCount: 异常 ${e.message}", e)
+            FaceLog.e(TAG, "decode $frameCount: 异常 ${e.message}", e)
             throw e
         }
     }
