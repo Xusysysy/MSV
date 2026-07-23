@@ -129,20 +129,55 @@ class FaceRecognitionManager(context: Context) {
         try {
             val planes = ip.planes
             if (frameCount <= 3) FaceLog.d(TAG, "decode $frameCount: format=${ip.format} w=${ip.width} h=${ip.height} planes=${planes.size}")
-            val y = planes[0].buffer; val u = planes[1].buffer; val v = planes[2].buffer
-            val yS=y.remaining();val uS=u.remaining();val vS=v.remaining()
-            val nv21 = ByteArray(yS+uS+vS); y.get(nv21,0,yS); v.get(nv21,yS,vS); u.get(nv21,yS+vS,uS)
-            val yuv = YuvImage(nv21, ImageFormat.NV21, ip.width, ip.height, null)
-            val out = ByteArrayOutputStream(); yuv.compressToJpeg(Rect(0,0,ip.width,ip.height),95,out)
-            val jpg=out.toByteArray();out.close(); val bmp=BitmapFactory.decodeByteArray(jpg,0,jpg.size)
-            if (bmp == null) throw RuntimeException("BitmapFactory.decodeByteArray返回null")
-            val mat = Matrix(); mat.postRotate(ip.imageInfo.rotationDegrees.toFloat())
-            if(_state.value.mirrored) mat.preScale(-1f,1f)
-            return Bitmap.createBitmap(bmp,0,0,bmp.width,bmp.height,mat,true).also{bmp.recycle()}
+            val yBuf = planes[0].buffer
+            val uBuf = planes[1].buffer
+            val vBuf = planes[2].buffer
+            val ySize = yBuf.remaining()
+            val uSize = uBuf.remaining()
+            val vSize = vBuf.remaining()
+            val nv21 = ByteArray(ySize + uSize + vSize)
+            yBuf.get(nv21, 0, ySize)
+            vBuf.get(nv21, ySize, vSize)
+            uBuf.get(nv21, ySize + vSize, uSize)
+            val w = ip.width; val h = ip.height
+            val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            convertYuvToBitmap(nv21, w, h, bmp)
+            val rotation = ip.imageInfo.rotationDegrees
+            if (rotation != 0 || _state.value.mirrored) {
+                val mat = Matrix()
+                mat.postRotate(rotation.toFloat())
+                if (_state.value.mirrored) mat.preScale(-1f, 1f)
+                val rotated = Bitmap.createBitmap(bmp, 0, 0, w, h, mat, true)
+                bmp.recycle()
+                return rotated
+            }
+            return bmp
         } catch (e: Exception) {
             FaceLog.e(TAG, "decode $frameCount: 异常 ${e.message}", e)
             throw e
         }
+    }
+
+    private fun convertYuvToBitmap(nv21: ByteArray, w: Int, h: Int, out: Bitmap) {
+        val pixels = IntArray(w * h)
+        var yp = 0; var uvp = w * h
+        for (j in 0 until h) {
+            for (i in 0 until w) {
+                val y = nv21[yp + j * w + i].toInt() and 0xFF
+                val uvIdx = uvp + (j shr 1) * w + (i and -2)
+                val u = nv21[uvIdx].toInt() and 0xFF
+                val v = nv21[uvIdx + 1].toInt() and 0xFF
+                val yVal = y - 16
+                val uVal = u - 128
+                val vVal = v - 128
+                var r = (1.164f * yVal + 1.596f * vVal).toInt()
+                var g = (1.164f * yVal - 0.392f * uVal - 0.813f * vVal).toInt()
+                var b = (1.164f * yVal + 2.017f * uVal).toInt()
+                r = r.coerceIn(0, 255); g = g.coerceIn(0, 255); b = b.coerceIn(0, 255)
+                pixels[j * w + i] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
+            }
+        }
+        out.setPixels(pixels, 0, w, 0, 0, w, h)
     }
     fun close() { landmarker?.close();landmarker=null;smooth.clear();act.clear() }
     private inline fun <T> MutableStateFlow<T>.update(func: (T) -> T) { value = func(value) }
