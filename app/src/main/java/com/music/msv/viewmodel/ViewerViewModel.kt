@@ -518,9 +518,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun flipDone() {
-        val dir = _uiState.value.pendingFlip ?: return
-        val step = if (_uiState.value.isSpreadMode) 2 else 1
-        goToPage(_uiState.value.currentPage + dir * step)
+        FaceLog.i("MSV_VM", "flipDone")
         _uiState.update { it.copy(pendingFlip = null) }
     }
 
