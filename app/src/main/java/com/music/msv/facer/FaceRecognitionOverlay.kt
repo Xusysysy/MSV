@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -47,13 +48,20 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 
 @Composable
-fun FaceRecognitionOverlay(visible: Boolean, onDismiss: () -> Unit, onToggle: (Boolean) -> Unit, manager: FaceRecognitionManager, isDark: Boolean, modifier: Modifier = Modifier) {
-    if (!visible) return
+fun FaceRecognitionOverlay(visible: Boolean, faceEnabled: Boolean, onDismiss: () -> Unit, onToggle: (Boolean) -> Unit, manager: FaceRecognitionManager, isDark: Boolean, modifier: Modifier = Modifier) {
+    if (!visible && !faceEnabled) return
+
     val ctx = LocalContext.current; val cfg = LocalConfiguration.current; val isLand = cfg.screenWidthDp > cfg.screenHeightDp
     var hasPerm by remember { mutableStateOf(ContextCompat.checkSelfPermission(ctx, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) }
     val pL = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { hasPerm = it; if (!it) Toast.makeText(ctx, "需要相机权限", Toast.LENGTH_SHORT).show() }
     LaunchedEffect(visible) { if (visible && !hasPerm) pL.launch(Manifest.permission.CAMERA) }
     val state by manager.stateFlow.collectAsState()
+
+    if (!visible) {
+        Box(Modifier.size(1.dp))
+        FaceCamera(manager = manager, visible = false)
+        return
+    }
 
     val bg = if (isDark) Color(0xF0121628) else Color(0xF8FFFFFF); val card = if (isDark) Color(0xFF1A1E2E) else Color(0x141A2230)
     val b = if (isDark) Color(0x24FFFFFF) else Color(0x1A1A2230); val t = if (isDark) Color.White else Color(0xFF1B2230)
@@ -66,7 +74,9 @@ fun FaceRecognitionOverlay(visible: Boolean, onDismiss: () -> Unit, onToggle: (B
         if (isLand) Row(Modifier.fillMaxWidth(0.92f).heightIn(max = maxH).clip(RoundedCornerShape(16.dp)).background(bg).border(1.dp, b, RoundedCornerShape(16.dp)).clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) {}.padding(10.dp), Arrangement.spacedBy(10.dp)) {
             Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), Arrangement.spacedBy(6.dp)) {
                 Header(state, manager, gr, card, b, t, t2, onToggle)
-                Box(Modifier.fillMaxWidth().aspectRatio(4f / 3f).clip(RoundedCornerShape(12.dp)).border(1.dp, b, RoundedCornerShape(12.dp)).background(Color(0xFF0A0D18)))
+                Box(Modifier.fillMaxWidth().aspectRatio(4f / 3f).clip(RoundedCornerShape(12.dp)).border(1.dp, b, RoundedCornerShape(12.dp))) {
+                    FaceCamera(manager = manager, visible = true, Modifier.fillMaxSize())
+                }
                 AR(sc, ac, dn, card, b, t)
             }
             Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), Arrangement.spacedBy(6.dp)) {
@@ -82,7 +92,9 @@ fun FaceRecognitionOverlay(visible: Boolean, onDismiss: () -> Unit, onToggle: (B
         }
         else Column(Modifier.fillMaxWidth(0.9f).heightIn(max = maxH).clip(RoundedCornerShape(16.dp)).background(bg).border(1.dp, b, RoundedCornerShape(16.dp)).clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) {}.verticalScroll(rememberScrollState()).padding(12.dp), Arrangement.spacedBy(8.dp)) {
             Header(state, manager, gr, card, b, t, t2, onToggle)
-            Box(Modifier.fillMaxWidth().aspectRatio(4f / 3f).clip(RoundedCornerShape(12.dp)).border(1.dp, b, RoundedCornerShape(12.dp)).background(Color(0xFF0A0D18)))
+            Box(Modifier.fillMaxWidth().aspectRatio(4f / 3f).clip(RoundedCornerShape(12.dp)).border(1.dp, b, RoundedCornerShape(12.dp))) {
+                FaceCamera(manager = manager, visible = true, Modifier.fillMaxSize())
+            }
             AR(sc, ac, dn, card, b, t)
             Modes(state, manager, card, b, ac)
             SliderCard("眨眼阈值", state.thresholds.blink, 0.10f..0.95f, card, b, t, ac) { manager.updateState { s -> s.copy(thresholds = s.thresholds.copy(blink = it)) } }
