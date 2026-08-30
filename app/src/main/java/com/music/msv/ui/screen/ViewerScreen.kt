@@ -43,6 +43,7 @@ import com.music.msv.data.model.ViewerEvent
 import com.music.msv.ui.components.EmptyView
 import com.music.msv.ui.components.LoadingOverlay
 import com.music.msv.ui.components.BottomFooter
+import com.music.msv.ui.components.SettingsPanel
 import com.music.msv.ui.components.ShelfPanel
 import com.music.msv.ui.components.Stage
 import com.music.msv.ui.components.ThumbnailPanel
@@ -159,7 +160,8 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                     faceEnabled = state.faceEnabled,
                     faceActive = state.faceActive,
                     onFaceClick = { viewModel.onEvent(ViewerEvent.ToggleFace) },
-                    onFaceLongClick = { viewModel.onEvent(ViewerEvent.ShowFaceOverlay) }
+                    onFaceLongClick = { viewModel.onEvent(ViewerEvent.ShowFaceOverlay) },
+                    onSettingsClick = { viewModel.onEvent(ViewerEvent.ToggleSettings) }
                 )
             }
 
@@ -201,6 +203,37 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                     getThumbnailUri = { viewModel.getThumbnailUri(it) },
                     onPageSelected = { viewModel.onEvent(ViewerEvent.GoToPage(it)) },
                     onClose = { viewModel.onEvent(ViewerEvent.ToggleThumbnails) }
+                )
+            }
+
+            if (state.showSettings) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable(
+                            indication = null,
+                            interactionSource = remember { MutableInteractionSource() }
+                        ) { viewModel.onEvent(ViewerEvent.ToggleSettings) }
+                )
+            }
+
+            AnimatedVisibility(
+                visible = state.showSettings,
+                enter = slideInHorizontally { it / 3 } + fadeIn(),
+                exit = slideOutHorizontally { it / 3 } + fadeOut(),
+                modifier = Modifier.align(Alignment.CenterEnd)
+            ) {
+                SettingsPanel(
+                    isDark = isDark,
+                    versionName = state.appVersionName,
+                    versionCode = state.appVersionCode,
+                    updateStatus = state.updateStatus,
+                    updateInfo = state.updateInfo,
+                    updateMessage = state.updateMessage,
+                    onCheckUpdate = { viewModel.onEvent(ViewerEvent.CheckUpdate) },
+                    onDownloadUpdate = { viewModel.onEvent(ViewerEvent.DownloadUpdate) },
+                    onInstallUpdate = { viewModel.onEvent(ViewerEvent.InstallUpdate) },
+                    onClose = { viewModel.onEvent(ViewerEvent.ToggleSettings) }
                 )
             }
 
@@ -282,6 +315,26 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                     }) { Text("重置关闭") }
                 }
             )
+        }
+
+        if (state.showUpdateDialog) {
+            state.updateInfo?.let { info ->
+                AlertDialog(
+                    onDismissRequest = { viewModel.onEvent(ViewerEvent.DismissUpdateDialog) },
+                    title = { Text("发现新版本 v${info.tag}") },
+                    text = { Text("${info.notes}\n\n来源：${info.source}") },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            viewModel.onEvent(ViewerEvent.DownloadUpdate)
+                        }) { Text("立即更新") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = {
+                            viewModel.onEvent(ViewerEvent.DismissUpdateDialog)
+                        }) { Text("以后再说") }
+                    }
+                )
+            }
         }
 
         FaceRecognitionOverlay(

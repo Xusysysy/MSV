@@ -13,22 +13,24 @@ app/src/main/java/com/music/msv/
 │   │   └── Shape.kt             ← Rounded shapes
 │   ├── components/
 │   │   ├── Stage.kt             ← Main viewport + gestures + page rendering
-│   │   ├── TopBar.kt            ← Top control bar (shelf, page nav, thumbnails, theme, reset)
+│   │   ├── TopBar.kt            ← Top control bar (shelf, page nav, thumbnails, face, reset, settings)
 │   │   ├── Footer.kt            ← Status footer
 │   │   ├── EmptyView.kt         ← Idle landing page with shelf button
 │   │   ├── ThumbnailPanel.kt    ← Slide-in thumbnail grid (right)
 │   │   ├── ShelfPanel.kt        ← Slide-in shelf panel (left), lists saved scores with thumbnails
+│   │   ├── SettingsPanel.kt     ← Slide-in settings panel (right): version, copyright, check-update
 │   │   └── LoadingOverlay.kt    ← Spinner overlay
 │   └── screen/
 │       └── ViewerScreen.kt      ← Root orchestrator, wires ViewModel → components
 ├── viewmodel/
-│   └── ViewerViewModel.kt       ← Central state holder, MVVM, preload logic, face wiring
+│   └── ViewerViewModel.kt       ← Central state holder, MVVM, preload logic, face wiring, OTA update
 ├── data/
 │   ├── model/
 │   │   └── ViewerState.kt       ← UI state data class + Mode sealed class + ViewerEvent sealed class
 │   ├── repository/
 │   │   ├── FileRepository.kt    ← SAF file access, local copy, MIME detection
-│   │   └── SessionRepository.kt ← DataStore persistence (session + per-file page map)
+│   │   ├── SessionRepository.kt ← DataStore persistence (session + per-file page map)
+│   │   └── UpdateRepository.kt  ← OTA: release query (Gitee+GitHub), version compare, APK download/install
 │   └── pdf/
 │       └── PdfPageRenderer.kt   ← Android PdfRenderer wrapper, LRU bitmap cache
 ├── facer/
@@ -51,6 +53,7 @@ app/src/main/java/com/music/msv/
 | File access | Storage Access Framework | Standard Android file picking |
 | Animations | Compose Animation APIs | Sufficient for all required transitions |
 | Face page-flip | MediaPipe FaceLandmarker 0.10.18 (IMAGE mode) + CameraX 1.3.4 | Wink/pucker gestures flip pages; model asset `app/src/main/assets/face_landmarker.task` |
+| OTA update | HttpURLConnection + org.json + DownloadManager + FileProvider (zero third-party deps) | Gitee-priority release check, DownloadManager in-app download, FileProvider install; release APK uses debug signing (overwrite-install prerequisite); tag == versionName invariant |
 | minSdk | 26 (Android 8.0) | User preference |
 
 ## Navigation
@@ -134,31 +137,34 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 6. ui/screen/ViewerScreen.kt (L1-L296)
+### 6. ui/screen/ViewerScreen.kt (L1-L349)
 
 | Element | Type | Lines |
 |---|---|---|
-| Package + imports | — | L1-L51 |
-| `ViewerScreen(viewModel: ViewerViewModel)` | @Composable fun | L53-L296 |
-| `state` | collectAsState | L55 |
-| `filePickerLauncher` | rememberLauncherForActivityResult | L58-L64 |
-| `openFilePicker` | local val lambda | L66-L68 |
-| `showPageDialog` / `pageInput` / `showResetDialog` | mutableStateOf | L70-L72 |
-| `isDark` / `appBg` | derived vals | L74-L75 |
-| `isViewing` | derived val | L77 |
-| Root Box | composable | L79-L295 |
-| — Inner Box (shell/viewing conditional) | composable | L86-L235 |
-| — — `Mode.Idle` → EmptyView (with onShelfClick) | composable | L100-L105 |
-| — — `else` → Stage (+pendingFlip, onFlipDone) + LoadingOverlay | composable | L106-L134 |
-| — — TopBar (AnimatedVisibility, slide+top, faceEnabled/faceActive/onFaceClick/onFaceLongClick) | composable | L137-L164 |
-| — — BottomFooter (AnimatedVisibility, slide+bottom) | composable | L166-L178 |
-| — — Thumbnail backdrop click Box | composable | L180-L189 |
-| — — ThumbnailPanel (AnimatedVisibility, slide+right) | composable | L191-L205 |
-| — — Shelf backdrop click Box | composable | L207-L216 |
-| — — ShelfPanel (AnimatedVisibility, slide+left) | composable | L218-L234 |
-| — Page jump AlertDialog | composable | L237-L265 |
-| — Reset/Reload AlertDialog | composable | L267-L285 |
-| — FaceRecognitionOverlay wiring (visible/onDismiss/onToggle/manager) | composable | L287-L294 |
+| Package + imports | — | L1-L52 |
+| `ViewerScreen(viewModel: ViewerViewModel)` | @Composable fun | L54-L349 |
+| `state` | collectAsState | L56 |
+| `filePickerLauncher` | rememberLauncherForActivityResult | L59-L65 |
+| `openFilePicker` | local val lambda | L67-L69 |
+| `showPageDialog` / `pageInput` / `showResetDialog` | mutableStateOf | L71-L73 |
+| `isDark` / `appBg` | derived vals | L75-L76 |
+| `isViewing` | derived val | L78 |
+| Root Box | composable | L80-L348 |
+| — Inner Box (shell/viewing conditional) | composable | L87-L268 |
+| — — `Mode.Idle` → EmptyView (with onShelfClick) | composable | L101-L106 |
+| — — `else` → Stage (+pendingFlip, onFlipDone) + LoadingOverlay | composable | L107-L135 |
+| — — TopBar (AnimatedVisibility, slide+top, +onSettingsClick) | composable | L138-L166 |
+| — — BottomFooter (AnimatedVisibility, slide+bottom) | composable | L168-L180 |
+| — — Thumbnail backdrop click Box | composable | L182-L191 |
+| — — ThumbnailPanel (AnimatedVisibility, slide+right) | composable | L193-L207 |
+| — — Settings backdrop click Box | composable | L209-L218 |
+| — — SettingsPanel (AnimatedVisibility, slide+right) | composable | L220-L238 |
+| — — Shelf backdrop click Box | composable | L240-L249 |
+| — — ShelfPanel (AnimatedVisibility, slide+left) | composable | L251-L267 |
+| — Page jump AlertDialog | composable | L270-L298 |
+| — Reset/Reload AlertDialog | composable | L300-L318 |
+| — Update AlertDialog ("发现新版本": 立即更新/以后再说) | composable | L320-L338 |
+| — FaceRecognitionOverlay wiring (visible/onDismiss/onToggle/manager) | composable | L340-L347 |
 
 ---
 
@@ -195,22 +201,23 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 8. ui/components/TopBar.kt (L1-L175)
+### 8. ui/components/TopBar.kt (L1-L189)
 
 | Element | Type | Lines |
 |---|---|---|
 | Package + imports | — | L1-L29 |
-| `TopBar` | @Composable fun | L31-L175 |
-| Parameters (15): | isDark, fileName(unused, kept for API compat), currentPage, pageCount, showPageNav, onShelfClick, onPageJumpClick, onThumbnailsClick, onResetClick, onThemeLongClick, faceEnabled(default=false), faceActive(default=false), onFaceClick(default={}), onFaceLongClick(default={}), modifier | L33-L49 |
-| Local colors | bg, border, text, muted, divider, ctrlBg, ctrlBorder, accent | L50-L57 |
-| Main Row | composable | L59-L174 |
-| — Shelf button Row | icon + text, clickable (calls onShelfClick) | L70-L82 |
-| — Page nav (if showPageNav) | page number display (click → jump dialog) + divider | L84-L108 |
-| — Weight Spacer | L111 |
-| — Action buttons (if showPageNav) | thumbnail, face, reset | L113-L173 |
-| — — Thumbnail button ▦ | clickable | L115-L125 |
-| — — Face button 👁 | click → ToggleFace; long-press → ShowFaceOverlay; red highlight when faceActive | L127-L156 |
-| — — Reset button ↺ | click → reset dialog; long-press → toggle theme | L158-L172 |
+| `TopBar` | @Composable fun | L31-L189 |
+| Parameters (16): | isDark, fileName(unused, kept for API compat), currentPage, pageCount, showPageNav, onShelfClick, onPageJumpClick, onThumbnailsClick, onResetClick, onThemeLongClick, faceEnabled(default=false), faceActive(default=false), onFaceClick(default={}), onFaceLongClick(default={}), onSettingsClick(default={}), modifier | L33-L49 |
+| Local colors | bg, border, text, muted, divider, ctrlBg, ctrlBorder, accent | L51-L58 |
+| Main Row | composable | L60-L188 |
+| — Shelf button Row | icon + text, clickable (calls onShelfClick) | L71-L83 |
+| — Page nav (if showPageNav) | page number display (click → jump dialog) + divider | L85-L109 |
+| — Weight Spacer | L112 |
+| — Action buttons (if showPageNav) | thumbnail, face, reset, settings | L114-L186 |
+| — — Thumbnail button ▦ | clickable | L116-L126 |
+| — — Face button 👁 | click → ToggleFace; long-press → ShowFaceOverlay; red highlight when faceActive | L128-L157 |
+| — — Reset button ↺ | click → reset dialog; long-press → toggle theme | L159-L173 |
+| — — Settings button ⚙ | click → ToggleSettings | L175-L186 |
 
 ---
 
@@ -283,6 +290,26 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
+### 11c. ui/components/SettingsPanel.kt (L1-L171)
+
+| Element | Type | Lines |
+|---|---|---|
+| Package + imports | — | L1-L29 |
+| `SettingsPanel(...)` | @Composable fun | L31-L150 |
+| Parameters (11): | isDark, versionName, versionCode, updateStatus, updateInfo, updateMessage, onCheckUpdate, onDownloadUpdate, onInstallUpdate, onClose, modifier | L32-L44 |
+| Local colors | panelBg, panelBorder, text, muted, divider, ctrlBg, ctrlBorder, accent, onAccent | L45-L53 |
+| Root Column (300dp right panel, 22dp 圆角) | composable | L55-L149 |
+| — Close button Box | 同 ThumbnailPanel 样式 | L62-L79 |
+| — Content Column | composable | L81-L137 |
+| — — Title + version line + divider | L86-L90 |
+| — — Check-update button (accent 实心，Checking 时禁用) | L93-L109 |
+| — — `when(updateStatus)` 状态区 | Idle/Checking 空态 · UpToDate/Error/Downloading 文案 · Available 版本+notes+立即更新按钮 · Downloaded 立即安装按钮 | L112-L136 |
+| — Footer Spacer(weight) + 版权行 "© 2026 Xusysysy · MSV 乐谱查看器" | L139-L148 |
+| `StatusText` | private @Composable | L152-L155 |
+| `OutlineButton` | private @Composable — accent 描边按钮 | L157-L171 |
+
+---
+
 ### 12. ui/components/LoadingOverlay.kt (L1-L53)
 
 | Element | Type | Lines |
@@ -296,102 +323,120 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 13. viewmodel/ViewerViewModel.kt (L1-L669)
+### 13. viewmodel/ViewerViewModel.kt (L1-L807)
 
 | Element | Type | Lines |
 |---|---|---|
-| Package + imports | — | L1-L29 |
-| `ViewerViewModel(application)` | class : AndroidViewModel | L31-L669 |
-| `fileRepo` | private val FileRepository | L33 |
-| `sessionRepo` | private val SessionRepository | L34 |
-| `pdfRenderer` | private val PdfPageRenderer | L35 |
-| `faceManager` | public val FaceRecognitionManager | L36 |
-| `faceRepo` | private val FaceRecognitionRepository | L37 |
-| `_uiState` | private val MutableStateFlow | L39 |
-| `uiState` | val StateFlow (public) | L40 |
-| `imageUris` | private var List<Uri> | L42 |
-| `pdfUri` | private var Uri? | L43 |
-| `loadJob` / `preloadJob` | private var Job? | L44-L45 |
-| `thumbnailCache` | private val ConcurrentHashMap<Int, Uri> | L46 |
-| `pageMap` | private var Map<String, Int> — per-file last-read page (KEY_PAGE_MAP) | L47 |
-| `init` block | pageMap collector + face prefs load + faceState→faceActive/faceEnabled sync + onGesture→faceFlip + restoreSession() | L49-L72 |
-| `handleShareIntent(intent)` | public fun | L74-L103 |
-| `onEvent(event)` | public fun (event dispatch, spread-aware page step) | L105-L136 |
-| `handleFilesSelected(uris)` | private fun — imports file, then calls loadShelfFiles() if shelf is visible | L138-L164 |
-| `openPdf(uri, name, restorePage=0)` | private fun | L166-L207 |
-| `openImages(uris, name, initialPage=0)` | private fun | L209-L231 |
-| `goToPage(page)` | private fun | L233-L241 |
-| `renderPageToCacheComputeSize(pageIndex, ratio)` | private fun | L243-L261 |
-| `preloadAround(center)` | public fun — tiered render: center/next Q95, ±1 Q90, 2-3 Q85@0.6x, ≥4 Q80@0.4x, evict outside window, loading gate | L263-L332 |
-| `docCacheKey` | private val getter — pdfUri path hash (cache file namespacing) | L334-L335 |
-| `renderPage(pageIndex, pageW, pageH, zoom, quality=95)` | private fun — JPEG into cacheDir | L337-L348 |
-| `updateViewportSize(width, height)` | private fun | L350-L362 |
-| `setZoom(zoom)` | private fun | L364-L366 |
-| `panBy(dx, dy)` | private fun | L368-L372 |
-| `toggleUI()` | private fun | L374-L376 |
-| `toggleThumbnails()` | private fun | L378-L382 |
-| `toggleShelf()` | private fun | L384-L388 |
-| `toggleShelfSort()` | private fun — toggles NAME↔DATE, reloads shelf | L390-L395 |
-| `setSpreadMode(spread)` | private fun — on enable, aligns current page to even index | L397-L404 |
-| `loadShelfFiles()` | private fun — sorts by shelfSortBy, maps to ShelfFile, generates PDF thumbnails per file | L406-L435 |
-| `generatePdfThumbnail(fileUri)` | private fun — renders page 0 at 200px PNG, caches by path hash | L437-L461 |
-| `renameShelfFile(oldUri, newName)` | private fun — renames file, refreshes shelf, reopens at same page | L463-L483 |
-| `openShelfFile(uri)` | private fun — closes shelf, restores page via pageMap[name] | L485-L498 |
-| `toggleTheme()` | private fun | L500-L502 |
-| `toggleFace()` | private fun — syncs faceManager running/enabled with uiState.faceEnabled | L504-L513 |
-| `faceFlip(dir)` | private fun — sets uiState.pendingFlip (consumed by Stage) | L515-L518 |
-| `flipDone()` | private fun — clears pendingFlip | L520-L523 |
-| `showFaceOverlay()` | private fun | L525-L528 |
-| `hideFaceOverlay()` | private fun — hides + persists face prefs via faceRepo.save | L530-L534 |
-| `resetZoom()` | private fun | L536-L538 |
-| `reset()` | private fun | L540-L547 |
-| `reload()` | private fun | L549-L564 |
-| `saveSession()` | private fun | L566-L586 |
-| `getThumbnailUri(pageIndex)` | public fun | L588-L589 |
-| `preloadPage(pageIndex)` | public fun | L591-L610 |
-| `preloadThumbnails()` | private fun — PNG thumbs keyed by docCacheKey | L612-L636 |
-| `restoreSession()` | private fun — accessibility check, restores mode/page/uris | L638-L663 |
-| `onCleared()` | override fun | L665-L668 |
+| Package + imports | — | L1-L37 |
+| `ViewerViewModel(application)` | class : AndroidViewModel | L39-L807 |
+| `fileRepo` | private val FileRepository | L41 |
+| `sessionRepo` | private val SessionRepository | L42 |
+| `pdfRenderer` | private val PdfPageRenderer | L43 |
+| `faceManager` | public val FaceRecognitionManager | L44 |
+| `faceRepo` | private val FaceRecognitionRepository | L45 |
+| `updateRepo` | private val UpdateRepository | L46 |
+| `_uiState` | private val MutableStateFlow | L48 |
+| `uiState` | val StateFlow (public) | L49 |
+| `imageUris` | private var List<Uri> | L51 |
+| `pdfUri` | private var Uri? | L52 |
+| `loadJob` / `preloadJob` | private var Job? | L53-L54 |
+| `thumbnailCache` | private val ConcurrentHashMap<Int, Uri> | L55 |
+| `pageMap` | private var Map<String, Int> — per-file last-read page (KEY_PAGE_MAP) | L56 |
+| `currentDownloadId` | private var Long — 当前 OTA 下载任务 id | L58 |
+| `downloadReceiver` | private val BroadcastReceiver — ACTION_DOWNLOAD_COMPLETE → onDownloadComplete | L60-L66 |
+| `init` block | 版本字段填充 + 注册下载接收器 + pageMap collector + face prefs load + faceState 同步 + onGesture→faceFlip + restoreSession() + 冷启动静默检查更新 | L68-L100 |
+| `handleShareIntent(intent)` | public fun | L102-L131 |
+| `onEvent(event)` | public fun (event dispatch, spread-aware page step, +5 update events) | L133-L169 |
+| `handleFilesSelected(uris)` | private fun — imports file, then calls loadShelfFiles() if shelf is visible | L171-L197 |
+| `openPdf(uri, name, restorePage=0)` | private fun | L199-L240 |
+| `openImages(uris, name, initialPage=0)` | private fun | L242-L264 |
+| `goToPage(page)` | private fun | L266-L274 |
+| `renderPageToCacheComputeSize(pageIndex, ratio)` | private fun | L276-L294 |
+| `preloadAround(center)` | public fun — tiered render: center/next Q95, ±1 Q90, 2-3 Q85@0.6x, ≥4 Q80@0.4x, evict outside window, loading gate | L296-L365 |
+| `docCacheKey` | private val getter — pdfUri path hash (cache file namespacing) | L367-L368 |
+| `renderPage(pageIndex, pageW, pageH, zoom, quality=95)` | private fun — JPEG into cacheDir | L370-L381 |
+| `updateViewportSize(width, height)` | private fun | L383-L395 |
+| `setZoom(zoom)` | private fun | L397-L399 |
+| `panBy(dx, dy)` | private fun | L401-L405 |
+| `toggleUI()` | private fun | L407-L409 |
+| `toggleThumbnails()` | private fun — 打开时关闭设置面板 | L411-L415 |
+| `toggleShelf()` | private fun — 打开时关闭设置面板 | L417-L421 |
+| `toggleSettings()` | private fun — 打开时关闭缩略图/谱架（三面板互斥） | L423-L432 |
+| `toggleShelfSort()` | private fun — toggles NAME↔DATE, reloads shelf | L434-L439 |
+| `setSpreadMode(spread)` | private fun — on enable, aligns current page to even index | L441-L448 |
+| `loadShelfFiles()` | private fun — sorts by shelfSortBy, maps to ShelfFile, generates PDF thumbnails per file | L450-L479 |
+| `generatePdfThumbnail(fileUri)` | private fun — renders page 0 at 200px PNG, caches by path hash | L481-L505 |
+| `renameShelfFile(oldUri, newName)` | private fun — renames file, refreshes shelf, reopens at same page | L507-L527 |
+| `openShelfFile(uri)` | private fun — closes shelf, restores page via pageMap[name] | L529-L542 |
+| `toggleTheme()` | private fun | L544-L546 |
+| `toggleFace()` | private fun — syncs faceManager running/enabled with uiState.faceEnabled | L548-L557 |
+| `faceFlip(dir)` | private fun — sets uiState.pendingFlip (consumed by Stage) | L559-L562 |
+| `flipDone()` | private fun — clears pendingFlip | L564-L567 |
+| `showFaceOverlay()` | private fun | L569-L572 |
+| `hideFaceOverlay()` | private fun — hides + persists face prefs via faceRepo.save | L574-L580 |
+| `registerDownloadReceiver()` | private fun — ContextCompat.registerReceiver RECEIVER_NOT_EXPORTED | L582-L590 |
+| `checkUpdate(manual)` | private fun — Gitee/GitHub 并行查询，仅取比当前新的候选（平手 Gitee 优先）；manual 失败显示 Error，自动静默回 Idle | L592-L615 |
+| `downloadUpdate()` | private fun — 幂等（Downloading 中忽略）→ removeStale → enqueue → Downloading + 关弹窗 | L617-L631 |
+| `onDownloadComplete(id)` | private fun — STATUS_SUCCESSFUL → Downloaded；否则 Error | L633-L642 |
+| `installUpdate()` | private fun — 未授权 → 跳 unknown sources 授权页；已授权 → FileProvider 安装 Intent | L644-L657 |
+| `startActivity(intent)` | private fun — runCatching 包装 | L659-L661 |
+| `dismissUpdateDialog()` | private fun — 仅关弹窗（保留 Available 状态） | L663-L665 |
+| `resetZoom()` | private fun | L667-L669 |
+| `reset()` | private fun — 重建 ViewerState 时保留版本字段 | L671-L684 |
+| `reload()` | private fun | L686-L701 |
+| `saveSession()` | private fun | L703-L723 |
+| `getThumbnailUri(pageIndex)` | public fun | L725-L726 |
+| `preloadPage(pageIndex)` | public fun | L728-L747 |
+| `preloadThumbnails()` | private fun — PNG thumbs keyed by docCacheKey | L749-L773 |
+| `restoreSession()` | private fun — accessibility check, restores mode/page/uris | L775-L800 |
+| `onCleared()` | override fun — 注销下载接收器 + close pdfRenderer | L802-L806 |
 
 ---
 
-### 14. data/model/ViewerState.kt (L1-L71)
+### 14. data/model/ViewerState.kt (L1-L94)
 
 | Element | Type | Lines |
 |---|---|---|
 | Package + import | — | L1-L3 |
-| `ViewerState` | data class (25 fields) | L5-L32 |
-| Fields: | mode, currentPage, pageCount, zoom, panOffsetX, panOffsetY, showUI, showThumbnails, showShelf, isDarkTheme, statusMessage, isLoading, fileName, pageUris, pageWidth, pageHeight, viewportWidth, viewportHeight, thumbnailsLoading, shelfFiles(emptyList()), shelfSortBy(ShelfSort.DATE), isSpreadMode(false), faceEnabled(false), faceActive(false), showFaceOverlay(false), pendingFlip(null) | L6-L31 |
-| `ShelfSort` | enum (NAME, DATE) | L34 |
-| `Mode` | sealed class | L36-L40 |
-| — `Idle` | data object | L37 |
-| — `Image` | data object | L38 |
-| — `Pdf` | data object | L39 |
-| `ViewerEvent` | sealed class | L42-L65 |
-| — `FilesSelected(uris)` | data class | L43 |
-| — `GoToPage(page)` | data class | L44 |
-| — `NextPage` | data object | L45 |
-| — `PrevPage` | data object | L46 |
-| — `SetZoom(zoom)` | data class | L47 |
-| — `PanBy(dx, dy)` | data class | L48 |
-| — `UpdateViewportSize(width, height)` | data class | L49 |
-| — `ToggleUI` | data object | L50 |
-| — `ToggleThumbnails` | data object | L51 |
-| — `ToggleTheme` | data object | L52 |
-| — `ResetZoom` | data object | L53 |
-| — `Reset` | data object | L54 |
-| — `Reload` | data object | L55 |
-| — `ToggleShelf` | data object | L56 |
-| — `OpenShelfFile(uri)` | data class | L57 |
-| — `RenameShelfFile(uri, newName)` | data class | L58 |
-| — `ToggleShelfSort` | data object | L59 |
-| — `SetSpreadMode(spread)` | data class | L60 |
-| — `ToggleFace` | data object | L61 |
-| — `ShowFaceOverlay` | data object | L62 |
-| — `HideFaceOverlay` | data object | L63 |
-| — `FlipDone` | data object | L64 |
-| `ShelfFile` | data class (3 fields) | L67-L71 |
-| Fields: | name(String), uri(Uri), thumbnailUri(Uri?) | L68-L70 |
+| `ViewerState` | data class (31 fields) | L5-L39 |
+| Fields: | mode, currentPage, pageCount, zoom, panOffsetX, panOffsetY, showUI, showThumbnails, showShelf, isDarkTheme, statusMessage, isLoading, fileName, pageUris, pageWidth, pageHeight, viewportWidth, viewportHeight, thumbnailsLoading, shelfFiles(emptyList()), shelfSortBy(ShelfSort.DATE), isSpreadMode(false), faceEnabled(false), faceActive(false), showFaceOverlay(false), pendingFlip(null), showSettings(false), appVersionName(""), appVersionCode(0), updateStatus(Idle), updateInfo(null), updateMessage(""), showUpdateDialog(false) | L6-L38 |
+| `ShelfSort` | enum (NAME, DATE) | L41 |
+| `Mode` | sealed class | L43-L47 |
+| — `Idle` | data object | L44 |
+| — `Image` | data object | L45 |
+| — `Pdf` | data object | L46 |
+| `ViewerEvent` | sealed class | L49-L77 |
+| — `FilesSelected(uris)` | data class | L50 |
+| — `GoToPage(page)` | data class | L51 |
+| — `NextPage` | data object | L52 |
+| — `PrevPage` | data object | L53 |
+| — `SetZoom(zoom)` | data class | L54 |
+| — `PanBy(dx, dy)` | data class | L55 |
+| — `UpdateViewportSize(width, height)` | data class | L56 |
+| — `ToggleUI` | data object | L57 |
+| — `ToggleThumbnails` | data object | L58 |
+| — `ToggleTheme` | data object | L59 |
+| — `ResetZoom` | data object | L60 |
+| — `Reset` | data object | L61 |
+| — `Reload` | data object | L62 |
+| — `ToggleShelf` | data object | L63 |
+| — `OpenShelfFile(uri)` | data class | L64 |
+| — `RenameShelfFile(uri, newName)` | data class | L65 |
+| — `ToggleShelfSort` | data object | L66 |
+| — `SetSpreadMode(spread)` | data class | L67 |
+| — `ToggleFace` | data object | L68 |
+| — `ShowFaceOverlay` | data object | L69 |
+| — `HideFaceOverlay` | data object | L70 |
+| — `FlipDone` | data object | L71 |
+| — `ToggleSettings` | data object | L72 |
+| — `CheckUpdate` | data object | L73 |
+| — `DownloadUpdate` | data object | L74 |
+| — `InstallUpdate` | data object | L75 |
+| — `DismissUpdateDialog` | data object | L76 |
+| `ShelfFile` | data class (3 fields) | L79-L83 |
+| Fields: | name(String), uri(Uri), thumbnailUri(Uri?) | L80-L82 |
+| `UpdateInfo` | data class (4 fields) — tag, notes, apkUrl, source | L85-L90 |
+| `UpdateStatus` | enum (Idle, Checking, UpToDate, Available, Downloading, Downloaded, Error) | L92-L94 |
 
 ---
 
@@ -545,3 +590,42 @@ Single-screen app — no Navigation component. State-based content switching via
 | `prefsFlow: Flow<FacePrefs>` | val | L34-L43 |
 | `save(manager)` | suspend fun — persists FaceState → DataStore | L45-L55 |
 | `load(manager)` | suspend fun — restores DataStore → FaceState | L57-L72 |
+
+---
+
+### 23. data/repository/UpdateRepository.kt (L1-L192)
+
+| Element | Type | Lines |
+|---|---|---|
+| Package + imports | — | L1-L17 |
+| `compareVersions(a, b)` | top-level fun — 逐段数值版本比较（短段补 0、容错 v 前缀）；单测 `app/src/test/java/com/music/msv/CompareVersionsTest.kt` | L23-L35 |
+| `UpdateRepository(context)` | class | L38-L192 |
+| Companion constants | GITEE_LATEST / GITHUB_LATEST / TIMEOUT_MS(8000) / APK_PREFIX("MSV-ScoreViewer") / UPDATE_DIR("update") / APK_MIME | L39-L47 |
+| `installedVersionName` / `installedVersionCode` | val getter — PackageManager（API33 PackageInfoFlags 分支） | L49-L66 |
+| `fetchGiteeLatest` / `fetchGitHubLatest` | fun — → fetchLatest | L69-L71 |
+| `fetchLatest(url, isGitee)` | private fun — HttpURLConnection GET → JSONObject；assets 按 `.apk`+前缀过滤（排除源码包）；失败返回 null | L73-L100 |
+| `summarizeNotes(body, maxLen=300)` | fun — release body 摘要（去标题前缀/拼行/截断） | L102-L118 |
+| `removeStaleDownloads(apkUrl)` | fun — 清理同 URL 的 RUNNING/PENDING/PAUSED 下载任务 | L120-L134 |
+| `apkFileName(tag)` / `updateApkFile(tag)` | fun — `update/msv-update-{tag}.apk`（外部专属目录） | L136-L141 |
+| `enqueueDownload(apkUrl, tag)` | fun — DownloadManager（系统通知栏进度、删残留文件、禁止漫游） | L143-L155 |
+| `queryDownloadStatus(id)` | fun | L157-L165 |
+| `cleanupDownloadedApk(installedVersion)` | fun — 升级成功后清理已装版本的历史安装包 | L167-L174 |
+| `isInstallPermissionGranted()` | fun — canRequestPackageInstalls | L176 |
+| `unknownSourcesIntent()` | fun — ACTION_MANAGE_UNKNOWN_APP_SOURCES 授权引导 | L178-L182 |
+| `installIntent(tag)` | fun — FileProvider(`${applicationId}.fileprovider`) URI + ACTION_VIEW 安装 Intent | L184-L192 |
+
+---
+
+### 24. release/publish.ps1 — OTA 双平台发布脚本 (L1-L147)
+
+| Element | Type | Lines |
+|---|---|---|
+| Header + param | -NoteFile / -SkipBuild / -NoUpload；TLS1.2 强制 | L1-L9 |
+| 1. 版本解析 | versionName/versionCode ← app/build.gradle.kts 正则；tag = versionName；APK 名 MSV-ScoreViewer-v{ver}-release.apk | L22-L30 |
+| 2. 发布说明 | 缺省 `release/releasenote{versionCode}.md`，缺失降级为仅版本号 | L32-L36 |
+| 3. 构建 | assembleRelease → 复制 APK 到 release/ | L38-L49 |
+| 4. tag + 推送 | git tag（已存在即报错，永不 force）→ push origin/gitee | L51-L64 |
+| -NoUpload 出口 | 只打 tag 不发 release | L65 |
+| 5. GitHub | gh release view 查重 → create(--notes-file) / upload --clobber；gh 未在 PATH 时回退完整路径 | L66-L83 |
+| 6. Gitee | token=$env:MSV_GITEE_TOKEN（缺失→打印手动指引降级）；GET releases/tags/{tag} 查重 → POST releases 创建（UTF8 JSON 防中文乱码）→ POST releases/{id}/attach_files multipart（System.Net.Http，字段名 files；PS5.1 无 -Form） | L85-L138 |
+| 7. 汇总 | 双平台结果 URL + 任一失败 exit 1（幂等可重跑补传） | L140-L147 |

@@ -45,6 +45,7 @@ fun TopBar(
     faceActive: Boolean = false,
     onFaceClick: () -> Unit = {},
     onFaceLongClick: () -> Unit = {},
+    onSettingsClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val bg = if (isDark) Color(0x940A0E16) else Color(0xE0FFFFFF)
@@ -169,6 +170,19 @@ fun TopBar(
                 contentAlignment = Alignment.Center
             ) {
                 Text("↺", color = text, fontSize = 16.sp, textAlign = TextAlign.Center)
+            }
+
+            // Settings button
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(ButtonShape)
+                    .background(ctrlBg, ButtonShape)
+                    .border(1.dp, ctrlBorder, ButtonShape)
+                    .clickable { onSettingsClick() },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("⚙", color = text, fontSize = 16.sp, textAlign = TextAlign.Center)
             }
         }
     }

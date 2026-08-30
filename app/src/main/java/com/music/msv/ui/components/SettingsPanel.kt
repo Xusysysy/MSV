@@ -1,0 +1,171 @@
+package com.music.msv.ui.components
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.music.msv.data.model.UpdateInfo
+import com.music.msv.data.model.UpdateStatus
+import com.music.msv.ui.theme.ButtonShape
+
+@Composable
+fun SettingsPanel(
+    isDark: Boolean,
+    versionName: String,
+    versionCode: Int,
+    updateStatus: UpdateStatus,
+    updateInfo: UpdateInfo?,
+    updateMessage: String,
+    onCheckUpdate: () -> Unit,
+    onDownloadUpdate: () -> Unit,
+    onInstallUpdate: () -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val panelBg = if (isDark) Color(0xF00F121C) else Color(0xF2FFFFFF)
+    val panelBorder = if (isDark) Color(0x1AFFFFFF) else Color(0x141A2230)
+    val text = if (isDark) Color(0xFFF5F7FF) else Color(0xFF1B2230)
+    val muted = if (isDark) Color(0xB8F5F7FF) else Color(0xD11B2230)
+    val divider = if (isDark) Color(0x1FFFFFFF) else Color(0x1F1A2230)
+    val ctrlBg = if (isDark) Color(0x0FFFFFFF) else Color(0x0A1A2230)
+    val ctrlBorder = if (isDark) Color(0x24FFFFFF) else Color(0x1A1A2230)
+    val accent = if (isDark) Color(0xFF8CC8FF) else Color(0xFF2F6AD9)
+    val onAccent = if (isDark) Color(0xFF0F1220) else Color.White
+
+    Column(
+        modifier = modifier
+            .width(300.dp)
+            .fillMaxHeight()
+            .background(panelBg, RoundedCornerShape(topStart = 22.dp, bottomStart = 22.dp))
+            .border(1.dp, panelBorder, RoundedCornerShape(topStart = 22.dp, bottomStart = 22.dp))
+    ) {
+        // Close button (同 ThumbnailPanel 样式)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            contentAlignment = Alignment.TopEnd
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(if (isDark) Color.White.copy(alpha = 0.08f) else Color(0xFF1B2230).copy(alpha = 0.08f))
+                    .clickable { onClose() },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("✕", color = if (isDark) Color.White else Color(0xFF1B2230), fontSize = 14.sp)
+            }
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+        ) {
+            Text("🎼 MSV 乐谱查看器", color = text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(4.dp))
+            Text("版本 $versionName ($versionCode)", color = muted, fontSize = 13.sp)
+            Spacer(Modifier.height(12.dp))
+            Box(Modifier.fillMaxWidth().height(1.dp).background(divider))
+            Spacer(Modifier.height(12.dp))
+
+            // 检查更新按钮
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(ButtonShape)
+                    .background(accent)
+                    .clickable(enabled = updateStatus != UpdateStatus.Checking) { onCheckUpdate() }
+                    .padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    if (updateStatus == UpdateStatus.Checking) "检查中…" else "检查更新",
+                    color = onAccent,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+
+            // 更新状态区
+            when (updateStatus) {
+                UpdateStatus.Idle, UpdateStatus.Checking -> {}
+                UpdateStatus.UpToDate -> StatusText(updateMessage.ifEmpty { "已是最新版本" }, muted)
+                UpdateStatus.Error -> StatusText(updateMessage.ifEmpty { "检查失败，请重试" }, muted)
+                UpdateStatus.Downloading -> StatusText("正在下载更新包…（进度见系统通知栏）", muted)
+                UpdateStatus.Available -> {
+                    val info = updateInfo
+                    if (info != null) {
+                        Text(
+                            "发现新版本 v${info.tag}（来源：${info.source}）",
+                            color = text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(info.notes, color = muted, fontSize = 12.sp, lineHeight = 17.sp)
+                        Spacer(Modifier.height(10.dp))
+                        OutlineButton("立即更新", accent, ctrlBg, onDownloadUpdate)
+                    }
+                }
+                UpdateStatus.Downloaded -> {
+                    StatusText("更新包已下载完成，可安装", muted)
+                    Spacer(Modifier.height(10.dp))
+                    OutlineButton("立即安装", accent, ctrlBg, onInstallUpdate)
+                }
+            }
+        }
+
+        Spacer(Modifier.weight(1f))
+        Text(
+            "© 2026 Xusysysy · MSV 乐谱查看器",
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            textAlign = TextAlign.Center,
+            color = muted,
+            fontSize = 11.sp
+        )
+    }
+}
+
+@Composable
+private fun StatusText(msg: String, color: Color) {
+    Text(msg, color = color, fontSize = 13.sp)
+}
+
+@Composable
+private fun OutlineButton(label: String, accent: Color, ctrlBg: Color, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(ButtonShape)
+            .background(ctrlBg)
+            .border(1.dp, accent, ButtonShape)
+            .clickable { onClick() }
+            .padding(vertical = 10.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(label, color = accent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+    }
+}

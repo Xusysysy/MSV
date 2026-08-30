@@ -28,7 +28,14 @@ data class ViewerState(
     val faceEnabled: Boolean = false,
     val faceActive: Boolean = false,
     val showFaceOverlay: Boolean = false,
-    val pendingFlip: Int? = null
+    val pendingFlip: Int? = null,
+    val showSettings: Boolean = false,
+    val appVersionName: String = "",
+    val appVersionCode: Int = 0,
+    val updateStatus: UpdateStatus = UpdateStatus.Idle,
+    val updateInfo: UpdateInfo? = null,
+    val updateMessage: String = "",
+    val showUpdateDialog: Boolean = false
 )
 
 enum class ShelfSort { NAME, DATE }
@@ -62,6 +69,11 @@ sealed class ViewerEvent {
     data object ShowFaceOverlay : ViewerEvent()
     data object HideFaceOverlay : ViewerEvent()
     data object FlipDone : ViewerEvent()
+    data object ToggleSettings : ViewerEvent()
+    data object CheckUpdate : ViewerEvent()
+    data object DownloadUpdate : ViewerEvent()
+    data object InstallUpdate : ViewerEvent()
+    data object DismissUpdateDialog : ViewerEvent()
 }
 
 data class ShelfFile(
@@ -69,3 +81,14 @@ data class ShelfFile(
     val uri: Uri,
     val thumbnailUri: Uri? = null
 )
+
+data class UpdateInfo(
+    val tag: String,
+    val notes: String,
+    val apkUrl: String,
+    val source: String
+)
+
+enum class UpdateStatus {
+    Idle, Checking, UpToDate, Available, Downloading, Downloaded, Error
+}

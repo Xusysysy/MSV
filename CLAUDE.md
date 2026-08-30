@@ -127,3 +127,25 @@ $env:JAVA_HOME = "D:\software\AndroidStudio\jbr"; .\gradlew.bat assembleDebug
 **Known-safe approach for pinch zoom**: keep `pointerInput(isZoomed)` + `if (isZoomed)` guard so the transform detector ONLY activates when already zoomed. To enable initial pinch, use a separate lightweight raw `awaitPointerEvent` detector that ONLY fires for 2+ fingers and bumps `onZoomChange(1.2f)` to wake the transform detector. The raw detector must NOT call `consume()`.
 
 **If gestures break after changes**: immediately `git revert` and test the previous commit before attempting another approach. Multiple failed gesture attempts in a row suggest the approach is fundamentally flawed — stop and ask for guidance.
+
+## 10. OTA 双平台发布流程 (Release Sync)
+
+**每次版本修改并打包后，必须同步发布到 GitHub 和 Gitee 两平台的 Release（用户指令：以后与 GitHub 同步 release）。**
+
+流程：
+
+1. 更新 `app/build.gradle.kts` 的 `versionCode` (+1) 与 `versionName`。**tag 与 versionName 必须一致**（应用内 OTA 版本比较按 tag 逐段数值比较）。
+2. 撰写发布说明 `release/releasenote{versionCode}.md`（Markdown，作为两平台 release body）。
+3. 提交并推送代码（规则 6），然后运行发布脚本：
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File release\publish.ps1
+   ```
+   脚本自动：`assembleRelease` → 复制 APK 到 `release/` → 打 tag(=versionName) + 推送双远程 → GitHub `gh release create/upload --clobber` → Gitee REST API 创建 release + 上传附件。
+4. Gitee 上传依赖环境变量 `MSV_GITEE_TOKEN`（已配置在用户级，永不写入仓库）。缺失时脚本会打印手动上传指引并跳过 Gitee。
+5. 干跑参数：`-SkipBuild`（复用已构建 APK）、`-NoUpload`（只打 tag 不发 release）。
+6. 发布后验证：两平台 release 页面可见新版本 + APK 附件；旧版本包冷启动应弹更新窗。
+
+注意事项：
+- release APK 使用 debug 签名（build.gradle.kts）——换签名密钥会导致用户无法覆盖安装，OTA 断链。
+- 脚本幂等：GitHub 已存在则 `--clobber` 重传；Gitee 已存在则跳过创建只补传附件；本地 tag 已存在会报错退出（永不 force）。
+- 发布完成后 STRUCTURE.md 行号若因本次代码改动失效，必须同步更新。

@@ -1,0 +1,192 @@
+package com.music.msv.data.repository
+
+import android.app.DownloadManager
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.Settings
+import androidx.core.content.FileProvider
+import androidx.core.content.pm.PackageInfoCompat
+import com.music.msv.data.model.UpdateInfo
+import org.json.JSONObject
+import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
+
+/**
+ * 逐段数值版本比较：a < b → 负数，相等 → 0，a > b → 正数。
+ * 短段补 0（2.0 == 2.0.0），容错 v/V 前缀，非数字段取前导数字。
+ */
+fun compareVersions(a: String, b: String): Int {
+    fun parse(v: String): List<Int> =
+        v.trim().removePrefix("v").removePrefix("V")
+            .split('.')
+            .map { seg -> seg.takeWhile { it.isDigit() }.toIntOrNull() ?: 0 }
+    val pa = parse(a)
+    val pb = parse(b)
+    for (i in 0 until maxOf(pa.size, pb.size)) {
+        val x = pa.getOrElse(i) { 0 }
+        val y = pb.getOrElse(i) { 0 }
+        if (x != y) return x.compareTo(y)
+    }
+    return 0
+}
+
+class UpdateRepository(private val context: Context) {
+
+    companion object {
+        private const val GITEE_LATEST =
+            "https://gitee.com/api/v5/repos/lin-xiaochuan/msv/releases/latest"
+        private const val GITHUB_LATEST =
+            "https://api.github.com/repos/Xusysysy/MSV/releases/latest"
+        private const val TIMEOUT_MS = 8000
+        private const val APK_PREFIX = "MSV-ScoreViewer"
+        private const val UPDATE_DIR = "update"
+        private const val APK_MIME = "application/vnd.android.package-archive"
+    }
+
+    val installedVersionName: String
+        get() = packageInfo().versionName ?: ""
+
+    val installedVersionCode: Int
+        get() = PackageInfoCompat.getLongVersionCode(packageInfo()).toInt()
+
+    private fun packageInfo(): android.content.pm.PackageInfo =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.packageManager.getPackageInfo(
+                context.packageName, PackageManager.PackageInfoFlags.of(0)
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            context.packageManager.getPackageInfo(context.packageName, 0)
+        }
+
+    // ── 更新检查（必须在 Dispatchers.IO 协程内调用）──
+
+    fun fetchGiteeLatest(): UpdateInfo? = fetchLatest(GITEE_LATEST, isGitee = true)
+
+    fun fetchGitHubLatest(): UpdateInfo? = fetchLatest(GITHUB_LATEST, isGitee = false)
+
+    private fun fetchLatest(url: String, isGitee: Boolean): UpdateInfo? = try {
+        val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+            connectTimeout = TIMEOUT_MS
+            readTimeout = TIMEOUT_MS
+            requestMethod = "GET"
+            setRequestProperty("User-Agent", "MSV-Updater")
+            if (!isGitee) setRequestProperty("Accept", "application/vnd.github+json")
+        }
+        val body = conn.inputStream.bufferedReader().use { it.readText() }
+        conn.disconnect()
+        val json = JSONObject(body)
+        // 两平台 assets 均混有自动生成的源码包，必须按 .apk 前缀过滤
+        val apk = json.optJSONArray("assets")
+            ?.let { arr -> (0 until arr.length()).mapNotNull { arr.optJSONObject(it) } }
+            ?.firstOrNull {
+                val name = it.optString("name")
+                name.endsWith(".apk") && name.startsWith(APK_PREFIX)
+            } ?: return null
+        UpdateInfo(
+            tag = json.optString("tag_name"),
+            notes = summarizeNotes(json.optString("body")),
+            apkUrl = apk.optString("browser_download_url"),
+            source = if (isGitee) "Gitee" else "GitHub"
+        )
+    } catch (_: Exception) {
+        null
+    }
+
+    /** release body 摘要：去标题前缀、拼行、超长截断 */
+    fun summarizeNotes(body: String, maxLen: Int = 300): String {
+        val lines = body.lines().map { it.removePrefix("# ").trim() }.filter { it.isNotBlank() }
+        if (lines.isEmpty()) return "暂无更新说明"
+        val sb = StringBuilder()
+        for (line in lines) {
+            if (sb.length + line.length + 1 > maxLen) {
+                sb.append("…")
+                break
+            }
+            if (sb.isNotEmpty()) sb.append('\n')
+            sb.append(line)
+        }
+        return sb.toString()
+    }
+
+    // ── 下载（系统 DownloadManager，进度由通知栏展示）──
+
+    /** 清理同 URL 的进行中/暂停任务，避免并发写同一文件 */
+    fun removeStaleDownloads(apkUrl: String) {
+        val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+        val q = DownloadManager.Query().setFilterByStatus(
+            DownloadManager.STATUS_RUNNING or
+                DownloadManager.STATUS_PENDING or
+                DownloadManager.STATUS_PAUSED
+        )
+        dm.query(q).use { c ->
+            val uriIdx = c.getColumnIndexOrThrow(DownloadManager.COLUMN_URI)
+            val idIdx = c.getColumnIndexOrThrow(DownloadManager.COLUMN_ID)
+            while (c.moveToNext()) {
+                if (c.getString(uriIdx) == apkUrl) dm.remove(c.getLong(idIdx))
+            }
+        }
+    }
+
+    fun apkFileName(tag: String) = "msv-update-$tag.apk"
+
+    fun updateApkFile(tag: String): File {
+        val dir = File(context.getExternalFilesDir(null), UPDATE_DIR).apply { mkdirs() }
+        return File(dir, apkFileName(tag))
+    }
+
+    fun enqueueDownload(apkUrl: String, tag: String): Long {
+        val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+        updateApkFile(tag).delete()
+        val request = DownloadManager.Request(Uri.parse(apkUrl)).apply {
+            setTitle("MSV v$tag")
+            setDescription("正在更新 MSV 乐谱查看器")
+            setMimeType(APK_MIME)
+            setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            setDestinationInExternalFilesDir(context, null, "$UPDATE_DIR/${apkFileName(tag)}")
+            setAllowedOverRoaming(false)
+        }
+        return dm.enqueue(request)
+    }
+
+    fun queryDownloadStatus(id: Long): Int? {
+        if (id <= 0) return null
+        val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+        dm.query(DownloadManager.Query().setFilterById(id)).use { c ->
+            if (!c.moveToFirst()) return null
+            return c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
+        }
+    }
+
+    /** 升级成功后清理已安装版本对应的历史安装包（不误删未安装的新版包） */
+    fun cleanupDownloadedApk(installedVersion: String) {
+        val dir = context.getExternalFilesDir(null)?.let { File(it, UPDATE_DIR) } ?: return
+        dir.listFiles()?.forEach { f ->
+            if (f.name == apkFileName(installedVersion)) f.delete()
+        }
+    }
+
+    // ── 安装 ──
+
+    fun isInstallPermissionGranted(): Boolean = context.packageManager.canRequestPackageInstalls()
+
+    fun unknownSourcesIntent(): Intent =
+        Intent(
+            Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+            Uri.parse("package:${context.packageName}")
+        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
+    fun installIntent(tag: String): Intent? {
+        val file = updateApkFile(tag)
+        if (!file.exists() || file.length() == 0L) return null
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        return Intent(Intent.ACTION_VIEW)
+            .setDataAndType(uri, APK_MIME)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+}

@@ -1,20 +1,28 @@
 package com.music.msv.viewmodel
 
 import android.app.Application
+import android.app.DownloadManager
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.net.Uri
 import android.os.Build
 import com.music.msv.facer.FaceLog
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.music.msv.data.model.Mode
 import com.music.msv.data.model.ShelfFile
 import com.music.msv.data.model.ShelfSort
+import com.music.msv.data.model.UpdateStatus
 import com.music.msv.data.model.ViewerEvent
 import com.music.msv.data.model.ViewerState
 import com.music.msv.data.pdf.PdfPageRenderer
 import com.music.msv.data.repository.FileRepository
 import com.music.msv.data.repository.SessionRepository
+import com.music.msv.data.repository.UpdateRepository
+import com.music.msv.data.repository.compareVersions
 import com.music.msv.facer.FaceRecognitionManager
 import com.music.msv.facer.FaceRecognitionRepository
 import kotlinx.coroutines.Dispatchers
@@ -35,6 +43,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     private val pdfRenderer = PdfPageRenderer(application)
     val faceManager = FaceRecognitionManager(application)
     private val faceRepo = FaceRecognitionRepository(application)
+    private val updateRepo = UpdateRepository(application)
 
     private val _uiState = MutableStateFlow(ViewerState())
     val uiState: StateFlow<ViewerState> = _uiState.asStateFlow()
@@ -46,8 +55,22 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     private val thumbnailCache = java.util.concurrent.ConcurrentHashMap<Int, Uri>()
     private var pageMap = mapOf<String, Int>()
 
+    private var currentDownloadId = -1L
+
+    private val downloadReceiver = object : BroadcastReceiver() {
+        override fun onReceive(ctx: Context?, intent: Intent?) {
+            val id = intent?.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L) ?: return
+            if (id != currentDownloadId) return
+            viewModelScope.launch(Dispatchers.IO) { onDownloadComplete(id) }
+        }
+    }
+
     init {
         FaceLog.d("MSV_VM", "ViewerViewModel init")
+        _uiState.update {
+            it.copy(appVersionName = updateRepo.installedVersionName, appVersionCode = updateRepo.installedVersionCode)
+        }
+        registerDownloadReceiver()
         viewModelScope.launch {
             sessionRepo.getPageMap().collect { pageMap = it }
         }
@@ -69,6 +92,11 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
         restoreSession()
+        // 冷启动静默检查更新（无网络时静默失败）
+        viewModelScope.launch(Dispatchers.IO) {
+            updateRepo.cleanupDownloadedApk(updateRepo.installedVersionName)
+            checkUpdate(manual = false)
+        }
     }
 
     fun handleShareIntent(intent: Intent?) {
@@ -132,6 +160,11 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             ViewerEvent.ShowFaceOverlay -> showFaceOverlay()
             ViewerEvent.HideFaceOverlay -> hideFaceOverlay()
             ViewerEvent.FlipDone -> flipDone()
+            ViewerEvent.ToggleSettings -> toggleSettings()
+            ViewerEvent.CheckUpdate -> checkUpdate(manual = true)
+            ViewerEvent.DownloadUpdate -> downloadUpdate()
+            ViewerEvent.InstallUpdate -> installUpdate()
+            ViewerEvent.DismissUpdateDialog -> dismissUpdateDialog()
         }
     }
 
@@ -377,14 +410,25 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun toggleThumbnails() {
         val show = !_uiState.value.showThumbnails
-        _uiState.update { it.copy(showThumbnails = show) }
+        _uiState.update { it.copy(showThumbnails = show, showSettings = if (show) false else it.showSettings) }
         if (show) preloadThumbnails()
     }
 
     private fun toggleShelf() {
         val show = !_uiState.value.showShelf
-        _uiState.update { it.copy(showShelf = show) }
+        _uiState.update { it.copy(showShelf = show, showSettings = if (show) false else it.showSettings) }
         if (show) loadShelfFiles()
+    }
+
+    private fun toggleSettings() {
+        val show = !_uiState.value.showSettings
+        _uiState.update {
+            it.copy(
+                showSettings = show,
+                showThumbnails = if (show) false else it.showThumbnails,
+                showShelf = if (show) false else it.showShelf
+            )
+        }
     }
 
     private fun toggleShelfSort() {
@@ -533,6 +577,93 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch { faceRepo.save(faceManager) }
     }
 
+    // ── OTA 更新 ──
+
+    private fun registerDownloadReceiver() {
+        ContextCompat.registerReceiver(
+            getApplication(),
+            downloadReceiver,
+            IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+    }
+
+    /** 检查更新：Gitee/GitHub 并行查询，仅接受比当前版本新的候选，平手时 Gitee 优先 */
+    private fun checkUpdate(manual: Boolean) {
+        _uiState.update { it.copy(updateStatus = UpdateStatus.Checking, updateMessage = "") }
+        viewModelScope.launch(Dispatchers.IO) {
+            val gitee = updateRepo.fetchGiteeLatest()
+            val github = updateRepo.fetchGitHubLatest()
+            val installed = _uiState.value.appVersionName
+            val best = listOfNotNull(gitee, github)
+                .filter { compareVersions(it.tag, installed) > 0 }
+                .reduceOrNull { acc, info -> if (compareVersions(info.tag, acc.tag) > 0) info else acc }
+            when {
+                best != null -> _uiState.update {
+                    it.copy(updateStatus = UpdateStatus.Available, updateInfo = best, showUpdateDialog = true)
+                }
+                gitee != null || github != null -> _uiState.update {
+                    if (manual) it.copy(updateStatus = UpdateStatus.UpToDate, updateMessage = "已是最新版本 v$installed")
+                    else it.copy(updateStatus = UpdateStatus.Idle)
+                }
+                else -> _uiState.update {
+                    if (manual) it.copy(updateStatus = UpdateStatus.Error, updateMessage = "检查失败，请检查网络")
+                    else it.copy(updateStatus = UpdateStatus.Idle)
+                }
+            }
+        }
+    }
+
+    private fun downloadUpdate() {
+        val info = _uiState.value.updateInfo ?: return
+        if (_uiState.value.updateStatus == UpdateStatus.Downloading) return
+        viewModelScope.launch(Dispatchers.IO) {
+            updateRepo.removeStaleDownloads(info.apkUrl)
+            currentDownloadId = updateRepo.enqueueDownload(info.apkUrl, info.tag)
+            _uiState.update {
+                it.copy(
+                    updateStatus = UpdateStatus.Downloading,
+                    showUpdateDialog = false,
+                    statusMessage = "已开始下载 v${info.tag} 更新包，完成后将提示安装"
+                )
+            }
+        }
+    }
+
+    private fun onDownloadComplete(id: Long) {
+        val status = updateRepo.queryDownloadStatus(id)
+        if (status == DownloadManager.STATUS_SUCCESSFUL) {
+            _uiState.update {
+                it.copy(updateStatus = UpdateStatus.Downloaded, updateMessage = "", statusMessage = "更新包下载完成")
+            }
+        } else {
+            _uiState.update { it.copy(updateStatus = UpdateStatus.Error, updateMessage = "下载失败，请重试") }
+        }
+    }
+
+    private fun installUpdate() {
+        val tag = _uiState.value.updateInfo?.tag ?: updateRepo.installedVersionName
+        if (!updateRepo.isInstallPermissionGranted()) {
+            _uiState.update { it.copy(statusMessage = "请先允许安装未知应用，授权后重试") }
+            startActivity(updateRepo.unknownSourcesIntent())
+            return
+        }
+        val intent = updateRepo.installIntent(tag)
+        if (intent == null) {
+            _uiState.update { it.copy(updateStatus = UpdateStatus.Error, updateMessage = "未找到更新包，请重新下载") }
+            return
+        }
+        startActivity(intent)
+    }
+
+    private fun startActivity(intent: Intent) {
+        runCatching { getApplication<Application>().startActivity(intent) }
+    }
+
+    private fun dismissUpdateDialog() {
+        _uiState.update { it.copy(showUpdateDialog = false) }
+    }
+
     private fun resetZoom() {
         _uiState.update { it.copy(zoom = 1f, panOffsetX = 0f, panOffsetY = 0f) }
     }
@@ -542,7 +673,13 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         imageUris = emptyList()
         pdfUri = null
         thumbnailCache.clear()
-        _uiState.update { ViewerState(isDarkTheme = it.isDarkTheme) }
+        _uiState.update {
+            ViewerState(
+                isDarkTheme = it.isDarkTheme,
+                appVersionName = it.appVersionName,
+                appVersionCode = it.appVersionCode
+            )
+        }
         viewModelScope.launch { sessionRepo.clearSession() }
     }
 
@@ -664,6 +801,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     override fun onCleared() {
         super.onCleared()
+        runCatching { getApplication<Application>().unregisterReceiver(downloadReceiver) }
         pdfRenderer.close()
     }
 }
