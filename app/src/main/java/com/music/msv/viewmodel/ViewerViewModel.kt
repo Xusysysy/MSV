@@ -29,6 +29,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -37,6 +38,12 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class ViewerViewModel(application: Application) : AndroidViewModel(application) {
+
+    private companion object {
+        const val FLIP_WINDOW_MS = 2000L        // 快速翻动判定窗口
+        const val FAST_FLIP_COUNT = 4           // 窗口内翻页次数阈值（≥4 页判定快速连续翻动）
+        const val FLIP_SETTLE_DELAY_MS = 1000L  // 停止翻动后恢复正常分辨率加载的延迟
+    }
 
     private val fileRepo = FileRepository(application)
     private val sessionRepo = SessionRepository(application)
@@ -58,6 +65,11 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     // 每页已渲染位图相对全尺寸(pageW×pageH)的比例：1f=全分辨率，0.6f/0.4f=预加载压缩层
     private val pageScales = java.util.concurrent.ConcurrentHashMap<Int, Float>()
 
+    // 快速连续翻动检测：窗口(2s)内翻页≥4次进入快速模式（全部压缩渲染），停止翻动 1s 后恢复正常分辨率
+    private val flipTimestamps = ArrayDeque<Long>()
+    private var settleJob: Job? = null
+
+    private var singleRenderJob: Job? = null
     private var currentDownloadId = -1L
 
     private val downloadReceiver = object : BroadcastReceiver() {
@@ -201,6 +213,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun openPdf(uri: Uri, name: String, restorePage: Int = 0) {
         loadJob?.cancel()
+        cancelPageRendering()
         loadJob = viewModelScope.launch(Dispatchers.IO) {
             try {
                 pdfUri = uri
@@ -244,6 +257,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun openImages(uris: List<Uri>, name: String, initialPage: Int = 0) {
+        cancelPageRendering()
         imageUris = uris.sortedBy { it.lastPathSegment }
         pdfUri = null
         pdfRenderer.close()
@@ -270,14 +284,45 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         saveSession()
     }
 
+    /** 切换谱子时立刻停止旧谱子的所有页面渲染任务，让新谱子优先渲染，避免新旧任务争抢 IO/CPU 卡顿 */
+    private fun cancelPageRendering() {
+        preloadJob?.cancel()
+        preloadJob = null
+        singleRenderJob?.cancel()
+        singleRenderJob = null
+        settleJob?.cancel()
+        settleJob = null
+        flipTimestamps.clear()
+        pageScales.clear()
+    }
+
     private fun goToPage(page: Int) {
         val state = _uiState.value
         if (state.pageCount == 0) return
         val target = page.coerceIn(0, state.pageCount - 1)
         if (target == state.currentPage) return
         _uiState.update { it.copy(currentPage = target) }
-        preloadAround(target)
+        onFlipHappened(target)
         saveSession()
+    }
+
+    /** 记录一次翻页；窗口内达到阈值进入快速压缩渲染，停止翻动 1s 后按当前页恢复正常分辨率加载 */
+    private fun onFlipHappened(center: Int) {
+        flipTimestamps.addLast(System.currentTimeMillis())
+        if (isFastFlipping()) {
+            preloadAround(center)
+            settleJob?.cancel()
+            settleJob = viewModelScope.launch {
+                delay(FLIP_SETTLE_DELAY_MS)
+                preloadAround(_uiState.value.currentPage, forceFullRes = true)
+            }
+        }
+    }
+
+    private fun isFastFlipping(): Boolean {
+        val now = System.currentTimeMillis()
+        flipTimestamps.removeAll { now - it > FLIP_WINDOW_MS }
+        return flipTimestamps.size >= FAST_FLIP_COUNT
     }
 
     private fun renderPageToCacheComputeSize(pageIndex: Int, ratio: Float) {
@@ -288,7 +333,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         val pageH = (vw / ratio).toInt()
         _uiState.update { it.copy(pageWidth = pageW, pageHeight = pageH) }
         val zoom = _uiState.value.zoom
-        viewModelScope.launch(Dispatchers.IO) {
+        singleRenderJob = viewModelScope.launch(Dispatchers.IO) {
             val uri = when (_uiState.value.mode) {
                 is Mode.Pdf -> renderPage(pageIndex, pageW, pageH, zoom)
                 is Mode.Image -> imageUris.getOrNull(pageIndex)
@@ -301,7 +346,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun preloadAround(center: Int) {
+    fun preloadAround(center: Int, forceFullRes: Boolean = false) {
         preloadJob?.cancel()
         val state = _uiState.value
         val total = state.pageCount
@@ -313,56 +358,72 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         val keepMin = (center - 5).coerceAtLeast(0)
         val keepMax = (center + 5).coerceAtMost(total - 1)
         val oldUris = state.pageUris
+        val fastFlip = !forceFullRes && isFastFlipping()
         preloadJob = viewModelScope.launch(Dispatchers.IO) {
-            // 缺失 或 已存在但非全分辨率（此前按 0.6x/0.4x 预加载的压缩页）都需全尺寸渲染
             val needRender = (keepMin..keepMax).filter { !oldUris.containsKey(it) }
-            fun needsFull(i: Int) = !oldUris.containsKey(i) || pageScales[i] != 1f
-            fun replacePage(index: Int, uri: Uri, oldUri: Uri?) {
-                if (oldUri != null && oldUri != uri) {
-                    try { java.io.File(oldUri.path!!).delete() } catch (_: Exception) {}
+            if (fastFlip) {
+                // 快速连续翻动：窗口内缺失页全部按 0.6x 压缩渲染保证速度；停止翻动 1s 后由 settle 恢复正常分辨率加载
+                if (needRender.isNotEmpty()) {
+                    val sW = (pageW * 0.6f).toInt().coerceAtLeast(1)
+                    val sH = (pageH * 0.6f).toInt().coerceAtLeast(1)
+                    val rendered = needRender.map { i ->
+                        async { renderPage(i, sW, sH, zoom, 85)?.let { i to it } }
+                    }.awaitAll().filterNotNull().toMap()
+                    if (rendered.isNotEmpty()) {
+                        rendered.keys.forEach { pageScales[it] = 0.6f }
+                        _uiState.update { it.copy(pageUris = it.pageUris + rendered) }
+                    }
                 }
-                pageScales[index] = 1f
-                _uiState.update { it.copy(pageUris = it.pageUris + (index to uri)) }
-            }
-            // center / next：Q95 全尺寸（缺失或升级压缩页）
-            if (needsFull(center)) {
-                renderPage(center, pageW, pageH, zoom, 95)?.let { replacePage(center, it, oldUris[center]) }
-            }
-            val next = center + 1
-            if (next in 0 until total && needsFull(next)) {
-                renderPage(next, pageW, pageH, zoom, 95)?.let { replacePage(next, it, oldUris[next]) }
-            }
-            val near = (center - 1..center + 1).filter {
-                it in 0 until total && it != center && it != next && needsFull(it)
-            }
-            if (near.isNotEmpty()) {
-                val rendered = near.map { i ->
-                    async { renderPage(i, pageW, pageH, zoom, 90)?.let { i to it } }
-                }.awaitAll().filterNotNull()
-                for ((i, uri) in rendered) replacePage(i, uri, oldUris[i])
-            }
-            val mid = needRender.filter { kotlin.math.abs(it - center) in 2..3 }
-            if (mid.isNotEmpty()) {
-                val sW = (pageW * 0.6f).toInt().coerceAtLeast(1)
-                val sH = (pageH * 0.6f).toInt().coerceAtLeast(1)
-                val rendered = mid.map { i ->
-                    async { renderPage(i, sW, sH, zoom, 85)?.let { i to it } }
-                }.awaitAll().filterNotNull().toMap()
-                if (rendered.isNotEmpty()) {
-                    rendered.keys.forEach { pageScales[it] = 0.6f }
-                    _uiState.update { it.copy(pageUris = it.pageUris + rendered) }
+            } else {
+                // 缺失 或 已存在但非全分辨率（此前按 0.6x/0.4x 预加载的压缩页）都需全尺寸渲染
+                fun needsFull(i: Int) = !oldUris.containsKey(i) || pageScales[i] != 1f
+                fun replacePage(index: Int, uri: Uri, oldUri: Uri?) {
+                    if (oldUri != null && oldUri != uri) {
+                        try { java.io.File(oldUri.path!!).delete() } catch (_: Exception) {}
+                    }
+                    pageScales[index] = 1f
+                    _uiState.update { it.copy(pageUris = it.pageUris + (index to uri)) }
                 }
-            }
-            val far = needRender.filter { kotlin.math.abs(it - center) >= 4 }
-            if (far.isNotEmpty()) {
-                val sW = (pageW * 0.4f).toInt().coerceAtLeast(1)
-                val sH = (pageH * 0.4f).toInt().coerceAtLeast(1)
-                val rendered = far.map { i ->
-                    async { renderPage(i, sW, sH, zoom, 80)?.let { i to it } }
-                }.awaitAll().filterNotNull().toMap()
-                if (rendered.isNotEmpty()) {
-                    rendered.keys.forEach { pageScales[it] = 0.4f }
-                    _uiState.update { it.copy(pageUris = it.pageUris + rendered) }
+                // center / next：Q95 全尺寸（缺失或升级压缩页）
+                if (needsFull(center)) {
+                    renderPage(center, pageW, pageH, zoom, 95)?.let { replacePage(center, it, oldUris[center]) }
+                }
+                val next = center + 1
+                if (next in 0 until total && needsFull(next)) {
+                    renderPage(next, pageW, pageH, zoom, 95)?.let { replacePage(next, it, oldUris[next]) }
+                }
+                val near = (center - 1..center + 1).filter {
+                    it in 0 until total && it != center && it != next && needsFull(it)
+                }
+                if (near.isNotEmpty()) {
+                    val rendered = near.map { i ->
+                        async { renderPage(i, pageW, pageH, zoom, 90)?.let { i to it } }
+                    }.awaitAll().filterNotNull()
+                    for ((i, uri) in rendered) replacePage(i, uri, oldUris[i])
+                }
+                val mid = needRender.filter { kotlin.math.abs(it - center) in 2..3 }
+                if (mid.isNotEmpty()) {
+                    val sW = (pageW * 0.6f).toInt().coerceAtLeast(1)
+                    val sH = (pageH * 0.6f).toInt().coerceAtLeast(1)
+                    val rendered = mid.map { i ->
+                        async { renderPage(i, sW, sH, zoom, 85)?.let { i to it } }
+                    }.awaitAll().filterNotNull().toMap()
+                    if (rendered.isNotEmpty()) {
+                        rendered.keys.forEach { pageScales[it] = 0.6f }
+                        _uiState.update { it.copy(pageUris = it.pageUris + rendered) }
+                    }
+                }
+                val far = needRender.filter { kotlin.math.abs(it - center) >= 4 }
+                if (far.isNotEmpty()) {
+                    val sW = (pageW * 0.4f).toInt().coerceAtLeast(1)
+                    val sH = (pageH * 0.4f).toInt().coerceAtLeast(1)
+                    val rendered = far.map { i ->
+                        async { renderPage(i, sW, sH, zoom, 80)?.let { i to it } }
+                    }.awaitAll().filterNotNull().toMap()
+                    if (rendered.isNotEmpty()) {
+                        rendered.keys.forEach { pageScales[it] = 0.4f }
+                        _uiState.update { it.copy(pageUris = it.pageUris + rendered) }
+                    }
                 }
             }
             _uiState.update { prev ->
@@ -696,7 +757,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         imageUris = emptyList()
         pdfUri = null
         thumbnailCache.clear()
-        pageScales.clear()
+        cancelPageRendering()
         _uiState.update {
             ViewerState(
                 isDarkTheme = it.isDarkTheme,

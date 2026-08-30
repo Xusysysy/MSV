@@ -168,7 +168,7 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 7. ui/components/Stage.kt (L1-L406)
+### 7. ui/components/Stage.kt (L1-L413)
 
 | Element | Type | Lines |
 |---|---|---|
@@ -197,7 +197,7 @@ Single-screen app — no Navigation component. State-based content switching via
 | — tap/drag awaitEachGesture pointerInput | 1/3 tap zones (flip/bounce/center tap), drag follow with boundary reversal | L197-L276 |
 | — transform pointerInput (isZoomed guard) | pinch zoom + pan | L277-L285 |
 | — Spread branch | left gap fill Box L295-L305, pages loop L307-L334, gradient edge masks L336-L367 | L290-L367 |
-| — Single branch | pages loop with flip offset (AsyncImage, centered via displaySize) | L368-L404 |
+| — Single branch | pages loop；`base` when（L376-L381）：当前页 0f、前向翻页中的下一页 0f（叠底层）、其余后续页停靠 stageWidth（防当前页刷新瞬间透闪其他页）、前序页 -(cp-i)*dw | L367-L411 |
 
 ---
 
@@ -323,74 +323,80 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 13. viewmodel/ViewerViewModel.kt (L1-L831)
+### 13. viewmodel/ViewerViewModel.kt (L1-L892)
 
 | Element | Type | Lines |
 |---|---|---|
-| Package + imports | — | L1-L37 |
-| `ViewerViewModel(application)` | class : AndroidViewModel | L39-L831 |
-| `fileRepo` | private val FileRepository | L41 |
-| `sessionRepo` | private val SessionRepository | L42 |
-| `pdfRenderer` | private val PdfPageRenderer | L43 |
-| `faceManager` | public val FaceRecognitionManager | L44 |
-| `faceRepo` | private val FaceRecognitionRepository | L45 |
-| `updateRepo` | private val UpdateRepository | L46 |
-| `_uiState` | private val MutableStateFlow | L48 |
-| `uiState` | val StateFlow (public) | L49 |
-| `imageUris` | private var List<Uri> | L51 |
-| `pdfUri` | private var Uri? | L52 |
-| `loadJob` / `preloadJob` | private var Job? | L53-L54 |
-| `thumbnailCache` | private val ConcurrentHashMap<Int, Uri> | L55 |
-| `pageMap` | private var Map<String, Int> — per-file last-read page (KEY_PAGE_MAP) | L56 |
-| `pageScales` | private val ConcurrentHashMap<Int, Float> — 每页渲染比例（1f 全分辨率 / 0.6f / 0.4f 压缩层），翻页升级判断依据 | L58-L59 |
-| `currentDownloadId` | private var Long — 当前 OTA 下载任务 id | L61 |
-| `downloadReceiver` | private val BroadcastReceiver — ACTION_DOWNLOAD_COMPLETE → onDownloadComplete | L63-L68 |
-| `init` block | 版本字段填充 + 注册下载接收器 + pageMap collector + face prefs load + faceState 同步 + onGesture→faceFlip + restoreSession() + 冷启动静默检查更新 | L71-L103 |
-| `handleShareIntent(intent)` | public fun | L105-L134 |
-| `onEvent(event)` | public fun (event dispatch, spread-aware page step, +5 update events) | L136-L172 |
-| `handleFilesSelected(uris)` | private fun — imports file, then calls loadShelfFiles() if shelf is visible | L174-L200 |
-| `openPdf(uri, name, restorePage=0)` | private fun — 打开时清空 pageScales | L202-L244 |
-| `openImages(uris, name, initialPage=0)` | private fun — 图片用原图，全部标记 1f | L246-L270 |
-| `goToPage(page)` | private fun | L273-L281 |
-| `renderPageToCacheComputeSize(pageIndex, ratio)` | private fun — 渲染后标记 scale=1f | L283-L302 |
-| `preloadAround(center)` | public fun — 分层渲染 + **全分辨率升级**：center/next Q95、±1 Q90 在缺失**或 pageScales≠1f** 时全尺寸渲染（升级后删旧压缩文件换新 URI）；2-3 页 Q85@0.6x、≥4 页 Q80@0.4x 仅缺失时渲染并记录 scale；淘汰时同步清理 pageScales | L304-L388 |
-| `docCacheKey` | private val getter — pdfUri path hash (cache file namespacing) | L390-L391 |
-| `renderPage(pageIndex, pageW, pageH, zoom, quality=95)` | private fun — JPEG into cacheDir，文件名含 `{pageW}x{pageH}`（尺寸变化→URI 变化→Coil 缓存失效） | L393-L404 |
-| `updateViewportSize(width, height)` | private fun | L406-L418 |
-| `setZoom(zoom)` | private fun | L420-L422 |
-| `panBy(dx, dy)` | private fun | L424-L428 |
-| `toggleUI()` | private fun | L430-L432 |
-| `toggleThumbnails()` | private fun — 打开时关闭设置面板 | L434-L438 |
-| `toggleShelf()` | private fun — 打开时关闭设置面板 | L440-L444 |
-| `toggleSettings()` | private fun — 打开时关闭缩略图/谱架（三面板互斥） | L446-L455 |
-| `toggleShelfSort()` | private fun — toggles NAME↔DATE, reloads shelf | L457-L462 |
-| `setSpreadMode(spread)` | private fun — on enable, aligns current page to even index | L464-L471 |
-| `loadShelfFiles()` | private fun — sorts by shelfSortBy, maps to ShelfFile, generates PDF thumbnails per file | L473-L502 |
-| `generatePdfThumbnail(fileUri)` | private fun — renders page 0 at 200px PNG, caches by path hash | L504-L528 |
-| `renameShelfFile(oldUri, newName)` | private fun — renames file, refreshes shelf, reopens at same page | L530-L550 |
-| `openShelfFile(uri)` | private fun — closes shelf, restores page via pageMap[name] | L552-L565 |
-| `toggleTheme()` | private fun | L567-L569 |
-| `toggleFace()` | private fun — syncs faceManager running/enabled with uiState.faceEnabled | L571-L580 |
-| `faceFlip(dir)` | private fun — sets uiState.pendingFlip (consumed by Stage) | L582-L585 |
-| `flipDone()` | private fun — clears pendingFlip | L587-L590 |
-| `showFaceOverlay()` | private fun | L592-L595 |
-| `hideFaceOverlay()` | private fun — hides + persists face prefs via faceRepo.save | L597-L603 |
-| `registerDownloadReceiver()` | private fun — ContextCompat.registerReceiver RECEIVER_NOT_EXPORTED | L605-L613 |
-| `checkUpdate(manual)` | private fun — Gitee/GitHub 并行查询，仅取比当前新的候选（平手 Gitee 优先）；manual 失败显示 Error，自动静默回 Idle | L615-L638 |
-| `downloadUpdate()` | private fun — 幂等（Downloading 中忽略）→ removeStale → enqueue → Downloading + 关弹窗 | L640-L654 |
-| `onDownloadComplete(id)` | private fun — STATUS_SUCCESSFUL → Downloaded；否则 Error | L656-L665 |
-| `installUpdate()` | private fun — 未授权 → 跳 unknown sources 授权页；已授权 → FileProvider 安装 Intent | L667-L680 |
-| `startActivity(intent)` | private fun — runCatching 包装 | L682-L684 |
-| `dismissUpdateDialog()` | private fun — 仅关弹窗（保留 Available 状态） | L686-L688 |
-| `resetZoom()` | private fun | L690-L692 |
-| `reset()` | private fun — 重建 ViewerState 保留版本字段 + 清空 pageScales | L694-L708 |
-| `reload()` | private fun | L710-L725 |
-| `saveSession()` | private fun | L727-L747 |
-| `getThumbnailUri(pageIndex)` | public fun | L749-L750 |
-| `preloadPage(pageIndex)` | public fun（当前无调用方） | L752-L771 |
-| `preloadThumbnails()` | private fun — PNG thumbs keyed by docCacheKey | L773-L797 |
-| `restoreSession()` | private fun — accessibility check, restores mode/page/uris | L799-L824 |
-| `onCleared()` | override fun — 注销下载接收器 + close pdfRenderer | L826-L830 |
+| Package + imports | — | L1-L38 |
+| `ViewerViewModel(application)` | class : AndroidViewModel | L40-L891 |
+| companion | FLIP_WINDOW_MS(2000) / FAST_FLIP_COUNT(4) / FLIP_SETTLE_DELAY_MS(1000) — 快速翻动判定参数 | L42-L46 |
+| `fileRepo` | private val FileRepository | L48 |
+| `sessionRepo` | private val SessionRepository | L49 |
+| `pdfRenderer` | private val PdfPageRenderer | L50 |
+| `faceManager` | public val FaceRecognitionManager | L51 |
+| `faceRepo` | private val FaceRecognitionRepository | L52 |
+| `updateRepo` | private val UpdateRepository | L53 |
+| `_uiState` | private val MutableStateFlow | L55 |
+| `uiState` | val StateFlow (public) | L56 |
+| `imageUris` | private var List<Uri> | L58 |
+| `pdfUri` | private var Uri? | L59 |
+| `loadJob` / `preloadJob` | private var Job? | L60-L61 |
+| `thumbnailCache` | private val ConcurrentHashMap<Int, Uri> | L62 |
+| `pageMap` | private var Map<String, Int> — per-file last-read page (KEY_PAGE_MAP) | L63 |
+| `pageScales` | private val ConcurrentHashMap<Int, Float> — 每页渲染比例（1f 全分辨率 / 0.6f / 0.4f 压缩层），翻页升级判断依据 | L65-L66 |
+| `flipTimestamps` / `settleJob` | ArrayDeque<Long> 翻页时间戳 + 停止翻动后恢复正常分辨率的延时任务 | L68-L70 |
+| `singleRenderJob` | private var Job? — renderPageToCacheComputeSize 的当前页渲染任务（切换谱子时取消） | L72 |
+| `currentDownloadId` | private var Long — 当前 OTA 下载任务 id | L73 |
+| `downloadReceiver` | private val BroadcastReceiver — ACTION_DOWNLOAD_COMPLETE → onDownloadComplete | L75-L80 |
+| `init` block | 版本字段填充 + 注册下载接收器 + pageMap collector + face prefs load + faceState 同步 + onGesture→faceFlip + restoreSession() + 冷启动静默检查更新 | L83-L115 |
+| `handleShareIntent(intent)` | public fun | L117-L146 |
+| `onEvent(event)` | public fun (event dispatch, spread-aware page step, +5 update events) | L148-L184 |
+| `handleFilesSelected(uris)` | private fun — imports file, then calls loadShelfFiles() if shelf is visible | L186-L212 |
+| `openPdf(uri, name, restorePage=0)` | private fun — 入口先 cancelPageRendering() 停掉旧谱渲染 | L214-L257 |
+| `openImages(uris, name, initialPage=0)` | private fun — 图片用原图全部标记 1f；入口先 cancelPageRendering() | L259-L286 |
+| `cancelPageRendering()` | private fun — 取消 preloadJob/singleRenderJob/settleJob + 清空 flipTimestamps/pageScales | L288-L297 |
+| `goToPage(page)` | private fun — 页码变更统一入口 → onFlipHappened | L299-L308 |
+| `onFlipHappened(center)` | private fun — 记录翻页时间戳；快速模式下压缩渲染 + 重置 1s settle（settle 强制全分辨率逻辑按当前页执行） | L310-L320 |
+| `isFastFlipping()` | private fun — 2s 窗口内翻页 ≥4 次判定快速连续翻动 | L322-L326 |
+| `renderPageToCacheComputeSize(pageIndex, ratio)` | private fun — tracked by singleRenderJob，渲染后标记 scale=1f | L328-L347 |
+| `preloadAround(center, forceFullRes=false)` | public fun — 快速翻动模式：窗口内缺失页全部 0.6x Q85（跳过升级，保证速度）；正常模式：center/next Q95、±1 Q90 缺失**或 pageScales≠1f** 时全尺寸渲染升级，2-3 页 Q85@0.6x、≥4 页 Q80@0.4x 仅缺失时渲染；淘汰同步清理 pageScales | L349-L449 |
+| `docCacheKey` | private val getter — pdfUri path hash (cache file namespacing) | L451-L452 |
+| `renderPage(pageIndex, pageW, pageH, zoom, quality=95)` | private fun — JPEG into cacheDir，文件名含 `{pageW}x{pageH}`（尺寸变化→URI 变化→Coil 缓存失效） | L454-L465 |
+| `updateViewportSize(width, height)` | private fun | L467-L479 |
+| `setZoom(zoom)` | private fun | L481-L483 |
+| `panBy(dx, dy)` | private fun | L485-L489 |
+| `toggleUI()` | private fun | L491-L493 |
+| `toggleThumbnails()` | private fun — 打开时关闭设置面板 | L495-L499 |
+| `toggleShelf()` | private fun — 打开时关闭设置面板 | L501-L505 |
+| `toggleSettings()` | private fun — 打开时关闭缩略图/谱架（三面板互斥） | L507-L516 |
+| `toggleShelfSort()` | private fun — toggles NAME↔DATE, reloads shelf | L518-L523 |
+| `setSpreadMode(spread)` | private fun — on enable, aligns current page to even index | L525-L532 |
+| `loadShelfFiles()` | private fun — sorts by shelfSortBy, maps to ShelfFile, generates PDF thumbnails per file | L534-L563 |
+| `generatePdfThumbnail(fileUri)` | private fun — renders page 0 at 200px PNG, caches by path hash | L565-L589 |
+| `renameShelfFile(oldUri, newName)` | private fun — renames file, refreshes shelf, reopens at same page | L591-L611 |
+| `openShelfFile(uri)` | private fun — closes shelf, restores page via pageMap[name] | L613-L626 |
+| `toggleTheme()` | private fun | L628-L630 |
+| `toggleFace()` | private fun — syncs faceManager running/enabled with uiState.faceEnabled | L632-L641 |
+| `faceFlip(dir)` | private fun — sets uiState.pendingFlip (consumed by Stage) | L643-L646 |
+| `flipDone()` | private fun — clears pendingFlip | L648-L651 |
+| `showFaceOverlay()` | private fun | L653-L656 |
+| `hideFaceOverlay()` | private fun — hides + persists face prefs via faceRepo.save | L658-L664 |
+| `registerDownloadReceiver()` | private fun — ContextCompat.registerReceiver RECEIVER_NOT_EXPORTED | L666-L674 |
+| `checkUpdate(manual)` | private fun — Gitee/GitHub 并行查询，仅取比当前新的候选（平手 Gitee 优先）；manual 失败显示 Error，自动静默回 Idle | L676-L699 |
+| `downloadUpdate()` | private fun — 幂等（Downloading 中忽略）→ removeStale → enqueue → Downloading + 关弹窗 | L701-L715 |
+| `onDownloadComplete(id)` | private fun — STATUS_SUCCESSFUL → Downloaded；否则 Error | L717-L726 |
+| `installUpdate()` | private fun — 未授权 → 跳 unknown sources 授权页；已授权 → FileProvider 安装 Intent | L728-L741 |
+| `startActivity(intent)` | private fun — runCatching 包装 | L743-L745 |
+| `dismissUpdateDialog()` | private fun — 仅关弹窗（保留 Available 状态） | L747-L749 |
+| `resetZoom()` | private fun | L751-L753 |
+| `reset()` | private fun — 重建 ViewerState 保留版本字段 + cancelPageRendering() | L755-L769 |
+| `reload()` | private fun | L771-L786 |
+| `saveSession()` | private fun | L788-L809 |
+| `getThumbnailUri(pageIndex)` | public fun | L811-L812 |
+| `preloadPage(pageIndex)` | public fun（当前无调用方） | L813-L832 |
+| `preloadThumbnails()` | private fun — PNG thumbs keyed by docCacheKey | L834-L858 |
+| `restoreSession()` | private fun — accessibility check, restores mode/page/uris | L860-L885 |
+| `onCleared()` | override fun — 注销下载接收器 + close pdfRenderer | L887-L891 |
 
 ---
 

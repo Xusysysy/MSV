@@ -371,7 +371,14 @@ fun Stage(
 
             for (pageIndex in pagesToShow) {
                 val uri = pageUris[pageIndex] ?: continue
-                val base = if (pageIndex >= currentPage) 0f else -(currentPage - pageIndex).toFloat() * dw
+                // 前向翻页动画进行中，下一页叠在当前页下方待揭示；其余时刻后续页停靠屏幕外，
+                // 避免缓存未完成时当前页位图刷新（升级/换URI）瞬间透出下层其他页造成"闪页"
+                val base = when {
+                    pageIndex == currentPage -> 0f
+                    t < 0 && pageIndex == currentPage + 1 -> 0f
+                    pageIndex > currentPage -> stageWidth.toFloat()
+                    else -> -(currentPage - pageIndex).toFloat() * dw
+                }
                 val pageOffsetX = when {
                     t < 0 && pageIndex == currentPage -> base + t
                     t > 0 && pageIndex == currentPage - 1 -> base + t
