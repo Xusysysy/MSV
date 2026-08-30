@@ -1,11 +1,12 @@
 ﻿# MSV OTA 双平台发布脚本（PowerShell 5.1+）
-# 用法: powershell -ExecutionPolicy Bypass -File release\publish.ps1 [-SkipBuild] [-NoUpload] [-NoteFile <path>]
+# 用法: powershell -ExecutionPolicy Bypass -File release\publish.ps1 [-SkipBuild] [-NoUpload] [-SkipTag] [-NoteFile <path>]
 # 流程: 解析版本 → assembleRelease → 复制 APK → tag(=versionName) 推送双远程
 #       → GitHub gh release → Gitee REST API（token: $env:MSV_GITEE_TOKEN）
 param(
     [string]$NoteFile = "",
     [switch]$SkipBuild,
-    [switch]$NoUpload
+    [switch]$NoUpload,
+    [switch]$SkipTag
 )
 
 $ErrorActionPreference = "Stop"
@@ -48,7 +49,8 @@ New-Item -ItemType Directory -Force -Path release | Out-Null
 Copy-Item $apkOut "release\$apkName" -Force
 Write-Host "[publish] APK 已复制: release\$apkName"
 
-# ── 4. tag + 推送双远程（永不 force）──
+# ── 4. tag + 推送双远程（永不 force；-SkipTag 用于中断后续跑上传）──
+if (-not $SkipTag) {
 git rev-parse -q --verify "refs/tags/$tag" | Out-Null
 if ($LASTEXITCODE -eq 0) { Fail "tag $tag 已存在，请人工处理（永不 force）" }
 git tag $tag
@@ -58,6 +60,7 @@ if ($LASTEXITCODE -ne 0) { Fail "推送 tag 到 origin 失败" }
 git push gitee $tag
 if ($LASTEXITCODE -ne 0) { Write-Warning "推送 tag 到 gitee 失败（继续）" }
 Write-Host "[publish] tag $tag 已推送双远程"
+}
 
 if ($NoUpload) { Write-Host "[publish] -NoUpload：跳过 release 上传"; exit 0 }
 
