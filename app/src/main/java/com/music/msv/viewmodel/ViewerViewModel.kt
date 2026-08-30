@@ -55,6 +55,9 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     private val thumbnailCache = java.util.concurrent.ConcurrentHashMap<Int, Uri>()
     private var pageMap = mapOf<String, Int>()
 
+    // 每页已渲染位图相对全尺寸(pageW×pageH)的比例：1f=全分辨率，0.6f/0.4f=预加载压缩层
+    private val pageScales = java.util.concurrent.ConcurrentHashMap<Int, Float>()
+
     private var currentDownloadId = -1L
 
     private val downloadReceiver = object : BroadcastReceiver() {
@@ -229,6 +232,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                         pageHeight = 0
                     )
                 }
+                pageScales.clear()
                 renderPageToCacheComputeSize(rp, ratio)
                 preloadAround(rp)
                 preloadThumbnails()
@@ -260,6 +264,9 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 pageHeight = 0
             )
         }
+        // 图片模式直接使用原图，全部视为全分辨率
+        pageScales.clear()
+        for (i in uris.indices) pageScales[i] = 1f
         saveSession()
     }
 
@@ -288,6 +295,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 else -> null
             }
             if (uri != null) {
+                pageScales[pageIndex] = 1f
                 _uiState.update { it.copy(pageUris = it.pageUris + (pageIndex to uri)) }
             }
         }
@@ -306,24 +314,32 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         val keepMax = (center + 5).coerceAtMost(total - 1)
         val oldUris = state.pageUris
         preloadJob = viewModelScope.launch(Dispatchers.IO) {
+            // 缺失 或 已存在但非全分辨率（此前按 0.6x/0.4x 预加载的压缩页）都需全尺寸渲染
             val needRender = (keepMin..keepMax).filter { !oldUris.containsKey(it) }
-            for (i in needRender) {
-                if (i == center) {
-                    val uri = renderPage(i, pageW, pageH, zoom, 95)
-                    if (uri != null) _uiState.update { it.copy(pageUris = it.pageUris + (i to uri)) }
+            fun needsFull(i: Int) = !oldUris.containsKey(i) || pageScales[i] != 1f
+            fun replacePage(index: Int, uri: Uri, oldUri: Uri?) {
+                if (oldUri != null && oldUri != uri) {
+                    try { java.io.File(oldUri.path!!).delete() } catch (_: Exception) {}
                 }
+                pageScales[index] = 1f
+                _uiState.update { it.copy(pageUris = it.pageUris + (index to uri)) }
+            }
+            // center / next：Q95 全尺寸（缺失或升级压缩页）
+            if (needsFull(center)) {
+                renderPage(center, pageW, pageH, zoom, 95)?.let { replacePage(center, it, oldUris[center]) }
             }
             val next = center + 1
-            if (next in needRender && next in 0 until total) {
-                val uri = renderPage(next, pageW, pageH, zoom, 95)
-                if (uri != null) _uiState.update { it.copy(pageUris = it.pageUris + (next to uri)) }
+            if (next in 0 until total && needsFull(next)) {
+                renderPage(next, pageW, pageH, zoom, 95)?.let { replacePage(next, it, oldUris[next]) }
             }
-            val near = needRender.filter { it != center && it != next && kotlin.math.abs(it - center) <= 1 }
+            val near = (center - 1..center + 1).filter {
+                it in 0 until total && it != center && it != next && needsFull(it)
+            }
             if (near.isNotEmpty()) {
                 val rendered = near.map { i ->
                     async { renderPage(i, pageW, pageH, zoom, 90)?.let { i to it } }
-                }.awaitAll().filterNotNull().toMap()
-                if (rendered.isNotEmpty()) _uiState.update { it.copy(pageUris = it.pageUris + rendered) }
+                }.awaitAll().filterNotNull()
+                for ((i, uri) in rendered) replacePage(i, uri, oldUris[i])
             }
             val mid = needRender.filter { kotlin.math.abs(it - center) in 2..3 }
             if (mid.isNotEmpty()) {
@@ -332,7 +348,10 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 val rendered = mid.map { i ->
                     async { renderPage(i, sW, sH, zoom, 85)?.let { i to it } }
                 }.awaitAll().filterNotNull().toMap()
-                if (rendered.isNotEmpty()) _uiState.update { it.copy(pageUris = it.pageUris + rendered) }
+                if (rendered.isNotEmpty()) {
+                    rendered.keys.forEach { pageScales[it] = 0.6f }
+                    _uiState.update { it.copy(pageUris = it.pageUris + rendered) }
+                }
             }
             val far = needRender.filter { kotlin.math.abs(it - center) >= 4 }
             if (far.isNotEmpty()) {
@@ -341,13 +360,17 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 val rendered = far.map { i ->
                     async { renderPage(i, sW, sH, zoom, 80)?.let { i to it } }
                 }.awaitAll().filterNotNull().toMap()
-                if (rendered.isNotEmpty()) _uiState.update { it.copy(pageUris = it.pageUris + rendered) }
+                if (rendered.isNotEmpty()) {
+                    rendered.keys.forEach { pageScales[it] = 0.4f }
+                    _uiState.update { it.copy(pageUris = it.pageUris + rendered) }
+                }
             }
             _uiState.update { prev ->
                 val merged = prev.pageUris.toMutableMap()
                 val toRemove = merged.keys.filter { it !in keepMin..keepMax }
                 for (page in toRemove) {
                     val uri = merged.remove(page)
+                    pageScales.remove(page)
                     if (uri != null) {
                         try { java.io.File(uri.path!!).delete() } catch (_: Exception) {}
                     }
@@ -372,7 +395,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         val bmp = pdfRenderer.renderPage(pageIndex, pageW, pageH, zoom) ?: return null
         val cachedFile = java.io.File(
             getApplication<Application>().cacheDir,
-            "page_${docCacheKey}_$pageIndex.jpg"
+            "page_${docCacheKey}_${pageIndex}_${pageW}x${pageH}.jpg"
         )
         cachedFile.delete()
         bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, quality, cachedFile.outputStream())
@@ -673,6 +696,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         imageUris = emptyList()
         pdfUri = null
         thumbnailCache.clear()
+        pageScales.clear()
         _uiState.update {
             ViewerState(
                 isDarkTheme = it.isDarkTheme,

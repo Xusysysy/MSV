@@ -323,12 +323,12 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 13. viewmodel/ViewerViewModel.kt (L1-L807)
+### 13. viewmodel/ViewerViewModel.kt (L1-L831)
 
 | Element | Type | Lines |
 |---|---|---|
 | Package + imports | — | L1-L37 |
-| `ViewerViewModel(application)` | class : AndroidViewModel | L39-L807 |
+| `ViewerViewModel(application)` | class : AndroidViewModel | L39-L831 |
 | `fileRepo` | private val FileRepository | L41 |
 | `sessionRepo` | private val SessionRepository | L42 |
 | `pdfRenderer` | private val PdfPageRenderer | L43 |
@@ -342,54 +342,55 @@ Single-screen app — no Navigation component. State-based content switching via
 | `loadJob` / `preloadJob` | private var Job? | L53-L54 |
 | `thumbnailCache` | private val ConcurrentHashMap<Int, Uri> | L55 |
 | `pageMap` | private var Map<String, Int> — per-file last-read page (KEY_PAGE_MAP) | L56 |
-| `currentDownloadId` | private var Long — 当前 OTA 下载任务 id | L58 |
-| `downloadReceiver` | private val BroadcastReceiver — ACTION_DOWNLOAD_COMPLETE → onDownloadComplete | L60-L66 |
-| `init` block | 版本字段填充 + 注册下载接收器 + pageMap collector + face prefs load + faceState 同步 + onGesture→faceFlip + restoreSession() + 冷启动静默检查更新 | L68-L100 |
-| `handleShareIntent(intent)` | public fun | L102-L131 |
-| `onEvent(event)` | public fun (event dispatch, spread-aware page step, +5 update events) | L133-L169 |
-| `handleFilesSelected(uris)` | private fun — imports file, then calls loadShelfFiles() if shelf is visible | L171-L197 |
-| `openPdf(uri, name, restorePage=0)` | private fun | L199-L240 |
-| `openImages(uris, name, initialPage=0)` | private fun | L242-L264 |
-| `goToPage(page)` | private fun | L266-L274 |
-| `renderPageToCacheComputeSize(pageIndex, ratio)` | private fun | L276-L294 |
-| `preloadAround(center)` | public fun — tiered render: center/next Q95, ±1 Q90, 2-3 Q85@0.6x, ≥4 Q80@0.4x, evict outside window, loading gate | L296-L365 |
-| `docCacheKey` | private val getter — pdfUri path hash (cache file namespacing) | L367-L368 |
-| `renderPage(pageIndex, pageW, pageH, zoom, quality=95)` | private fun — JPEG into cacheDir | L370-L381 |
-| `updateViewportSize(width, height)` | private fun | L383-L395 |
-| `setZoom(zoom)` | private fun | L397-L399 |
-| `panBy(dx, dy)` | private fun | L401-L405 |
-| `toggleUI()` | private fun | L407-L409 |
-| `toggleThumbnails()` | private fun — 打开时关闭设置面板 | L411-L415 |
-| `toggleShelf()` | private fun — 打开时关闭设置面板 | L417-L421 |
-| `toggleSettings()` | private fun — 打开时关闭缩略图/谱架（三面板互斥） | L423-L432 |
-| `toggleShelfSort()` | private fun — toggles NAME↔DATE, reloads shelf | L434-L439 |
-| `setSpreadMode(spread)` | private fun — on enable, aligns current page to even index | L441-L448 |
-| `loadShelfFiles()` | private fun — sorts by shelfSortBy, maps to ShelfFile, generates PDF thumbnails per file | L450-L479 |
-| `generatePdfThumbnail(fileUri)` | private fun — renders page 0 at 200px PNG, caches by path hash | L481-L505 |
-| `renameShelfFile(oldUri, newName)` | private fun — renames file, refreshes shelf, reopens at same page | L507-L527 |
-| `openShelfFile(uri)` | private fun — closes shelf, restores page via pageMap[name] | L529-L542 |
-| `toggleTheme()` | private fun | L544-L546 |
-| `toggleFace()` | private fun — syncs faceManager running/enabled with uiState.faceEnabled | L548-L557 |
-| `faceFlip(dir)` | private fun — sets uiState.pendingFlip (consumed by Stage) | L559-L562 |
-| `flipDone()` | private fun — clears pendingFlip | L564-L567 |
-| `showFaceOverlay()` | private fun | L569-L572 |
-| `hideFaceOverlay()` | private fun — hides + persists face prefs via faceRepo.save | L574-L580 |
-| `registerDownloadReceiver()` | private fun — ContextCompat.registerReceiver RECEIVER_NOT_EXPORTED | L582-L590 |
-| `checkUpdate(manual)` | private fun — Gitee/GitHub 并行查询，仅取比当前新的候选（平手 Gitee 优先）；manual 失败显示 Error，自动静默回 Idle | L592-L615 |
-| `downloadUpdate()` | private fun — 幂等（Downloading 中忽略）→ removeStale → enqueue → Downloading + 关弹窗 | L617-L631 |
-| `onDownloadComplete(id)` | private fun — STATUS_SUCCESSFUL → Downloaded；否则 Error | L633-L642 |
-| `installUpdate()` | private fun — 未授权 → 跳 unknown sources 授权页；已授权 → FileProvider 安装 Intent | L644-L657 |
-| `startActivity(intent)` | private fun — runCatching 包装 | L659-L661 |
-| `dismissUpdateDialog()` | private fun — 仅关弹窗（保留 Available 状态） | L663-L665 |
-| `resetZoom()` | private fun | L667-L669 |
-| `reset()` | private fun — 重建 ViewerState 时保留版本字段 | L671-L684 |
-| `reload()` | private fun | L686-L701 |
-| `saveSession()` | private fun | L703-L723 |
-| `getThumbnailUri(pageIndex)` | public fun | L725-L726 |
-| `preloadPage(pageIndex)` | public fun | L728-L747 |
-| `preloadThumbnails()` | private fun — PNG thumbs keyed by docCacheKey | L749-L773 |
-| `restoreSession()` | private fun — accessibility check, restores mode/page/uris | L775-L800 |
-| `onCleared()` | override fun — 注销下载接收器 + close pdfRenderer | L802-L806 |
+| `pageScales` | private val ConcurrentHashMap<Int, Float> — 每页渲染比例（1f 全分辨率 / 0.6f / 0.4f 压缩层），翻页升级判断依据 | L58-L59 |
+| `currentDownloadId` | private var Long — 当前 OTA 下载任务 id | L61 |
+| `downloadReceiver` | private val BroadcastReceiver — ACTION_DOWNLOAD_COMPLETE → onDownloadComplete | L63-L68 |
+| `init` block | 版本字段填充 + 注册下载接收器 + pageMap collector + face prefs load + faceState 同步 + onGesture→faceFlip + restoreSession() + 冷启动静默检查更新 | L71-L103 |
+| `handleShareIntent(intent)` | public fun | L105-L134 |
+| `onEvent(event)` | public fun (event dispatch, spread-aware page step, +5 update events) | L136-L172 |
+| `handleFilesSelected(uris)` | private fun — imports file, then calls loadShelfFiles() if shelf is visible | L174-L200 |
+| `openPdf(uri, name, restorePage=0)` | private fun — 打开时清空 pageScales | L202-L244 |
+| `openImages(uris, name, initialPage=0)` | private fun — 图片用原图，全部标记 1f | L246-L270 |
+| `goToPage(page)` | private fun | L273-L281 |
+| `renderPageToCacheComputeSize(pageIndex, ratio)` | private fun — 渲染后标记 scale=1f | L283-L302 |
+| `preloadAround(center)` | public fun — 分层渲染 + **全分辨率升级**：center/next Q95、±1 Q90 在缺失**或 pageScales≠1f** 时全尺寸渲染（升级后删旧压缩文件换新 URI）；2-3 页 Q85@0.6x、≥4 页 Q80@0.4x 仅缺失时渲染并记录 scale；淘汰时同步清理 pageScales | L304-L388 |
+| `docCacheKey` | private val getter — pdfUri path hash (cache file namespacing) | L390-L391 |
+| `renderPage(pageIndex, pageW, pageH, zoom, quality=95)` | private fun — JPEG into cacheDir，文件名含 `{pageW}x{pageH}`（尺寸变化→URI 变化→Coil 缓存失效） | L393-L404 |
+| `updateViewportSize(width, height)` | private fun | L406-L418 |
+| `setZoom(zoom)` | private fun | L420-L422 |
+| `panBy(dx, dy)` | private fun | L424-L428 |
+| `toggleUI()` | private fun | L430-L432 |
+| `toggleThumbnails()` | private fun — 打开时关闭设置面板 | L434-L438 |
+| `toggleShelf()` | private fun — 打开时关闭设置面板 | L440-L444 |
+| `toggleSettings()` | private fun — 打开时关闭缩略图/谱架（三面板互斥） | L446-L455 |
+| `toggleShelfSort()` | private fun — toggles NAME↔DATE, reloads shelf | L457-L462 |
+| `setSpreadMode(spread)` | private fun — on enable, aligns current page to even index | L464-L471 |
+| `loadShelfFiles()` | private fun — sorts by shelfSortBy, maps to ShelfFile, generates PDF thumbnails per file | L473-L502 |
+| `generatePdfThumbnail(fileUri)` | private fun — renders page 0 at 200px PNG, caches by path hash | L504-L528 |
+| `renameShelfFile(oldUri, newName)` | private fun — renames file, refreshes shelf, reopens at same page | L530-L550 |
+| `openShelfFile(uri)` | private fun — closes shelf, restores page via pageMap[name] | L552-L565 |
+| `toggleTheme()` | private fun | L567-L569 |
+| `toggleFace()` | private fun — syncs faceManager running/enabled with uiState.faceEnabled | L571-L580 |
+| `faceFlip(dir)` | private fun — sets uiState.pendingFlip (consumed by Stage) | L582-L585 |
+| `flipDone()` | private fun — clears pendingFlip | L587-L590 |
+| `showFaceOverlay()` | private fun | L592-L595 |
+| `hideFaceOverlay()` | private fun — hides + persists face prefs via faceRepo.save | L597-L603 |
+| `registerDownloadReceiver()` | private fun — ContextCompat.registerReceiver RECEIVER_NOT_EXPORTED | L605-L613 |
+| `checkUpdate(manual)` | private fun — Gitee/GitHub 并行查询，仅取比当前新的候选（平手 Gitee 优先）；manual 失败显示 Error，自动静默回 Idle | L615-L638 |
+| `downloadUpdate()` | private fun — 幂等（Downloading 中忽略）→ removeStale → enqueue → Downloading + 关弹窗 | L640-L654 |
+| `onDownloadComplete(id)` | private fun — STATUS_SUCCESSFUL → Downloaded；否则 Error | L656-L665 |
+| `installUpdate()` | private fun — 未授权 → 跳 unknown sources 授权页；已授权 → FileProvider 安装 Intent | L667-L680 |
+| `startActivity(intent)` | private fun — runCatching 包装 | L682-L684 |
+| `dismissUpdateDialog()` | private fun — 仅关弹窗（保留 Available 状态） | L686-L688 |
+| `resetZoom()` | private fun | L690-L692 |
+| `reset()` | private fun — 重建 ViewerState 保留版本字段 + 清空 pageScales | L694-L708 |
+| `reload()` | private fun | L710-L725 |
+| `saveSession()` | private fun | L727-L747 |
+| `getThumbnailUri(pageIndex)` | public fun | L749-L750 |
+| `preloadPage(pageIndex)` | public fun（当前无调用方） | L752-L771 |
+| `preloadThumbnails()` | private fun — PNG thumbs keyed by docCacheKey | L773-L797 |
+| `restoreSession()` | private fun — accessibility check, restores mode/page/uris | L799-L824 |
+| `onCleared()` | override fun — 注销下载接收器 + close pdfRenderer | L826-L830 |
 
 ---
 
@@ -616,16 +617,16 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 24. release/publish.ps1 — OTA 双平台发布脚本 (L1-L147)
+### 24. release/publish.ps1 — OTA 双平台发布脚本 (L1-L157)
 
 | Element | Type | Lines |
 |---|---|---|
-| Header + param | -NoteFile / -SkipBuild / -NoUpload；TLS1.2 强制 | L1-L9 |
-| 1. 版本解析 | versionName/versionCode ← app/build.gradle.kts 正则；tag = versionName；APK 名 MSV-ScoreViewer-v{ver}-release.apk | L22-L30 |
-| 2. 发布说明 | 缺省 `release/releasenote{versionCode}.md`，缺失降级为仅版本号 | L32-L36 |
-| 3. 构建 | assembleRelease → 复制 APK 到 release/ | L38-L49 |
-| 4. tag + 推送 | git tag（已存在即报错，永不 force）→ push origin/gitee | L51-L64 |
-| -NoUpload 出口 | 只打 tag 不发 release | L65 |
-| 5. GitHub | gh release view 查重 → create(--notes-file) / upload --clobber；gh 未在 PATH 时回退完整路径 | L66-L83 |
-| 6. Gitee | token=$env:MSV_GITEE_TOKEN（缺失→打印手动指引降级）；GET releases/tags/{tag} 查重 → POST releases 创建（UTF8 JSON 防中文乱码）→ POST releases/{id}/attach_files multipart（System.Net.Http，字段名 files；PS5.1 无 -Form） | L85-L138 |
-| 7. 汇总 | 双平台结果 URL + 任一失败 exit 1（幂等可重跑补传） | L140-L147 |
+| Header + param | -NoteFile / -SkipBuild / -NoUpload / -SkipTag；TLS1.2 强制；**必须保持 UTF-8 BOM 编码** | L1-L11 |
+| 1. 版本解析 | versionName/versionCode ← app/build.gradle.kts 正则；tag = versionName；APK 名 MSV-ScoreViewer-v{ver}-release.apk | L23-L31 |
+| 2. 发布说明 | 缺省 `release/releasenote{versionCode}.md`；用 `[IO.File]::ReadAllText` 读取（Get-Content 扩展属性会破坏 ConvertTo-Json 序列化）；缺失降级为仅版本号 | L33-L40 |
+| 3. 构建 | assembleRelease → 复制 APK 到 release/ | L42-L53 |
+| 4. tag + 推送 | -SkipTag 可跳过；git tag（已存在即报错，永不 force）→ push origin/gitee | L55-L70 |
+| -NoUpload 出口 | 只打 tag 不发 release | L71 |
+| 5. GitHub | gh release view 查重（EAP 临时降级 Continue 规避 PS5.1 stderr 终止错误）→ create(--notes-file) / upload --clobber；gh 未在 PATH 时回退完整路径 | L72-L93 |
+| 6. Gitee | token=$env:MSV_GITEE_TOKEN（缺失→打印手动指引降级）；GET releases/tags/{tag} 查重 → POST releases 创建（含必填 target_commitish，UTF8 JSON 防中文乱码）→ POST releases/{id}/attach_files multipart（System.Net.Http，**字段名 file 单数**；PS5.1 无 -Form） | L95-L148 |
+| 7. 汇总 | 双平台结果 URL + 任一失败 exit 1（幂等可重跑补传） | L150-L157 |
