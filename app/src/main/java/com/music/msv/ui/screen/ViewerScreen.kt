@@ -266,7 +266,8 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                     onImportClick = openFilePicker,
                     onClose = { viewModel.onEvent(ViewerEvent.ToggleShelf) },
                     onRename = { uri, name -> viewModel.onEvent(ViewerEvent.RenameShelfFile(uri, name)) },
-                    onToggleSort = { viewModel.onEvent(ViewerEvent.ToggleShelfSort) }
+                    onSortSelected = { viewModel.onEvent(ViewerEvent.SetShelfSort(it)) },
+                    onDelete = { uri -> viewModel.onEvent(ViewerEvent.DeleteShelfFile(uri)) }
                 )
             }
         }

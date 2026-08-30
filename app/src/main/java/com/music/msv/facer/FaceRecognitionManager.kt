@@ -128,18 +128,19 @@ class FaceRecognitionManager(context: Context) {
     private fun decode(ip: ImageProxy): Bitmap {
         try {
             val planes = ip.planes
-            if (frameCount <= 3) FaceLog.d(TAG, "decode $frameCount: format=${ip.format} w=${ip.width} h=${ip.height} planes=${planes.size}")
-            val yBuf = planes[0].buffer
-            val uBuf = planes[1].buffer
-            val vBuf = planes[2].buffer
-            val ySize = yBuf.remaining()
-            val uSize = uBuf.remaining()
-            val vSize = vBuf.remaining()
-            val nv21 = ByteArray(ySize + uSize + vSize)
-            yBuf.get(nv21, 0, ySize)
-            vBuf.get(nv21, ySize, vSize)
-            uBuf.get(nv21, ySize + vSize, uSize)
+            val yP = planes[0]; val uP = planes[1]; val vP = planes[2]
+            if (frameCount <= 3) {
+                FaceLog.d(TAG, "decode $frameCount: format=${ip.format} w=${ip.width} h=${ip.height} " +
+                    "yRow=${yP.rowStride} yPx=${yP.pixelStride} uRow=${uP.rowStride} uPx=${uP.pixelStride} rot=${ip.imageInfo.rotationDegrees}")
+            }
             val w = ip.width; val h = ip.height
+            // 组装 NV21：逐行拷贝兼容 rowStride > width 的相机输出。
+            // 部分设备竖屏时 stride 带填充，整块直拷会得到花屏图像 → MediaPipe 检测不到人脸（竖屏不工作）
+            val ySize = w * h
+            val nv21 = ByteArray(ySize + ySize / 2)
+            copyPlaneToNv21(nv21, 0, yP, w, h)
+            copyPlaneToNv21(nv21, ySize, vP, w / 2, h / 2)               // V 在前（NV21）
+            copyPlaneToNv21(nv21, ySize + (w / 2) * (h / 2), uP, w / 2, h / 2) // U 在后
             val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
             convertYuvToBitmap(nv21, w, h, bmp)
             val rotation = ip.imageInfo.rotationDegrees
@@ -155,6 +156,27 @@ class FaceRecognitionManager(context: Context) {
         } catch (e: Exception) {
             FaceLog.e(TAG, "decode $frameCount: 异常 ${e.message}", e)
             throw e
+        }
+    }
+
+    /** 按 rowStride/pixelStride 逐行拷贝 YUV 平面到 NV21 缓冲（无填充时走整块快路径） */
+    private fun copyPlaneToNv21(nv21: ByteArray, dstOffset: Int, plane: ImageProxy.PlaneProxy, planeW: Int, planeH: Int) {
+        val buf = plane.buffer
+        val rowStride = plane.rowStride
+        val pixelStride = plane.pixelStride
+        if (pixelStride == 1 && rowStride == planeW) {
+            buf.rewind()
+            buf.get(nv21, dstOffset, planeW * planeH)
+            return
+        }
+        var dst = dstOffset
+        var src = 0
+        for (row in 0 until planeH) {
+            for (col in 0 until planeW) {
+                nv21[dst + col] = buf.get(src + col * pixelStride)
+            }
+            src += rowStride
+            dst += planeW
         }
     }
 

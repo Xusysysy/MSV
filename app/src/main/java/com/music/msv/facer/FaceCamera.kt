@@ -93,6 +93,8 @@ fun FaceCamera(
                 }
                 try { p.unbindAll(); p.bindToLifecycle(lc, CameraSelector.DEFAULT_FRONT_CAMERA, preview, a) }
                 catch (e: Exception) { FaceLog.e("MSV_CAM", "绑定失败: ${e.message}", e) }
+                // 显式对齐分析流目标旋转：竖屏时 rotationDegrees 才与显示方向一致（否则人脸朝向错乱识别失败）
+                post { display?.rotation?.let { a.targetRotation = it } }
             }, ctx2.mainExecutor)
         } }, Modifier.fillMaxSize())
 

@@ -168,35 +168,35 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 7. ui/components/Stage.kt (L1-L435)
+### 7. ui/components/Stage.kt (L1-L439)
 
 | Element | Type | Lines |
 |---|---|---|
 | Package + imports | — | L1-L46 |
 | `invertColorMatrix` | private val ColorMatrix — dark-theme page inversion | L48-L55 |
-| `Stage` | @Composable fun | L57-L434 |
+| `Stage` | @Composable fun | L57-L438 |
 | Parameters (22): | isDark, pageUris, currentPage, pageCount, pageWidth, pageHeight, zoom, panOffsetX, panOffsetY, isSpreadMode, pendingFlip(default=null), onCenterTap, onDoubleTap, onZoomChange, onPanChange, onNextPage, onPrevPage, onFlipDone(default={}), onViewportSizeChanged, onSpreadModeChanged, onPreloadAround(default={}), modifier(default=Modifier) | L58-L81 |
 | `bg` / `context` | derived vals（context 供 remember(uri) 固化 ImageRequest 使用） | L82-L83 |
 | `stageWidth` / `stageHeight` | mutableStateOf(0) | L84-L85 |
 | `currentZoom` | mutableFloatStateOf(zoom) | L86 |
 | `transition` / `scope` | Animatable(0f) / rememberCoroutineScope | L87-L88 |
-| `flipJob` / `flipDir` | Job? + 翻页动画方向（1=前向 -1=后向 0=无动画/拖拽），区分动画期与拖拽期定位 | L89-L91 |
-| `dragOffset` | mutableFloatStateOf(0f) | L92 |
-| `isZoomed` / `pw` | derived vals | L94-L95 |
-| `displaySize` | derived Pair? — fit-to-viewport display dimensions (null until measured) | L97-L111 |
-| `autoSpreadMode` | derived Boolean — landscape + narrow pages | L113-L116 |
-| LaunchedEffect(autoSpreadMode) | fires onSpreadModeChanged | L118-L120 |
-| `currentIsZoomed` etc. | 8× rememberUpdatedState + displayW + flipUnit + touchSlop + pendingFlip | L122-L131 |
-| LaunchedEffect(pageWidth, pageHeight) | resets transition to 0 | L133-L135 |
-| `doFlip(dir, fromOffset, easing)` | local fun — **触发瞬间 onNextPage/onPrevPage 推进页码**，spring 动画只负责视觉；finally 带 `flipJob === selfJob` 守卫（被新翻页接替的旧动画不复位 snapTo/flipDir，防快速往返闪回旧页）+ flipDir=0 + onFlipDone | L137-L172 |
-| `doBounce(dir)` | local fun — boundary bounce animation（不改 flipDir） | L174-L184 |
-| LaunchedEffect(currentPendingFlip) | face-triggered pending flip → doFlip | L186-L192 |
-| `pagesToShow` | derived val — visible page window (±5 single, ±6 spread), sorted descending | L194-L198 |
-| Root Box | composable (gestures + rendering) | L195-L433 |
-| — tap/drag awaitEachGesture pointerInput | 1/3 tap zones (flip/bounce/center tap), drag follow with boundary reversal | L204-L283 |
-| — transform pointerInput (isZoomed guard) | pinch zoom + pan | L285-L292 |
-| — Spread branch | gap fill Box、pages loop（L317 refPage：动画期以翻页前页码为基准衔接滑动）、gradient edge masks；AsyncImage 用 remember(uri) 固化请求 | L297-L376 |
-| — Single branch | pages loop；base when（L388-L394）/pageOffsetX when（L396-L402）：flipDir 区分动画期（旧当前页滑出/新当前页滑入）与拖拽期（当前页跟手），后续页停靠 stageWidth 防透闪；AsyncImage remember(uri) 固化请求 | L378-L433 |
+| `flipJob` / `flipDir` / `lastPage` | Job? + 翻页动画方向（1/-1/0）+ 触发翻页前的页码（动画期锚定滑出页） | L89-L93 |
+| `dragOffset` | mutableFloatStateOf(0f) | L94 |
+| `isZoomed` / `pw` | derived vals | L96-L97 |
+| `displaySize` | derived Pair? — fit-to-viewport display dimensions (null until measured) | L99-L113 |
+| `autoSpreadMode` | derived Boolean — landscape + narrow pages | L115-L118 |
+| LaunchedEffect(autoSpreadMode) | fires onSpreadModeChanged | L120-L122 |
+| `currentIsZoomed` etc. | 8× rememberUpdatedState + displayW + flipUnit + touchSlop + pendingFlip | L124-L133 |
+| LaunchedEffect(pageWidth, pageHeight) | resets transition to 0 | L135-L137 |
+| `doFlip(dir, fromOffset, easing)` | local fun — 触发瞬间记录 lastPage 并推进页码，动画只负责视觉；finally 带 `flipJob === selfJob` 守卫（被接替的旧动画不复位 snapTo/flipDir，防快速往返闪回旧页） | L139-L175 |
+| `doBounce(dir)` | local fun — boundary bounce animation（不改 flipDir/lastPage） | L177-L187 |
+| LaunchedEffect(currentPendingFlip) | face-triggered pending flip → doFlip | L189-L195 |
+| `pagesToShow` | derived val — visible page window (±5 single, ±6 spread), sorted descending | L197-L201 |
+| Root Box | composable (gestures + rendering) | L202-L438 |
+| — tap/drag awaitEachGesture pointerInput | 1/3 tap zones (flip/bounce/center tap), drag follow with boundary reversal | L206-L285 |
+| — transform pointerInput (isZoomed guard) | pinch zoom + pan | L287-L294 |
+| — Spread branch | gap fill Box、pages loop（L325 refPage：动画期 = lastPage 保证两对页滑动衔接）、gradient edge masks；AsyncImage remember(uri) 固化请求 | L298-L377 |
+| — Single branch | pages loop；base when（L397-L403）/pageOffsetX when（L405-L411）：动画期以 lastPage 锚定滑出页（消除 currentPage 滞后窗口的前一页闪现）、拖拽期当前页/前页跟手、后续页停靠 stageWidth 防透闪 | L379-L438 |
 
 ---
 
@@ -267,25 +267,27 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 11b. ui/components/ShelfPanel.kt (L1-L255)
+### 11b. ui/components/ShelfPanel.kt (L1-L303)
 
 | Element | Type | Lines |
 |---|---|---|
-| Package + imports | — | L1-L56 |
-| `ShelfPanel` | @Composable fun | L58-L255 |
-| Parameters (9): | isDark, shelfFiles, shelfSortBy, onFileSelected, onImportClick, onClose, onRename, onToggleSort, modifier | L60-L68 |
-| Local colors + rename state | panelBg, itemBg, itemBorder, muted, accent, text, renameTarget, renameText | L70-L78 |
-| Column root | composable | L80-L254 |
-| — Close button Box | L82-L95 |
-| — Row: Import button + Sort toggle | L97-L144 |
-| — — Import button ("+ 导入乐谱") | L103-L115 |
-| — — Sort toggle (↓/A) | L116-L129 |
-| — Empty state Text | L134-L140 |
-| — LazyVerticalGrid (2 cols) | L142-L209 |
-| — — itemsIndexed (combinedClickable: click→open, longClick→rename) | L144-L208 |
-| — — — Thumbnail (AsyncImage or 🎼 fallback) | L159-L177 |
-| — — — File name Text | L178-L190 |
-| — Rename AlertDialog | L212-L253 |
+| Package + imports | — | L1-L55 |
+| `invertColorMatrix` | private val ColorMatrix | L57-L63 |
+| `ShelfPanel` | @Composable fun | L66-L302 |
+| Parameters (10): | isDark, shelfFiles, shelfSortBy, onFileSelected, onImportClick, onClose, onRename, onSortSelected, onDelete, modifier | L67-L83 |
+| Local colors + states | panelBg, panelBorder, itemBg, itemBorder, muted, accent, text, danger + renameTarget/renameText/menuTarget/sortMenuOpen | L84-L97 |
+| Column root (300dp left panel, 22dp 圆角) | composable | L99-L239 |
+| — Close button Box | 同 ThumbnailPanel 样式 | L102-L119 |
+| — Import + sort selector Row | L121-L175 |
+| — — Import button ("+ 导入乐谱") | L127-L147 |
+| — — Sort trigger (↓/A) + DropdownMenu（按日期排序/按名称排序，当前项 accent+✓） | L149-L175 |
+| — Empty state Text ("暂无导入的乐谱") | L177-L187 |
+| — LazyVerticalGrid (2 cols) | L188-L240 |
+| — — itemsIndexed → Column（combinedClickable: click→打开, longClick→menuTarget） | L181-L239 |
+| — — — Thumbnail (AsyncImage or 🎼 fallback) | L196-L214 |
+| — — — File name Text | L215-L222 |
+| — — — DropdownMenu 长按菜单：重命名 / **删除（danger 红字）** | L223-L236 |
+| Rename AlertDialog（由菜单"重命名"触发） | L241-L303 |
 
 ---
 
@@ -324,7 +326,7 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 13. viewmodel/ViewerViewModel.kt (L1-L926)
+### 13. viewmodel/ViewerViewModel.kt (L1-L958)
 
 | Element | Type | Lines |
 |---|---|---|
@@ -351,54 +353,55 @@ Single-screen app — no Navigation component. State-based content switching via
 | `downloadReceiver` | private val BroadcastReceiver — ACTION_DOWNLOAD_COMPLETE → onDownloadComplete | L75-L81 |
 | `init` block | 版本字段填充 + 注册下载接收器 + pageMap collector + face prefs load + faceState 同步 + onGesture→faceFlip + restoreSession() + 冷启动静默检查更新 | L83-L115 |
 | `handleShareIntent(intent)` | public fun | L117-L146 |
-| `onEvent(event)` | public fun (event dispatch, spread-aware page step, +6 update/log events) | L148-L185 |
-| `handleFilesSelected(uris)` | private fun — imports file, then calls loadShelfFiles() if shelf is visible | L187-L213 |
-| `openPdf(uri, name, restorePage=0)` | private fun — 入口先 cancelPageRendering() 停掉旧谱渲染 | L215-L257 |
-| `openImages(uris, name, initialPage=0)` | private fun — 图片用原图全部标记 1f；入口先 cancelPageRendering() | L260-L286 |
-| `cancelPageRendering()` | private fun — 取消 preloadJob/singleRenderJob/settleJob + 清空 flipTimestamps/pageScales | L289-L298 |
-| `goToPage(page)` | private fun — 页码变更统一入口 → onFlipHappened | L300-L309 |
-| `onFlipHappened(center)` | private fun — 记录翻页时间戳；快速模式下压缩渲染 + 重置 1s settle（settle 强制全分辨率逻辑按当前页执行） | L311-L321 |
-| `isFastFlipping()` | private fun — 2s 窗口内翻页 ≥4 次判定快速连续翻动 | L323-L327 |
-| `renderPageToCacheComputeSize(pageIndex, ratio)` | private fun — tracked by singleRenderJob，渲染后标记 scale=1f | L329-L348 |
-| `preloadAround(center, forceFullRes=false)` | public fun — 快速翻动模式：**当前页同步优先渲染**，窗口内其余缺失页并行 0.6x Q85（跳过升级保证速度）；正常模式：center/next Q95、±1 Q90 缺失**或 pageScales≠1f** 时全尺寸渲染升级（replacePage：Coil 预热后换 URI），2-3 页 Q85@0.6x、≥4 页 Q80@0.4x 仅缺失时渲染；淘汰同步清理 pageScales | L350-L463 |
+| `onEvent(event)` | public fun (event dispatch, spread-aware page step, +6 update/log events, +SetShelfSort/DeleteShelfFile) | L148-L187 |
+| `handleFilesSelected(uris)` | private fun — imports file, then calls loadShelfFiles() if shelf is visible | L189-L215 |
+| `openPdf(uri, name, restorePage=0)` | private fun — 入口先 cancelPageRendering() 停掉旧谱渲染 | L217-L259 |
+| `openImages(uris, name, initialPage=0)` | private fun — 图片用原图全部标记 1f；入口先 cancelPageRendering() | L262-L288 |
+| `cancelPageRendering()` | private fun — 取消 preloadJob/singleRenderJob/settleJob + 清空 flipTimestamps/pageScales | L291-L300 |
+| `goToPage(page)` | private fun — 页码变更统一入口 → onFlipHappened | L302-L311 |
+| `onFlipHappened(center)` | private fun — **无条件 preloadAround 按当前页重算渲染**（修复跳转不加载回归）；记录翻页时间戳；快速模式重置 1s settle | L313-L322 |
+| `isFastFlipping()` | private fun — 2s 窗口内翻页 ≥4 次判定快速连续翻动 | L325-L329 |
+| `renderPageToCacheComputeSize(pageIndex, ratio)` | private fun — tracked by singleRenderJob，渲染后标记 scale=1f | L331-L350 |
+| `preloadAround(center, forceFullRes=false)` | public fun — 快速翻动模式：**当前页同步优先渲染**，窗口内其余缺失页并行 0.6x Q85（跳过升级保证速度）；正常模式：center/next Q95、±1 Q90 缺失**或 pageScales≠1f** 时全尺寸渲染升级（replacePage：Coil 预热后换 URI），2-3 页 Q85@0.6x、≥4 页 Q80@0.4x 仅缺失时渲染；淘汰同步清理 pageScales | L352-L464 |
 | `docCacheKey` | private val getter — pdfUri path hash (cache file namespacing) | L466-L467 |
-| `renderPage(pageIndex, pageW, pageH, zoom, quality=95)` | private fun — JPEG into cacheDir，文件名含 `{pageW}x{pageH}`（尺寸变化→URI 变化→Coil 缓存失效） | L468-L479 |
-| `updateViewportSize(width, height)` | private fun | L481-L493 |
-| `setZoom(zoom)` | private fun | L495-L497 |
-| `panBy(dx, dy)` | private fun | L499-L503 |
-| `toggleUI()` | private fun | L505-L507 |
-| `toggleThumbnails()` | private fun — 打开时关闭设置面板 | L509-L513 |
-| `toggleShelf()` | private fun — 打开时关闭设置面板 | L515-L519 |
-| `toggleSettings()` | private fun — 打开时关闭缩略图/谱架（三面板互斥） | L521-L530 |
-| `toggleShelfSort()` | private fun — toggles NAME↔DATE, reloads shelf | L532-L537 |
-| `setSpreadMode(spread)` | private fun — on enable, aligns current page to even index | L539-L546 |
-| `loadShelfFiles()` | private fun — sorts by shelfSortBy, maps to ShelfFile, generates PDF thumbnails per file | L548-L577 |
-| `generatePdfThumbnail(fileUri)` | private fun — renders page 0 at 200px PNG, caches by path hash | L579-L603 |
-| `renameShelfFile(oldUri, newName)` | private fun — renames file, refreshes shelf, reopens at same page | L605-L625 |
-| `openShelfFile(uri)` | private fun — closes shelf, restores page via pageMap[name] | L627-L640 |
-| `toggleTheme()` | private fun | L642-L644 |
-| `toggleFace()` | private fun — syncs faceManager running/enabled with uiState.faceEnabled | L646-L655 |
-| `faceFlip(dir)` | private fun — sets uiState.pendingFlip (consumed by Stage) | L657-L660 |
-| `flipDone()` | private fun — clears pendingFlip | L662-L665 |
-| `showFaceOverlay()` | private fun | L667-L670 |
-| `hideFaceOverlay()` | private fun — hides + persists face prefs via faceRepo.save | L672-L678 |
-| `registerDownloadReceiver()` | private fun — ContextCompat.registerReceiver RECEIVER_NOT_EXPORTED | L680-L688 |
-| `checkUpdate(manual)` | private fun — Gitee/GitHub 并行查询，仅取比当前新的候选（平手 Gitee 优先）；manual 失败显示 Error，自动静默回 Idle | L690-L713 |
-| `downloadUpdate()` | private fun — 幂等（Downloading 中忽略）→ removeStale → enqueue → Downloading + 关弹窗 | L715-L729 |
-| `onDownloadComplete(id)` | private fun — STATUS_SUCCESSFUL → Downloaded + **自动调起 installUpdate()**；否则 Error | L731-L742 |
-| `installUpdate()` | private fun — 未授权 → 跳 unknown sources 授权页；已授权 → FileProvider 安装 Intent | L744-L757 |
-| `startActivity(intent)` | private fun — runCatching 包装 | L759-L761 |
-| `dismissUpdateDialog()` | private fun — 仅关弹窗（保留 Available 状态） | L763-L766 |
-| `toggleVersionLog()` | private fun — 展开/收起本版本更新日志；首次展开按已安装版本 tag 从两平台拉取 release body | L768-L783 |
-| `resetZoom()` | private fun | L785-L787 |
-| `reset()` | private fun — 重建 ViewerState 保留版本字段 + cancelPageRendering() | L789-L803 |
-| `reload()` | private fun | L805-L820 |
-| `saveSession()` | private fun | L822-L842 |
-| `getThumbnailUri(pageIndex)` | public fun | L844-L845 |
-| `preloadPage(pageIndex)` | public fun（当前无调用方） | L847-L866 |
-| `preloadThumbnails()` | private fun — PNG thumbs keyed by docCacheKey | L868-L892 |
-| `restoreSession()` | private fun — accessibility check, restores mode/page/uris | L894-L919 |
-| `onCleared()` | override fun — 注销下载接收器 + close pdfRenderer | L921-L925 |
+| `renderPage(pageIndex, pageW, pageH, zoom, quality=95)` | private fun — JPEG into cacheDir，文件名含 `{pageW}x{pageH}`（尺寸变化→URI 变化→Coil 缓存失效） | L469-L480 |
+| `updateViewportSize(width, height)` | private fun | L482-L494 |
+| `setZoom(zoom)` | private fun | L496-L498 |
+| `panBy(dx, dy)` | private fun | L500-L504 |
+| `toggleUI()` | private fun | L506-L508 |
+| `toggleThumbnails()` | private fun — 打开时关闭设置面板 | L510-L514 |
+| `toggleShelf()` | private fun — 打开时关闭设置面板 | L516-L520 |
+| `toggleSettings()` | private fun — 打开时关闭缩略图/谱架（三面板互斥） | L522-L531 |
+| `setShelfSort(sort)` | private fun — 显式设置排序方式并重载谱架 | L533-L538 |
+| `deleteShelfFile(uri)` | private fun — 删除文件 + 清理页面/缩略图缓存 + 删除当前打开谱子时回到空闲态 + 重载谱架 | L540-L569 |
+| `setSpreadMode(spread)` | private fun — on enable, aligns current page to even index | L571-L578 |
+| `loadShelfFiles()` | private fun — sorts by shelfSortBy, maps to ShelfFile, generates PDF thumbnails per file | L580-L609 |
+| `generatePdfThumbnail(fileUri)` | private fun — renders page 0 at 200px PNG, caches by path hash | L611-L635 |
+| `renameShelfFile(oldUri, newName)` | private fun — renames file, refreshes shelf, reopens at same page | L637-L657 |
+| `openShelfFile(uri)` | private fun — closes shelf, restores page via pageMap[name] | L659-L672 |
+| `toggleTheme()` | private fun | L674-L676 |
+| `toggleFace()` | private fun — syncs faceManager running/enabled with uiState.faceEnabled | L678-L687 |
+| `faceFlip(dir)` | private fun — sets uiState.pendingFlip (consumed by Stage) | L689-L692 |
+| `flipDone()` | private fun — clears pendingFlip | L694-L697 |
+| `showFaceOverlay()` | private fun | L699-L702 |
+| `hideFaceOverlay()` | private fun — hides + persists face prefs via faceRepo.save | L704-L710 |
+| `registerDownloadReceiver()` | private fun — ContextCompat.registerReceiver RECEIVER_NOT_EXPORTED | L712-L720 |
+| `checkUpdate(manual)` | private fun — Gitee/GitHub 并行查询，仅取比当前新的候选（平手 Gitee 优先）；manual 失败显示 Error，自动静默回 Idle | L722-L745 |
+| `downloadUpdate()` | private fun — 幂等（Downloading 中忽略）→ removeStale → enqueue → Downloading + 关弹窗 | L747-L761 |
+| `onDownloadComplete(id)` | private fun — STATUS_SUCCESSFUL → Downloaded + **自动调起 installUpdate()**；否则 Error | L763-L774 |
+| `installUpdate()` | private fun — 未授权 → 跳 unknown sources 授权页；已授权 → FileProvider 安装 Intent | L776-L789 |
+| `startActivity(intent)` | private fun — runCatching 包装 | L791-L793 |
+| `dismissUpdateDialog()` | private fun — 仅关弹窗（保留 Available 状态） | L795-L798 |
+| `toggleVersionLog()` | private fun — 展开/收起本版本更新日志；首次展开按已安装版本 tag 从两平台拉取 release body | L800-L815 |
+| `resetZoom()` | private fun | L817-L819 |
+| `reset()` | private fun — 重建 ViewerState 保留版本字段 + cancelPageRendering() | L821-L835 |
+| `reload()` | private fun | L837-L852 |
+| `saveSession()` | private fun | L854-L874 |
+| `getThumbnailUri(pageIndex)` | public fun | L876-L877 |
+| `preloadPage(pageIndex)` | public fun（当前无调用方） | L879-L898 |
+| `preloadThumbnails()` | private fun — PNG thumbs keyed by docCacheKey | L900-L924 |
+| `restoreSession()` | private fun — accessibility check, restores mode/page/uris | L926-L951 |
+| `onCleared()` | override fun — 注销下载接收器 + close pdfRenderer | L953-L957 |
 
 ---
 
@@ -414,7 +417,7 @@ Single-screen app — no Navigation component. State-based content switching via
 | — `Idle` | data object | L47 |
 | — `Image` | data object | L48 |
 | — `Pdf` | data object | L49 |
-| `ViewerEvent` | sealed class | L52-L80 |
+| `ViewerEvent` | sealed class | L52-L82 |
 | — `FilesSelected(uris)` | data class | L53 |
 | — `GoToPage(page)` | data class | L54 |
 | — `NextPage` | data object | L55 |
@@ -431,23 +434,24 @@ Single-screen app — no Navigation component. State-based content switching via
 | — `ToggleShelf` | data object | L66 |
 | — `OpenShelfFile(uri)` | data class | L67 |
 | — `RenameShelfFile(uri, newName)` | data class | L68 |
-| — `ToggleShelfSort` | data object | L69 |
-| — `SetSpreadMode(spread)` | data class | L70 |
-| — `ToggleFace` | data object | L71 |
-| — `ShowFaceOverlay` | data object | L72 |
-| — `HideFaceOverlay` | data object | L73 |
-| — `FlipDone` | data object | L74 |
-| — `ToggleSettings` | data object | L75 |
-| — `CheckUpdate` | data object | L76 |
-| — `DownloadUpdate` | data object | L77 |
-| — `InstallUpdate` | data object | L78 |
-| — `DismissUpdateDialog` | data object | L79 |
-| — `ToggleVersionLog` | data object | L80 |
-| `ShelfFile` | data class (3 fields) | L82-L86 |
-| Fields: | name(String), uri(Uri), thumbnailUri(Uri?) | L83-L85 |
-| `UpdateInfo` | data class (5 fields) — tag, notes(摘要), fullNotes(完整更新日志), apkUrl, source | L88-L94 |
-| Fields: | tag(L89), notes(L90), fullNotes(L91), apkUrl(L92), source(L93) | L89-L93 |
-| `UpdateStatus` | enum (Idle, Checking, UpToDate, Available, Downloading, Downloaded, Error) | L96-L98 |
+| — `SetShelfSort(sort)` | data class | L69 |
+| — `DeleteShelfFile(uri)` | data class | L70 |
+| — `SetSpreadMode(spread)` | data class | L71 |
+| — `ToggleFace` | data object | L72 |
+| — `ShowFaceOverlay` | data object | L73 |
+| — `HideFaceOverlay` | data object | L74 |
+| — `FlipDone` | data object | L75 |
+| — `ToggleSettings` | data object | L76 |
+| — `CheckUpdate` | data object | L77 |
+| — `DownloadUpdate` | data object | L78 |
+| — `InstallUpdate` | data object | L79 |
+| — `DismissUpdateDialog` | data object | L80 |
+| — `ToggleVersionLog` | data object | L81 |
+| `ShelfFile` | data class (3 fields) | L84-L88 |
+| Fields: | name(String), uri(Uri), thumbnailUri(Uri?) | L85-L87 |
+| `UpdateInfo` | data class (5 fields) — tag, notes(摘要), fullNotes(完整更新日志), apkUrl, source | L90-L96 |
+| Fields: | tag(L91), notes(L92), fullNotes(L93), apkUrl(L94), source(L95) | L91-L95 |
+| `UpdateStatus` | enum (Idle, Checking, UpToDate, Available, Downloading, Downloaded, Error) | L98-L100 |
 
 ---
 

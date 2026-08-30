@@ -169,7 +169,8 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             ViewerEvent.ToggleShelf -> toggleShelf()
             is ViewerEvent.OpenShelfFile -> openShelfFile(event.uri)
             is ViewerEvent.RenameShelfFile -> renameShelfFile(event.uri, event.newName)
-            ViewerEvent.ToggleShelfSort -> toggleShelfSort()
+            is ViewerEvent.SetShelfSort -> setShelfSort(event.sort)
+            is ViewerEvent.DeleteShelfFile -> deleteShelfFile(event.uri)
             is ViewerEvent.SetSpreadMode -> setSpreadMode(event.spread)
             ViewerEvent.ToggleFace -> toggleFace()
             ViewerEvent.ShowFaceOverlay -> showFaceOverlay()
@@ -307,11 +308,11 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         saveSession()
     }
 
-    /** 记录一次翻页；窗口内达到阈值进入快速压缩渲染，停止翻动 1s 后按当前页恢复正常分辨率加载 */
+    /** 记录一次翻页；始终按当前页重算渲染优先级（快速翻动模式自动切压缩渲染，停止 1s 后恢复正常分辨率） */
     private fun onFlipHappened(center: Int) {
         flipTimestamps.addLast(System.currentTimeMillis())
+        preloadAround(center)
         if (isFastFlipping()) {
-            preloadAround(center)
             settleJob?.cancel()
             settleJob = viewModelScope.launch {
                 delay(FLIP_SETTLE_DELAY_MS)
@@ -529,11 +530,42 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    private fun toggleShelfSort() {
-        val current = _uiState.value.shelfSortBy
-        val next = if (current == ShelfSort.DATE) ShelfSort.NAME else ShelfSort.DATE
-        _uiState.update { it.copy(shelfSortBy = next) }
+    private fun setShelfSort(sort: ShelfSort) {
+        if (_uiState.value.shelfSortBy == sort) return
+        _uiState.update { it.copy(shelfSortBy = sort) }
         loadShelfFiles()
+    }
+
+    /** 删除谱架中的乐谱：删除文件 + 清理其页面/缩略图缓存；若删除的是当前打开的谱子则回到空闲态 */
+    private fun deleteShelfFile(uri: Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val file = java.io.File(uri.path ?: return@launch)
+            val name = file.name
+            if (!file.exists() || !file.delete()) {
+                _uiState.update { it.copy(statusMessage = "删除失败: $name") }
+                return@launch
+            }
+            val dk = uri.path?.hashCode()?.toString(36)
+            val pathHash = uri.path?.hashCode()
+            getApplication<Application>().cacheDir.listFiles()?.forEach { f ->
+                val isPage = dk != null && (f.name.startsWith("page_${dk}_") || f.name.startsWith("thumb_${dk}_"))
+                val isShelfThumb = pathHash != null && f.name.startsWith("shelf_thumb_${pathHash}_")
+                if (isPage || isShelfThumb) f.delete()
+            }
+            if (uri == pdfUri || uri in imageUris) {
+                cancelPageRendering()
+                pdfRenderer.close()
+                imageUris = emptyList()
+                pdfUri = null
+                thumbnailCache.clear()
+                _uiState.update {
+                    ViewerState(isDarkTheme = it.isDarkTheme, appVersionName = it.appVersionName, appVersionCode = it.appVersionCode)
+                }
+                sessionRepo.clearSession()
+            }
+            _uiState.update { it.copy(statusMessage = "已删除: $name") }
+            loadShelfFiles()
+        }
     }
 
     private fun setSpreadMode(spread: Boolean) {

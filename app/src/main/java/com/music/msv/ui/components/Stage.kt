@@ -89,6 +89,8 @@ fun Stage(
     var flipJob by remember { mutableStateOf<Job?>(null) }
     // 当前翻页动画方向（1=前向 -1=后向 0=无动画/拖拽中），用于区分动画期与拖拽期的页面定位
     var flipDir by remember { mutableStateOf(0) }
+    // 触发翻页前的页码：动画期间以它锚定滑出页，避免 currentPage 更新滞后 1-2 帧时定位错乱（前一页闪现）
+    var lastPage by remember { mutableStateOf(0) }
     var dragOffset by remember { mutableFloatStateOf(0f) }
 
     val isZoomed = zoom > 1.01f || abs(panOffsetX) > 1f || abs(panOffsetY) > 1f
@@ -140,6 +142,7 @@ fun Stage(
         if (currentPageIndex + dir * step !in 0 until currentPageCount) return
         flipJob?.cancel()
         flipDir = dir
+        lastPage = currentPageIndex
         flipJob = scope.launch {
             val selfJob = coroutineContext[Job]
             transition.snapTo(fromOffset)
@@ -318,8 +321,8 @@ fun Stage(
 
             for (pageIndex in pagesToShow) {
                 val uri = pageUris[pageIndex] ?: continue
-                // 页码触发瞬间已推进：动画期间以翻页前的页码为基准计算偏移，保证新旧两对页滑动衔接
-                val refPage = if (flipDir != 0) currentPage - flipDir * 2 else currentPage
+                // 页码触发瞬间已推进：动画期间以 lastPage（翻页前页码）为基准计算偏移，保证新旧两对页滑动衔接
+                val refPage = if (flipDir != 0) lastPage else currentPage
                 val offsetInSpread = (pageIndex - refPage).toFloat() * dw
                 val pageOffsetX = spreadCenterX + offsetInSpread + t
 
@@ -386,21 +389,22 @@ fun Stage(
 
             for (pageIndex in pagesToShow) {
                 val uri = pageUris[pageIndex] ?: continue
-                // 页码在翻页触发瞬间已推进到目标页：
-                // 前向动画：旧当前页(cp-1)叠在 0 处随 t 滑出，新当前页静止在 0 底下
-                // 后向动画：旧当前页(cp+1)静止在 0 处，新当前页从 -dw 随 t 滑入覆盖
-                // 其余后续页停靠屏幕外，避免当前页位图刷新（升级/换URI）瞬间透出下层其他页
+                // 页码在翻页触发瞬间已推进到目标页；动画期以 lastPage（翻页前页码）锚定滑出页，
+                // 避免 currentPage 更新滞后 1-2 帧时"前一页"闪现在当前页位置：
+                // 前向动画：lastPage（旧当前页）叠在 0 处随 t 滑出，新当前页静止在 0 底下
+                // 后向动画：lastPage 静止在 0 处被覆盖，新当前页从 -dw 随 t 滑入
+                // 拖拽期（flipDir==0）：当前页/前页跟手；其余后续页停靠屏幕外防透闪
                 val base = when {
                     pageIndex == currentPage -> 0f
-                    flipDir == 1 && t < 0 && pageIndex == currentPage - 1 -> 0f
-                    flipDir == -1 && t > 0 && pageIndex == currentPage + 1 -> 0f
+                    flipDir != 0 && pageIndex == lastPage -> 0f
                     flipDir == 0 && t < 0 && pageIndex == currentPage + 1 -> 0f
+                    flipDir == 1 && t < 0 && pageIndex == lastPage + 1 -> 0f
                     pageIndex > currentPage -> stageWidth.toFloat()
                     else -> -(currentPage - pageIndex).toFloat() * dw
                 }
                 val pageOffsetX = when {
-                    flipDir == 1 && t < 0 && pageIndex == currentPage - 1 -> t
-                    flipDir == -1 && t > 0 && pageIndex == currentPage -> -dw + t
+                    flipDir == 1 && t < 0 && pageIndex == lastPage -> t
+                    flipDir == -1 && t > 0 && pageIndex == currentPage && pageIndex != lastPage -> -dw + t
                     flipDir == 0 && t < 0 && pageIndex == currentPage -> base + t
                     flipDir == 0 && t > 0 && pageIndex == currentPage - 1 -> base + t
                     else -> base

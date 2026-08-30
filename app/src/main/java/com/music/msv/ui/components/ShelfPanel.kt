@@ -24,6 +24,8 @@ import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -71,7 +73,8 @@ fun ShelfPanel(
     onImportClick: () -> Unit,
     onClose: () -> Unit,
     onRename: (Uri, String) -> Unit,
-    onToggleSort: () -> Unit,
+    onSortSelected: (ShelfSort) -> Unit,
+    onDelete: (Uri) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val panelBg = if (isDark) Color(0xF00F121C) else Color(0xF2FFFFFF)
@@ -81,8 +84,11 @@ fun ShelfPanel(
     val muted = if (isDark) Color(0xB8F5F7FF) else Color(0xD11B2230)
     val accent = if (isDark) Color(0xFF8CC8FF) else Color(0xFF2F6AD9)
     val text = if (isDark) Color(0xFFF5F7FF) else Color(0xFF1B2230)
+    val danger = if (isDark) Color(0xFFFF9AA8) else Color(0xFFD9455D)
     var renameTarget by remember { mutableStateOf<Uri?>(null) }
     var renameText by remember { mutableStateOf("") }
+    var menuTarget by remember { mutableStateOf<ShelfFile?>(null) }
+    var sortMenuOpen by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -139,7 +145,7 @@ fun ShelfPanel(
                     .clip(ButtonShape)
                     .background(if (isDark) Color(0x0FFFFFFF) else Color(0x0A1A2230))
                     .border(1.dp, if (isDark) Color(0x24FFFFFF) else Color(0x1A1A2230), ButtonShape)
-                    .clickable { onToggleSort() },
+                    .clickable { sortMenuOpen = !sortMenuOpen },
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -148,6 +154,30 @@ fun ShelfPanel(
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold
                 )
+                DropdownMenu(expanded = sortMenuOpen, onDismissRequest = { sortMenuOpen = false }) {
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                "按日期排序",
+                                color = if (shelfSortBy == ShelfSort.DATE) accent else text,
+                                fontWeight = if (shelfSortBy == ShelfSort.DATE) FontWeight.Bold else FontWeight.Normal
+                            )
+                        },
+                        trailingIcon = { if (shelfSortBy == ShelfSort.DATE) Text("✓", color = accent) },
+                        onClick = { sortMenuOpen = false; onSortSelected(ShelfSort.DATE) }
+                    )
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                "按名称排序",
+                                color = if (shelfSortBy == ShelfSort.NAME) accent else text,
+                                fontWeight = if (shelfSortBy == ShelfSort.NAME) FontWeight.Bold else FontWeight.Normal
+                            )
+                        },
+                        trailingIcon = { if (shelfSortBy == ShelfSort.NAME) Text("✓", color = accent) },
+                        onClick = { sortMenuOpen = false; onSortSelected(ShelfSort.NAME) }
+                    )
+                }
             }
         }
 
@@ -176,10 +206,7 @@ fun ShelfPanel(
                             .border(1.dp, itemBorder, RoundedCornerShape(12.dp))
                             .combinedClickable(
                                 onClick = { onFileSelected(sf.uri) },
-                                onLongClick = {
-                                    renameTarget = sf.uri
-                                    renameText = sf.name.substringBeforeLast(".")
-                                }
+                                onLongClick = { menuTarget = sf }
                             )
                             .padding(6.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -220,6 +247,27 @@ fun ShelfPanel(
                             overflow = TextOverflow.Ellipsis,
                             textAlign = TextAlign.Center
                         )
+                        // 长按弹出操作菜单（锚定在该乐谱条目位置）
+                        DropdownMenu(
+                            expanded = menuTarget == sf,
+                            onDismissRequest = { menuTarget = null }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("重命名", color = text) },
+                                onClick = {
+                                    menuTarget = null
+                                    renameTarget = sf.uri
+                                    renameText = sf.name.substringBeforeLast(".")
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("删除", color = danger) },
+                                onClick = {
+                                    menuTarget = null
+                                    onDelete(sf.uri)
+                                }
+                            )
+                        }
                     }
                 }
             }
