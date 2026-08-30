@@ -39,7 +39,8 @@ data class ViewerState(
     val showVersionLog: Boolean = false,
     val versionNotes: String = "",
     val versionNotesLoading: Boolean = false,
-    val downloadProgress: Int = 0
+    val downloadProgress: Int = 0,
+    val bookmarks: List<PageBookmark> = emptyList()
 )
 
 enum class ShelfSort { NAME, DATE }
@@ -80,6 +81,9 @@ sealed class ViewerEvent {
     data object InstallUpdate : ViewerEvent()
     data object DismissUpdateDialog : ViewerEvent()
     data object ToggleVersionLog : ViewerEvent()
+    data class AddBookmark(val page: Int, val title: String, val color: Int) : ViewerEvent()
+    data class DeleteBookmark(val id: String) : ViewerEvent()
+    data class RenameBookmark(val id: String, val title: String) : ViewerEvent()
 }
 
 data class ShelfFile(
@@ -95,6 +99,13 @@ data class UpdateInfo(
     val fullNotes: String,
     val apkUrl: String,
     val source: String
+)
+
+data class PageBookmark(
+    val id: String,
+    val page: Int,
+    val title: String,
+    val color: Int
 )
 
 enum class UpdateStatus {

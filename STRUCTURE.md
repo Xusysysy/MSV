@@ -239,22 +239,28 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 11. ui/components/ThumbnailPanel.kt (L1-L162)
+### 11. ui/components/ThumbnailPanel.kt (L1-L350)
 
 | Element | Type | Lines |
 |---|---|---|
-| Package + imports | — | L1-L42 |
-| `invertColorMatrix` | private val ColorMatrix | L44-L51 |
-| `ThumbnailPanel` | @Composable fun | L53-L162 |
-| Parameters (7): | isDark, pageCount, currentPage, getThumbnailUri, onPageSelected, onClose, modifier | L54-L62 |
-| Local colors | panelBg, panelBorder, itemBg, itemBorder, itemActiveBg, itemActiveBorder, muted | L63-L69 |
-| Column root | composable | L71-L161 |
-| — Close button Box | L78-L95 |
-| — gridState + LaunchedEffect scroll-to-current | L98-L106 |
-| — LazyVerticalGrid (2 cols, state=gridState) | L108-L160 |
-| — — itemsIndexed (pageIndex → thumbnail item) | L116-L159 |
-| — — — Thumbnail AsyncImage | L136-L149 |
-| — — — Page number Text | L150-L157 |
+| Package + imports | — | L1-L55 |
+| `invertColorMatrix` | private val ColorMatrix | L57-L63 |
+| `bookmarkPresets` | private val List<Int> — 8 个预设 RGB 书签色 | L65-L68 |
+| `ThumbnailPanel` | @OptIn(ExperimentalFoundationApi) @Composable fun | L70-L349 |
+| Parameters (13): | isDark, pageCount, currentPage, isPdfMode, bookmarks, getThumbnailUri, onPageSelected, onBookmarkClick, onAddBookmark, onDeleteBookmark, onRenameBookmark, onClose, modifier | L71-L84 |
+| Local colors + states | panelBg…muted/text + addPage/addTitle/addColor/renameBmId/renameBmText/bmMenuId | L85-L101 |
+| Row root（书签栏 + 缩略图列同动画进出） | composable | L103-L259 |
+| — Bookmark rail（无额外背景，verticalScroll 可滚动） | 仅 isPdfMode 且书签非空时显示 | L104-L141 |
+| — — BookmarkStrip ×N | 半透明（color alpha 0.75）左半圆书签条：click→跳转页码, long-press→菜单（重命名/删除红字），宽度随名长 | L111-L140 |
+| — Thumbnails Column (300dp) | composable | L143-L259 |
+| — — Close button Box | L146-L163 |
+| — — gridState + LaunchedEffect scroll-to-current | L165-L174 |
+| — — LazyVerticalGrid (2 cols, state=gridState) | L176-L228 |
+| — — — itemsIndexed → Column（click→跳页, **long-press→添加书签弹窗**） | L184-L228 |
+| — — — — Thumbnail AsyncImage | L196-L210 |
+| — — — — Page number Text | L211-L219 |
+| Add bookmark AlertDialog（命名 ≤50 字 + 8 色 RGB 色板） | L262-L308 |
+| Rename bookmark AlertDialog | L310-L349 |
 
 ---
 
@@ -318,7 +324,7 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 13. viewmodel/ViewerViewModel.kt (L1-L958)
+### 13. viewmodel/ViewerViewModel.kt (L1-L1013)
 
 | Element | Type | Lines |
 |---|---|---|
@@ -343,10 +349,10 @@ Single-screen app — no Navigation component. State-based content switching via
 | `singleRenderJob` / `downloadJob` | private var Job? — 当前页渲染任务 + 应用内更新包下载任务 | L72-L73 |
 | `init` block | 版本字段填充 + 注册下载接收器 + pageMap collector + face prefs load + faceState 同步 + onGesture→faceFlip + restoreSession() + 冷启动静默检查更新 | L83-L115 |
 | `handleShareIntent(intent)` | public fun | L117-L146 |
-| `onEvent(event)` | public fun (event dispatch, spread-aware page step, +6 update/log events, +SetShelfSort/DeleteShelfFile) | L148-L187 |
+| `onEvent(event)` | public fun (event dispatch, spread-aware page step, update/log events, shelf sort/delete, +Add/Delete/RenameBookmark) | L142-L183 |
 | `handleFilesSelected(uris)` | private fun — imports file, then calls loadShelfFiles() if shelf is visible | L189-L215 |
-| `openPdf(uri, name, restorePage=0)` | private fun — 入口先 cancelPageRendering() 停掉旧谱渲染 | L217-L259 |
-| `openImages(uris, name, initialPage=0)` | private fun — 图片用原图全部标记 1f；入口先 cancelPageRendering() | L262-L288 |
+| `openPdf(uri, name, restorePage=0)` | private fun — 入口 cancelPageRendering()；打开后读取 PDF 书签 | L213-L256 |
+| `openImages(uris, name, initialPage=0)` | private fun — 图片用原图全部标记 1f；书签清空（仅 PDF 支持书签） | L259-L287 |
 | `cancelPageRendering()` | private fun — 取消 preloadJob/singleRenderJob/settleJob + 清空 flipTimestamps/pageScales | L291-L300 |
 | `goToPage(page)` | private fun — 页码变更统一入口 → onFlipHappened | L302-L311 |
 | `onFlipHappened(center)` | private fun — **无条件 preloadAround 按当前页重算渲染**（修复跳转不加载回归）；记录翻页时间戳；快速模式重置 1s settle | L313-L322 |
@@ -368,7 +374,12 @@ Single-screen app — no Navigation component. State-based content switching via
 | `loadShelfFiles()` | private fun — sorts by shelfSortBy, maps to ShelfFile, generates PDF thumbnails per file | L580-L609 |
 | `generatePdfThumbnail(fileUri)` | private fun — renders page 0 at 200px PNG, caches by path hash | L611-L635 |
 | `renameShelfFile(oldUri, newName)` | private fun — renames file, refreshes shelf, reopens at same page | L637-L657 |
-| `openShelfFile(uri)` | private fun — closes shelf, restores page via pageMap[name] | L659-L672 |
+| `openShelfFile(uri)` | private fun — closes shelf, restores page via pageMap[name] | L659-L674 |
+| `readPdfBookmarks(uri)` | private fun — pdfbox 读取 PDF 原生 Document Outline → List<PageBookmark>（颜色编码 "#RRGGBB|标题"） | L676-L697 |
+| `writePdfBookmarks()` | private fun — 关渲染器 → pdfbox 重写 Document Outline → 保存 → 重开渲染器 → preloadAround | L699-L726 |
+| `addBookmark(page, title, color)` | private fun — 追加书签（标题 ≤50 字）→ writePdfBookmarks | L728-L734 |
+| `deleteBookmark(id)` | private fun — 移除书签 → writePdfBookmarks | L736-L739 |
+| `renameBookmark(id, title)` | private fun — 重命名书签 → writePdfBookmarks | L741-L744 |
 | `toggleTheme()` | private fun | L674-L676 |
 | `toggleFace()` | private fun — syncs faceManager running/enabled with uiState.faceEnabled | L678-L687 |
 | `faceFlip(dir)` | private fun — sets uiState.pendingFlip (consumed by Stage) | L689-L692 |
@@ -393,53 +404,58 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 14. data/model/ViewerState.kt (L1-L99)
+### 14. data/model/ViewerState.kt (L1-L113)
 
 | Element | Type | Lines |
 |---|---|---|
 | Package + import | — | L1-L3 |
-| `ViewerState` | data class (34 fields) | L5-L41 |
-| Fields: | mode, currentPage, pageCount, zoom, panOffsetX, panOffsetY, showUI, showThumbnails, showShelf, isDarkTheme, statusMessage, isLoading, fileName, pageUris, pageWidth, pageHeight, viewportWidth, viewportHeight, thumbnailsLoading, shelfFiles(emptyList()), shelfSortBy(ShelfSort.DATE), isSpreadMode(false), faceEnabled(false), faceActive(false), showFaceOverlay(false), pendingFlip(null), showSettings(false), appVersionName(""), appVersionCode(0), updateStatus(Idle), updateInfo(null), updateMessage(""), showUpdateDialog(false), showVersionLog(false), versionNotes(""), versionNotesLoading(false) | L6-L40 |
-| `ShelfSort` | enum (NAME, DATE) | L44 |
-| `Mode` | sealed class | L46-L50 |
-| — `Idle` | data object | L47 |
-| — `Image` | data object | L48 |
-| — `Pdf` | data object | L49 |
-| `ViewerEvent` | sealed class | L52-L82 |
-| — `FilesSelected(uris)` | data class | L53 |
-| — `GoToPage(page)` | data class | L54 |
-| — `NextPage` | data object | L55 |
-| — `PrevPage` | data object | L56 |
-| — `SetZoom(zoom)` | data class | L57 |
-| — `PanBy(dx, dy)` | data class | L58 |
-| — `UpdateViewportSize(width, height)` | data class | L59 |
-| — `ToggleUI` | data object | L60 |
-| — `ToggleThumbnails` | data object | L61 |
-| — `ToggleTheme` | data object | L62 |
-| — `ResetZoom` | data object | L63 |
-| — `Reset` | data object | L64 |
-| — `Reload` | data object | L65 |
-| — `ToggleShelf` | data object | L66 |
-| — `OpenShelfFile(uri)` | data class | L67 |
-| — `RenameShelfFile(uri, newName)` | data class | L68 |
-| — `SetShelfSort(sort)` | data class | L69 |
-| — `DeleteShelfFile(uri)` | data class | L70 |
-| — `SetSpreadMode(spread)` | data class | L71 |
-| — `ToggleFace` | data object | L72 |
-| — `ShowFaceOverlay` | data object | L73 |
-| — `HideFaceOverlay` | data object | L74 |
-| — `FlipDone` | data object | L75 |
-| — `ToggleSettings` | data object | L76 |
-| — `CheckUpdate` | data object | L77 |
-| — `DownloadUpdate` | data object | L78 |
-| — `InstallUpdate` | data object | L79 |
-| — `DismissUpdateDialog` | data object | L80 |
-| — `ToggleVersionLog` | data object | L81 |
-| `ShelfFile` | data class (3 fields) | L84-L88 |
-| Fields: | name(String), uri(Uri), thumbnailUri(Uri?) | L85-L87 |
-| `UpdateInfo` | data class (5 fields) — tag, notes(摘要), fullNotes(完整更新日志), apkUrl, source | L90-L96 |
-| Fields: | tag(L91), notes(L92), fullNotes(L93), apkUrl(L94), source(L95) | L91-L95 |
-| `UpdateStatus` | enum (Idle, Checking, UpToDate, Available, Downloading, Downloaded, Error) | L98-L100 |
+| `ViewerState` | data class (36 fields) | L5-L42 |
+| Fields: | mode, currentPage, pageCount, zoom, panOffsetX, panOffsetY, showUI, showThumbnails, showShelf, isDarkTheme, statusMessage, isLoading, fileName, pageUris, pageWidth, pageHeight, viewportWidth, viewportHeight, thumbnailsLoading, shelfFiles(emptyList()), shelfSortBy(ShelfSort.DATE), isSpreadMode(false), faceEnabled(false), faceActive(false), showFaceOverlay(false), pendingFlip(null), showSettings(false), appVersionName(""), appVersionCode(0), updateStatus(Idle), updateInfo(null), updateMessage(""), showUpdateDialog(false), showVersionLog(false), versionNotes(""), versionNotesLoading(false), downloadProgress(0), bookmarks(emptyList()) | L6-L41 |
+| `ShelfSort` | enum (NAME, DATE) | L45 |
+| `Mode` | sealed class | L47-L51 |
+| — `Idle` | data object | L48 |
+| — `Image` | data object | L49 |
+| — `Pdf` | data object | L50 |
+| `ViewerEvent` | sealed class | L54-L87 |
+| — `FilesSelected(uris)` | data class | L55 |
+| — `GoToPage(page)` | data class | L56 |
+| — `NextPage` | data object | L57 |
+| — `PrevPage` | data object | L58 |
+| — `SetZoom(zoom)` | data class | L59 |
+| — `PanBy(dx, dy)` | data class | L60 |
+| — `UpdateViewportSize(width, height)` | data class | L61 |
+| — `ToggleUI` | data object | L62 |
+| — `ToggleThumbnails` | data object | L63 |
+| — `ToggleTheme` | data object | L64 |
+| — `ResetZoom` | data object | L65 |
+| — `Reset` | data object | L66 |
+| — `Reload` | data object | L67 |
+| — `ToggleShelf` | data object | L68 |
+| — `OpenShelfFile(uri)` | data class | L69 |
+| — `RenameShelfFile(uri, newName)` | data class | L70 |
+| — `SetShelfSort(sort)` | data class | L71 |
+| — `DeleteShelfFile(uri)` | data class | L72 |
+| — `SetSpreadMode(spread)` | data class | L73 |
+| — `ToggleFace` | data object | L74 |
+| — `ShowFaceOverlay` | data object | L75 |
+| — `HideFaceOverlay` | data object | L76 |
+| — `FlipDone` | data object | L77 |
+| — `ToggleSettings` | data object | L78 |
+| — `CheckUpdate` | data object | L79 |
+| — `DownloadUpdate` | data object | L80 |
+| — `InstallUpdate` | data object | L81 |
+| — `DismissUpdateDialog` | data object | L82 |
+| — `ToggleVersionLog` | data object | L83 |
+| — `AddBookmark(page, title, color)` | data class | L84 |
+| — `DeleteBookmark(id)` | data class | L85 |
+| — `RenameBookmark(id, title)` | data class | L86 |
+| `ShelfFile` | data class (4 fields) | L89-L94 |
+| Fields: | name(String), uri(Uri), thumbnailUri(Uri?), lastModified(Long) | L90-L93 |
+| `UpdateInfo` | data class (5 fields) — tag, notes(摘要), fullNotes(完整更新日志), apkUrl, source | L96-L102 |
+| Fields: | tag(L97), notes(L98), fullNotes(L99), apkUrl(L100), source(L101) | L97-L101 |
+| `PageBookmark` | data class (4 fields) — id, page, title, color | L104-L110 |
+| Fields: | id(L105), page(L106), title(L107), color(L108) | L105-L108 |
+| `UpdateStatus` | enum (Idle, Checking, UpToDate, Available, Downloading, Downloaded, Error) | L112-L113 |
 
 ---
 
@@ -498,21 +514,21 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 18. facer/FaceCamera.kt (L1-L114)
+### 18. facer/FaceCamera.kt (L1-L132)
 
 | Element | Type | Lines |
 |---|---|---|
-| Package + imports | — | L1-L42 |
-| `F` / `E` / `L` / `B` | private val IntArray — landmark index pairs: face oval / eyes / lips / brows | L44-L47 |
-| `FaceCamera(manager, visible, modifier)` | @Composable fun | L49-L107 |
-| Permission state + request launcher | camera permission, Toast on deny | L55-L58 |
-| LaunchedEffect permission request | L60 |
-| Early returns | no permission L62; model init failure L64-L67 | L62-L67 |
-| `exec` | single-thread analyzer executor + DisposableEffect shutdown | L69-L70 |
-| `state` collect + alpha animation | fade-in when visible | L72-L75 |
-| `camModifier` | visible → fillMaxWidth 4:3; hidden → 1dp (keeps analyzer alive) | L77-L81 |
-| Box + AndroidView(PreviewView) | binds Preview + ImageAnalysis(320x240, KEEP_ONLY_LATEST) to front camera；**绑定后显式对齐分析流 targetRotation**（竖屏 rotationDegrees 一致性） | L83-L99 |
-| Landmarks Canvas overlay | draws F/E/B/L polylines **按送检位图尺寸 FIT_CENTER 映射**（frameWidth/Height），线条与预览精确对齐 | L101-L112 |
+| Package + imports | — | L1-L43 |
+| `F` / `E` / `L` / `B` | private val IntArray — landmark index pairs: face oval / eyes / lips / brows | L45-L48 |
+| `FaceCamera(manager, visible, modifier)` | @Composable fun | L50-L131 |
+| Permission state + request launcher | camera permission, Toast on deny | L56-L59 |
+| LaunchedEffect permission request | L61 |
+| Early returns | no permission L63; model init failure L65-L68 | L63-L68 |
+| `exec` + DisposableEffect | analyzer executor；绑定仅 ImageAnalysis（无 Preview use case/PreviewView），onDispose unbindAll + shutdown | L70-L94 |
+| `state` collect + alpha animation | fade-in when visible | L96-L99 |
+| `camModifier` | visible → fillMaxWidth 4:3; hidden → 1dp (keeps analyzer alive) | L101-L102 |
+| 预览 Box | **送检位图 Image 即预览画面（WYSIWYG）**：容器 aspectRatio=frameWidth/Height（竖屏不失真），否则暗色"正在启动相机…"占位 | L104-L129 |
+| — 位图 Image + Landmarks Canvas | 线条与画面同空间（px = lm.x*w, lm.y*h），横竖屏精确对齐 | L113-L128 |
 
 ---
 
@@ -531,14 +547,14 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 20. facer/FaceRecognitionManager.kt (L1-L207)
+### 20. facer/FaceRecognitionManager.kt (L1-L215)
 
 | Element | Type | Lines |
 |---|---|---|
-| Package + imports | — | L1-L24 |
-| `FaceRecognitionManager(context)` | class | L26-L184 |
-| Companion `TAG` | const "MSV_FACE" | L27 |
-| `FaceState` | data class — running, enabled, triggerMode, thresholds, mirrored, actionThreshold, actionActive, fps, scores, landmarks, status, **frameWidth/Height（送检位图尺寸，供叠加层映射）** | L31-L37 |
+| Package + imports | — | L1-L26 |
+| `FaceRecognitionManager(context)` | class | L28-L215 |
+| Companion `TAG` | const "MSV_FACE" | L29 |
+| `FaceState` | data class — running, enabled, triggerMode, thresholds, mirrored, actionThreshold, actionActive, fps, scores, landmarks, status, frameWidth/Height（送检位图尺寸）, **previewImage（送检位图预览，WYSIWYG）** | L31-L39 |
 | `Thresholds` | data class — blink, pucker, puckerBiasL, puckerBiasR | L38 |
 | `GestureScores` | data class — lWink, rWink, lPucker, rPucker | L39 |
 | `TriggerMode` | enum (WINK, PUCKER, BOTH) | L40 |
@@ -548,7 +564,7 @@ Single-screen app — no Navigation component. State-based content switching via
 | `landmarker` + smoothing/hysteresis fields | private | L47-L50 |
 | `init(): Boolean` | fun — loads face_landmarker.task, RunningMode.IMAGE, blendshapes on, 1 face | L52-L65 |
 | `updateState / currentState / isReady` | fun | L67-L69 |
-| `process(ip: ImageProxy)` | fun — decode → detect → blendshapes → gesture (800ms cooldown) → mainHandler callback | L72-L98 |
+| `process(ip: ImageProxy)` | fun — decode → detect → blendshapes → gesture (800ms cooldown) → mainHandler callback；**每 3 帧导出送检位图副本为 previewImage** | L74-L101 |
 | `processBlendshapes(cats): Gesture` | private fun — EMA smooth + hysteresis + left/right bias, updates scores + actionActive | L100-L117 |
 | `score / ema / hyst` | private fun — lookup, EMA smoothing, hysteresis state | L119-L127 |
 | `decode(ip): Bitmap` | private fun — **逐行拷贝 YUV 平面（兼容 rowStride 填充，修复竖屏花屏识别失败）**→NV21→ARGB_8888, rotation + optional mirror | L131-L164 |

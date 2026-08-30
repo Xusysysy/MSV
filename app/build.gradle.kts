@@ -49,6 +49,7 @@ dependencies {
     implementation(libs.datastore.preferences)
     implementation(libs.lifecycle.viewmodel.compose)
     implementation("com.google.mediapipe:tasks-vision:0.10.18")
+    implementation("com.tom-roush:pdfbox-android:2.0.27.0")
     implementation("androidx.camera:camera-core:1.3.4")
     implementation("androidx.camera:camera-camera2:1.3.4")
     implementation("androidx.camera:camera-lifecycle:1.3.4")

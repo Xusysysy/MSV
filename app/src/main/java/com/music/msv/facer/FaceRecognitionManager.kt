@@ -18,6 +18,8 @@ import com.google.mediapipe.tasks.components.containers.Category
 import com.google.mediapipe.tasks.components.containers.NormalizedLandmark
 import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.facelandmarker.FaceLandmarker
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -34,7 +36,8 @@ class FaceRecognitionManager(context: Context) {
         val actionThreshold: Float = 0.1f, val actionActive: Boolean = false,
         val fps: Int = 0, val scores: GestureScores = GestureScores(),
         val landmarks: List<NormalizedLandmark>? = null, val status: String = "",
-        val frameWidth: Int = 0, val frameHeight: Int = 0
+        val frameWidth: Int = 0, val frameHeight: Int = 0,
+        val previewImage: ImageBitmap? = null
     )
     data class Thresholds(val blink: Float = 0.35f, val pucker: Float = 0.25f, val puckerBiasL: Float = 0.21f, val puckerBiasR: Float = 0.21f)
     data class GestureScores(val lWink: Float = 0f, val rWink: Float = 0f, val lPucker: Float = 0f, val rPucker: Float = 0f)
@@ -79,6 +82,11 @@ class FaceRecognitionManager(context: Context) {
             val bmp = decode(ip)
             if (frameCount <= 3) FaceLog.d(TAG, "process $frameCount: decode完成 ${bmp.width}x${bmp.height}")
             val bw = bmp.width; val bh = bmp.height
+            // 每 3 帧导出一份预览位图（送检画面即预览画面，WYSIWYG），旧位图交由 GC 回收
+            if (frameCount % 3 == 0) {
+                val preview = bmp.copy(Bitmap.Config.ARGB_8888, false)
+                _state.update { it.copy(previewImage = preview.asImageBitmap()) }
+            }
             val result = l.detect(BitmapImageBuilder(bmp).build()); bmp.recycle()
             if (frameCount <= 3) FaceLog.d(TAG, "process $frameCount: detect完成")
             val rawLM = result.faceLandmarks(); val lm = if (rawLM.isNotEmpty()) rawLM[0] else null
@@ -150,7 +158,8 @@ class FaceRecognitionManager(context: Context) {
             if (rotation != 0 || _state.value.mirrored) {
                 val mat = Matrix()
                 mat.postRotate(rotation.toFloat())
-                if (_state.value.mirrored) mat.preScale(-1f, 1f)
+                // 先旋转后镜像（显示帧内翻转），与前置摄像头预览的呈现方向一致
+                if (_state.value.mirrored) mat.postScale(-1f, 1f)
                 val rotated = Bitmap.createBitmap(bmp, 0, 0, w, h, mat, true)
                 bmp.recycle()
                 return rotated

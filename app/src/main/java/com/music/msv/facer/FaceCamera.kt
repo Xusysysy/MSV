@@ -8,36 +8,36 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
-import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.camera.view.PreviewView
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import java.util.concurrent.Executors
 
@@ -67,48 +67,67 @@ fun FaceCamera(
     }
 
     val exec = remember { Executors.newSingleThreadExecutor() }
-    DisposableEffect(Unit) { onDispose { FaceLog.d("MSV_CAM", "FaceCamera离开组合"); exec.shutdown() } }
+    DisposableEffect(Unit) {
+        val future = ProcessCameraProvider.getInstance(ctx)
+        future.addListener({
+            try {
+                val p = future.get()
+                val a = ImageAnalysis.Builder()
+                    .setTargetResolution(android.util.Size(320, 240))
+                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                    .build()
+                a.setAnalyzer(exec) { ip: ImageProxy ->
+                    try { manager.process(ip) } catch (e: Exception) { FaceLog.e("MSV_CAM", "分析器异常: ${e.message}", e); ip.close() }
+                }
+                // 仅绑定分析流：预览画面直接使用送检位图（WYSIWYG），彻底消除预览/叠加变换不一致
+                try { p.unbindAll(); p.bindToLifecycle(lc, CameraSelector.DEFAULT_FRONT_CAMERA, a) }
+                catch (e: Exception) { FaceLog.e("MSV_CAM", "绑定失败: ${e.message}", e) }
+            } catch (e: Exception) {
+                FaceLog.e("MSV_CAM", "相机初始化失败: ${e.message}", e)
+            }
+        }, ContextCompat.getMainExecutor(ctx))
+        onDispose {
+            FaceLog.d("MSV_CAM", "FaceCamera离开组合")
+            runCatching { future.get().unbindAll() }
+            exec.shutdown()
+        }
+    }
 
     val state by manager.stateFlow.collectAsState()
     var drawn by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { drawn = true }
     val alpha by animateFloatAsState(if (drawn && visible) 1f else 0f, tween(if (visible) 200 else 0), label = "camAlpha")
 
-    val camModifier = if (visible) {
-        modifier.fillMaxWidth().aspectRatio(4f / 3f)
-    } else {
-        modifier.size(1.dp)
-    }
+    val camModifier = if (visible) modifier.fillMaxWidth().aspectRatio(4f / 3f) else modifier.size(1.dp)
 
     Box(camModifier.graphicsLayer { this.alpha = if (visible) alpha else 0f }) {
-        AndroidView(factory = { ctx2 -> PreviewView(ctx2).apply {
-            scaleType = PreviewView.ScaleType.FIT_CENTER
-            val future = ProcessCameraProvider.getInstance(ctx2)
-            future.addListener({
-                val p = future.get()
-                val preview = Preview.Builder().build().also { it.setSurfaceProvider(surfaceProvider) }
-                val a = ImageAnalysis.Builder().setTargetResolution(android.util.Size(320, 240)).setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).build()
-                a.setAnalyzer(exec) { ip: ImageProxy ->
-                    try { manager.process(ip) } catch (e: Exception) { FaceLog.e("MSV_CAM", "分析器异常: ${e.message}", e); ip.close() }
+        val previewImage = state.previewImage
+        val fw = state.frameWidth.toFloat()
+        val fh = state.frameHeight.toFloat()
+        if (visible && previewImage != null && fw > 0f && fh > 0f) {
+            // 送检位图即预览画面（已按 mirrored 在显示帧内旋转/镜像），预览与线条同空间必然对齐；
+            // 容器锁定位图宽高比，竖屏不失真不偏大
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Box(Modifier.aspectRatio(fw / fh)) {
+                    Image(
+                        bitmap = previewImage,
+                        contentDescription = null,
+                        contentScale = ContentScale.FillBounds,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    if (state.landmarks != null) {
+                        val lm = state.landmarks!!
+                        Canvas(Modifier.fillMaxSize()) { val w = size.width; val h = size.height
+                            fun px(i: Int) = Offset(lm[i].x() * w, lm[i].y() * h)
+                            fun d(c: IntArray, cl: Color, sw: Float) { var i = 0; while (i < c.size - 1) { val a = c[i]; val bb = c[i + 1]; if (a < lm.size && bb < lm.size) { drawLine(cl, px(a), px(bb), strokeWidth = sw) }; i += 2 } }
+                            d(F, Color(0xCCB08CFF), 3f); d(E, Color(0xDD00D4FF), 3f); d(B, Color(0xCC00D4FF), 2.5f); d(L, Color(0xDDFF3D8F), 3f)
+                        }
+                    }
                 }
-                try { p.unbindAll(); p.bindToLifecycle(lc, CameraSelector.DEFAULT_FRONT_CAMERA, preview, a) }
-                catch (e: Exception) { FaceLog.e("MSV_CAM", "绑定失败: ${e.message}", e) }
-                // 显式对齐分析流目标旋转：竖屏时 rotationDegrees 才与显示方向一致（否则人脸朝向错乱识别失败）
-                post { display?.rotation?.let { a.targetRotation = it } }
-            }, ctx2.mainExecutor)
-        } }, Modifier.fillMaxSize())
-
-        if (visible && state.landmarks != null && state.frameWidth > 0) {
-            val lm = state.landmarks!!
-            Canvas(Modifier.fillMaxSize()) { val w = size.width; val h = size.height
-                // 预览为 FIT_CENTER：按送检位图（已旋转/镜像）尺寸计算缩放与留白，线条与画面精确对齐
-                val fw = state.frameWidth.toFloat(); val fh = state.frameHeight.toFloat()
-                val scale = minOf(w / fw, h / fh)
-                val dx = (w - fw * scale) / 2f
-                val dy = (h - fh * scale) / 2f
-                fun px(i: Int) = Offset(dx + lm[i].x() * fw * scale, dy + lm[i].y() * fh * scale)
-                fun d(c: IntArray, cl: Color, sw: Float) { var i = 0; while (i < c.size - 1) { val a = c[i]; val bb = c[i + 1]; if (a < lm.size && bb < lm.size) { drawLine(cl, px(a), px(bb), strokeWidth = sw) }; i += 2 } }
-                d(F, Color(0xCCB08CFF), 3f); d(E, Color(0xDD00D4FF), 3f); d(B, Color(0xCC00D4FF), 2.5f); d(L, Color(0xDDFF3D8F), 3f)
+            }
+        } else {
+            Box(Modifier.fillMaxSize().background(Color(0xFF0A0D16)), contentAlignment = Alignment.Center) {
+                if (visible) Text("正在启动相机…", color = Color(0x66FFFFFF), fontSize = 12.sp)
             }
         }
     }

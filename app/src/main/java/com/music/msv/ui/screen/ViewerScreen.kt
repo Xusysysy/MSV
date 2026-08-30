@@ -200,8 +200,14 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                     isDark = isDark,
                     pageCount = state.pageCount,
                     currentPage = state.currentPage,
+                    isPdfMode = state.mode is Mode.Pdf,
+                    bookmarks = state.bookmarks,
                     getThumbnailUri = { viewModel.getThumbnailUri(it) },
                     onPageSelected = { viewModel.onEvent(ViewerEvent.GoToPage(it)) },
+                    onBookmarkClick = { viewModel.onEvent(ViewerEvent.GoToPage(it)) },
+                    onAddBookmark = { page, title, color -> viewModel.onEvent(ViewerEvent.AddBookmark(page, title, color)) },
+                    onDeleteBookmark = { id -> viewModel.onEvent(ViewerEvent.DeleteBookmark(id)) },
+                    onRenameBookmark = { id, title -> viewModel.onEvent(ViewerEvent.RenameBookmark(id, title)) },
                     onClose = { viewModel.onEvent(ViewerEvent.ToggleThumbnails) }
                 )
             }

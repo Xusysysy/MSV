@@ -18,8 +18,14 @@ import com.music.msv.data.repository.FileRepository
 import com.music.msv.data.repository.SessionRepository
 import com.music.msv.data.repository.UpdateRepository
 import com.music.msv.data.repository.compareVersions
+import com.music.msv.data.model.PageBookmark
 import com.music.msv.facer.FaceRecognitionManager
 import com.music.msv.facer.FaceRecognitionRepository
+import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
+import com.tom_roush.pdfbox.pdmodel.PDDocument
+import com.tom_roush.pdfbox.pdmodel.interactive.documentnavigation.destination.PDPageFitWidthDestination
+import com.tom_roush.pdfbox.pdmodel.interactive.documentnavigation.outline.PDDocumentOutline
+import com.tom_roush.pdfbox.pdmodel.interactive.documentnavigation.outline.PDOutlineItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -31,6 +37,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 class ViewerViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -69,6 +76,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     init {
         FaceLog.d("MSV_VM", "ViewerViewModel init")
+        PDFBoxResourceLoader.init(getApplication())
         _uiState.update {
             it.copy(appVersionName = updateRepo.installedVersionName, appVersionCode = updateRepo.installedVersionCode)
         }
@@ -168,6 +176,9 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             ViewerEvent.InstallUpdate -> installUpdate()
             ViewerEvent.DismissUpdateDialog -> dismissUpdateDialog()
             ViewerEvent.ToggleVersionLog -> toggleVersionLog()
+            is ViewerEvent.AddBookmark -> addBookmark(event.page, event.title, event.color)
+            is ViewerEvent.DeleteBookmark -> deleteBookmark(event.id)
+            is ViewerEvent.RenameBookmark -> renameBookmark(event.id, event.title)
         }
     }
 
@@ -234,6 +245,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                     )
                 }
                 pageScales.clear()
+                _uiState.update { it.copy(bookmarks = readPdfBookmarks(uri)) }
                 renderPageToCacheComputeSize(rp, ratio)
                 preloadAround(rp)
                 preloadThumbnails()
@@ -266,9 +278,10 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 pageHeight = 0
             )
         }
-        // 图片模式直接使用原图，全部视为全分辨率
+        // 图片模式直接使用原图，全部视为全分辨率；书签仅支持 PDF
         pageScales.clear()
         for (i in uris.indices) pageScales[i] = 1f
+        _uiState.update { it.copy(bookmarks = emptyList()) }
         saveSession()
     }
 
@@ -656,6 +669,78 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 fileRepo.isImage(name) -> openImages(listOf(uri), name, restorePage)
             }
         }
+    }
+
+    // ── PDF 书签（原生 Document Outline 持久化；颜色编码进 outline 标题 "#RRGGBB|标题"）──
+
+    private fun readPdfBookmarks(uri: Uri): List<PageBookmark> = try {
+        PDDocument.load(java.io.File(uri.path!!)).use { doc ->
+            val outline = doc.documentCatalog.documentOutline ?: return@use emptyList()
+            val result = mutableListOf<PageBookmark>()
+            for (item in outline.children()) {
+                val page = try { item.findDestinationPage(doc) } catch (_: Exception) { null } ?: continue
+                val idx = doc.pages.indexOf(page)
+                if (idx < 0) continue
+                val raw = item.title ?: continue
+                val m = Regex("^#([0-9A-Fa-f]{6})\\|(.*)$").find(raw)
+                result += PageBookmark(
+                    id = "${idx}_${result.size}",
+                    page = idx,
+                    title = (m?.groupValues?.get(2) ?: raw).take(50),
+                    color = ((m?.groupValues?.get(1)?.toLong(16) ?: 0x8CC8FFL) or 0xFF000000L).toInt()
+                )
+            }
+            result
+        }
+    } catch (_: Exception) {
+        emptyList()
+    }
+
+    private fun writePdfBookmarks() {
+        val uri = pdfUri ?: return
+        val bookmarks = _uiState.value.bookmarks
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                cancelPageRendering()
+                pdfRenderer.close()
+                PDDocument.load(java.io.File(uri.path!!)).use { doc ->
+                    val outline = PDDocumentOutline()
+                    bookmarks.forEach { b ->
+                        val item = PDOutlineItem()
+                        item.title = "#%06X|%s".format(b.color and 0xFFFFFF, b.title.take(50))
+                        val dest = PDPageFitWidthDestination()
+                        dest.setPage(doc.pages[b.page.coerceIn(0, doc.numberOfPages - 1)])
+                        item.setDestination(dest)
+                        outline.addLast(item)
+                    }
+                    doc.documentCatalog.documentOutline = outline
+                    doc.save(java.io.File(uri.path!!))
+                }
+                pdfRenderer.open(uri)
+                preloadAround(_uiState.value.currentPage)
+            } catch (e: Exception) {
+                FaceLog.e("MSV_VM", "写入书签失败: ${e.message}", e)
+                runCatching { pdfRenderer.open(uri) }
+            }
+        }
+    }
+
+    private fun addBookmark(page: Int, title: String, color: Int) {
+        if (_uiState.value.mode !is Mode.Pdf) return
+        _uiState.update {
+            it.copy(bookmarks = it.bookmarks + PageBookmark(id = UUID.randomUUID().toString(), page = page, title = title.take(50), color = color))
+        }
+        writePdfBookmarks()
+    }
+
+    private fun deleteBookmark(id: String) {
+        _uiState.update { it.copy(bookmarks = it.bookmarks.filterNot { b -> b.id == id }) }
+        writePdfBookmarks()
+    }
+
+    private fun renameBookmark(id: String, title: String) {
+        _uiState.update { it.copy(bookmarks = it.bookmarks.map { b -> if (b.id == id) b.copy(title = title.take(50)) else b }) }
+        writePdfBookmarks()
     }
 
     private fun toggleTheme() {
