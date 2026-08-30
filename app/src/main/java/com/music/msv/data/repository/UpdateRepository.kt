@@ -91,6 +91,7 @@ class UpdateRepository(private val context: Context) {
         UpdateInfo(
             tag = json.optString("tag_name"),
             notes = summarizeNotes(json.optString("body")),
+            fullNotes = json.optString("body"),
             apkUrl = apk.optString("browser_download_url"),
             source = if (isGitee) "Gitee" else "GitHub"
         )

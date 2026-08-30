@@ -9,13 +9,20 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -90,18 +97,25 @@ fun SettingsPanel(
             Box(Modifier.fillMaxWidth().height(1.dp).background(divider))
             Spacer(Modifier.height(12.dp))
 
-            // 检查更新按钮
+            // 检查更新按钮（检查中/下载更新包时禁用）
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(ButtonShape)
                     .background(accent)
-                    .clickable(enabled = updateStatus != UpdateStatus.Checking) { onCheckUpdate() }
+                    .clickable(
+                        enabled = updateStatus != UpdateStatus.Checking &&
+                            updateStatus != UpdateStatus.Downloading
+                    ) { onCheckUpdate() }
                     .padding(vertical = 10.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    if (updateStatus == UpdateStatus.Checking) "检查中…" else "检查更新",
+                    when (updateStatus) {
+                        UpdateStatus.Checking -> "检查中…"
+                        UpdateStatus.Downloading -> "下载中…"
+                        else -> "检查更新"
+                    },
                     color = onAccent,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold
@@ -124,6 +138,25 @@ fun SettingsPanel(
                         )
                         Spacer(Modifier.height(6.dp))
                         Text(info.notes, color = muted, fontSize = 12.sp, lineHeight = 17.sp)
+                        var showFullLog by remember { mutableStateOf(false) }
+                        Text(
+                            if (showFullLog) "收起更新日志 ▴" else "查看更新日志 ▾",
+                            color = accent,
+                            fontSize = 12.sp,
+                            modifier = Modifier
+                                .padding(top = 6.dp)
+                                .clickable { showFullLog = !showFullLog }
+                        )
+                        if (showFullLog) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 220.dp)
+                                    .verticalScroll(rememberScrollState())
+                            ) {
+                                Text(info.fullNotes.ifEmpty { "暂无更新日志" }, color = muted, fontSize = 12.sp, lineHeight = 17.sp)
+                            }
+                        }
                         Spacer(Modifier.height(10.dp))
                         OutlineButton("立即更新", accent, ctrlBg, onDownloadUpdate)
                     }

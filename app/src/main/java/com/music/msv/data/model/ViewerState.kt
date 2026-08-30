@@ -85,6 +85,7 @@ data class ShelfFile(
 data class UpdateInfo(
     val tag: String,
     val notes: String,
+    val fullNotes: String,
     val apkUrl: String,
     val source: String
 )

@@ -79,12 +79,15 @@ fun Stage(
     modifier: Modifier = Modifier
 ) {
     val bg = if (isDark) Color(0xFF0F1220) else Color(0xFFDFE6F5)
+    val context = LocalContext.current
     var stageWidth by remember { mutableStateOf(0) }
     var stageHeight by remember { mutableStateOf(0) }
     var currentZoom by remember { mutableFloatStateOf(zoom) }
     val transition = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
     var flipJob by remember { mutableStateOf<Job?>(null) }
+    // 当前翻页动画方向（1=前向 -1=后向 0=无动画/拖拽中），用于区分动画期与拖拽期的页面定位
+    var flipDir by remember { mutableStateOf(0) }
     var dragOffset by remember { mutableFloatStateOf(0f) }
 
     val isZoomed = zoom > 1.01f || abs(panOffsetX) > 1f || abs(panOffsetY) > 1f
@@ -135,8 +138,11 @@ fun Stage(
         val step = if (currentIsSpread) 2 else 1
         if (currentPageIndex + dir * step !in 0 until currentPageCount) return
         flipJob?.cancel()
+        flipDir = dir
         flipJob = scope.launch {
             transition.snapTo(fromOffset)
+            // 触发瞬间即推进页码（页码显示/渲染/预加载全部以目标页为准），动画只负责视觉过渡
+            if (dir > 0) onNextPage() else onPrevPage()
             try {
                 if (easing) {
                     transition.animateTo(
@@ -152,7 +158,7 @@ fun Stage(
             } finally {
                 withContext(NonCancellable) {
                     transition.snapTo(0f)
-                    if (dir > 0) onNextPage() else onPrevPage()
+                    flipDir = 0
                     onFlipDone()
                 }
             }
@@ -306,7 +312,9 @@ fun Stage(
 
             for (pageIndex in pagesToShow) {
                 val uri = pageUris[pageIndex] ?: continue
-                val offsetInSpread = (pageIndex - currentPage).toFloat() * dw
+                // 页码触发瞬间已推进：动画期间以翻页前的页码为基准计算偏移，保证新旧两对页滑动衔接
+                val refPage = if (flipDir != 0) currentPage - flipDir * 2 else currentPage
+                val offsetInSpread = (pageIndex - refPage).toFloat() * dw
                 val pageOffsetX = spreadCenterX + offsetInSpread + t
 
                 Box(
@@ -323,7 +331,8 @@ fun Stage(
                         )
                 ) {
                     AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current).data(uri).build(),
+                        // remember 固化请求：避免其他页渲染完成触发重组时重建 ImageRequest 导致请求重启、已渲染页面闪没又出现
+                        model = remember(uri) { ImageRequest.Builder(context).data(uri).build() },
                         contentDescription = "page $pageIndex",
                         contentScale = ContentScale.FillBounds,
                         colorFilter = if (isDark) ColorFilter.colorMatrix(invertColorMatrix) else null,
@@ -371,17 +380,23 @@ fun Stage(
 
             for (pageIndex in pagesToShow) {
                 val uri = pageUris[pageIndex] ?: continue
-                // 前向翻页动画进行中，下一页叠在当前页下方待揭示；其余时刻后续页停靠屏幕外，
-                // 避免缓存未完成时当前页位图刷新（升级/换URI）瞬间透出下层其他页造成"闪页"
+                // 页码在翻页触发瞬间已推进到目标页：
+                // 前向动画：旧当前页(cp-1)叠在 0 处随 t 滑出，新当前页静止在 0 底下
+                // 后向动画：旧当前页(cp+1)静止在 0 处，新当前页从 -dw 随 t 滑入覆盖
+                // 其余后续页停靠屏幕外，避免当前页位图刷新（升级/换URI）瞬间透出下层其他页
                 val base = when {
                     pageIndex == currentPage -> 0f
-                    t < 0 && pageIndex == currentPage + 1 -> 0f
+                    flipDir == 1 && t < 0 && pageIndex == currentPage - 1 -> 0f
+                    flipDir == -1 && t > 0 && pageIndex == currentPage + 1 -> 0f
+                    flipDir == 0 && t < 0 && pageIndex == currentPage + 1 -> 0f
                     pageIndex > currentPage -> stageWidth.toFloat()
                     else -> -(currentPage - pageIndex).toFloat() * dw
                 }
                 val pageOffsetX = when {
-                    t < 0 && pageIndex == currentPage -> base + t
-                    t > 0 && pageIndex == currentPage - 1 -> base + t
+                    flipDir == 1 && t < 0 && pageIndex == currentPage - 1 -> t
+                    flipDir == -1 && t > 0 && pageIndex == currentPage -> -dw + t
+                    flipDir == 0 && t < 0 && pageIndex == currentPage -> base + t
+                    flipDir == 0 && t > 0 && pageIndex == currentPage - 1 -> base + t
                     else -> base
                 }
 
@@ -399,7 +414,8 @@ fun Stage(
                         )
                 ) {
                     AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current).data(uri).build(),
+                        // remember 固化请求：避免其他页渲染完成触发重组时重建 ImageRequest 导致请求重启、已渲染页面闪没又出现
+                        model = remember(uri) { ImageRequest.Builder(context).data(uri).build() },
                         contentDescription = "page $pageIndex",
                         contentScale = ContentScale.FillBounds,
                         colorFilter = if (isDark) ColorFilter.colorMatrix(invertColorMatrix) else null,

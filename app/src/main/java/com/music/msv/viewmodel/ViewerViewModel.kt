@@ -362,11 +362,18 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         preloadJob = viewModelScope.launch(Dispatchers.IO) {
             val needRender = (keepMin..keepMax).filter { !oldUris.containsKey(it) }
             if (fastFlip) {
-                // 快速连续翻动：窗口内缺失页全部按 0.6x 压缩渲染保证速度；停止翻动 1s 后由 settle 恢复正常分辨率加载
-                if (needRender.isNotEmpty()) {
-                    val sW = (pageW * 0.6f).toInt().coerceAtLeast(1)
-                    val sH = (pageH * 0.6f).toInt().coerceAtLeast(1)
-                    val rendered = needRender.map { i ->
+                // 快速连续翻动：全部 0.6x 压缩渲染保证速度；当前页同步优先渲染，其余并行；停止翻动 1s 后由 settle 恢复正常分辨率
+                val sW = (pageW * 0.6f).toInt().coerceAtLeast(1)
+                val sH = (pageH * 0.6f).toInt().coerceAtLeast(1)
+                if (center in needRender) {
+                    renderPage(center, sW, sH, zoom, 85)?.let { uri ->
+                        pageScales[center] = 0.6f
+                        _uiState.update { it.copy(pageUris = it.pageUris + (center to uri)) }
+                    }
+                }
+                val rest = needRender.filter { it != center }
+                if (rest.isNotEmpty()) {
+                    val rendered = rest.map { i ->
                         async { renderPage(i, sW, sH, zoom, 85)?.let { i to it } }
                     }.awaitAll().filterNotNull().toMap()
                     if (rendered.isNotEmpty()) {
@@ -377,9 +384,15 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             } else {
                 // 缺失 或 已存在但非全分辨率（此前按 0.6x/0.4x 预加载的压缩页）都需全尺寸渲染
                 fun needsFull(i: Int) = !oldUris.containsKey(i) || pageScales[i] != 1f
-                fun replacePage(index: Int, uri: Uri, oldUri: Uri?) {
+                suspend fun replacePage(index: Int, uri: Uri, oldUri: Uri?) {
                     if (oldUri != null && oldUri != uri) {
                         try { java.io.File(oldUri.path!!).delete() } catch (_: Exception) {}
+                    }
+                    // 预热 Coil 内存缓存后再换 URI，避免已渲染页面在升级瞬间空白（消失又出现）
+                    runCatching {
+                        val app = getApplication<Application>()
+                        coil3.SingletonImageLoader.get(app)
+                            .execute(coil3.request.ImageRequest.Builder(app).data(uri).build())
                     }
                     pageScales[index] = 1f
                     _uiState.update { it.copy(pageUris = it.pageUris + (index to uri)) }
@@ -720,6 +733,8 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             _uiState.update {
                 it.copy(updateStatus = UpdateStatus.Downloaded, updateMessage = "", statusMessage = "更新包下载完成")
             }
+            // 下载完成后自动调起安装（未授权"安装未知应用"时会在 installUpdate 内引导授权）
+            installUpdate()
         } else {
             _uiState.update { it.copy(updateStatus = UpdateStatus.Error, updateMessage = "下载失败，请重试") }
         }
