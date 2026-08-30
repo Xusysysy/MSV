@@ -239,27 +239,27 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 11. ui/components/ThumbnailPanel.kt (L1-L373)
+### 11. ui/components/ThumbnailPanel.kt (L1-L372)
 
 | Element | Type | Lines |
 |---|---|---|
 | Package + imports | — | L1-L55 |
 | `invertColorMatrix` | private val ColorMatrix | L57-L63 |
 | `bookmarkPresets` | private val List<Int> — 8 个预设 RGB 书签色 | L65-L68 |
-| `ThumbnailPanel` | @OptIn(ExperimentalFoundationApi) @Composable fun | L72-L316 |
-| Parameters (13): | isDark, pageCount, currentPage, isPdfMode, bookmarks, getThumbnailUri, onPageSelected, onBookmarkClick, onAddBookmark, onDeleteBookmark, onEditBookmark, onClose, modifier | L73-L86 |
-| Local colors + states | panelBg…muted/text/danger/menuContainer + addPage/addTitle/addColor/editBm/bmMenuId | L87-L95 |
-| Box root（书签栏在缩略图面板**下一图层**，520dp 容器） | composable | L97-L316 |
-| — Bookmark rail（width 220，End 对齐 + offset 64 延伸至面板之下，verticalScroll 可滚动，无额外背景，spacedBy 6 间隙，底部 Spacer 保证滚到底完整） | 仅 isPdfMode 且书签非空时显示 | L99-L141 |
-| — — BookmarkStrip ×N | 半透明（color alpha **0.55**）左半圆书签条：click→跳转页码, long-press→菜单（**编辑**/删除红字），文字 13sp **单行不换行**，requiredWidthIn(284) 宽度随名长 | L114-L140 |
-| — Thumbnails Column (300dp) | composable | L143-L259 |
-| — — Close button Box | L146-L163 |
-| — — gridState + LaunchedEffect scroll-to-current | L165-L174 |
-| — — LazyVerticalGrid (2 cols, state=gridState) | L176-L228 |
-| — — — itemsIndexed → Column（click→跳页, **long-press→添加书签弹窗**） | L184-L228 |
-| — — — — Thumbnail AsyncImage | L196-L210 |
-| — — — — Page number Text | L211-L219 |
-| `BookmarkDialog` | private @Composable — 添加/编辑共用（命名 ≤50 字 + 8 色 RGB 色板） | L318-L373 |
+| `ThumbnailPanel` | @OptIn(ExperimentalFoundationApi) @Composable fun | L70-L315 |
+| Parameters (13): | isDark, pageCount, currentPage, isPdfMode, bookmarks, getThumbnailUri, onPageSelected, onBookmarkClick, onAddBookmark, onDeleteBookmark, onEditBookmark, onClose, modifier | L71-L83 |
+| Local colors + states | panelBg…muted/text/danger/menuContainer + addPage/addTitle/addColor/editBm/bmMenuId | L84-L92 |
+| Box root（书签栏在下层 0-284，缩略图面板在上层 CenterEnd 220-520） | composable | L94-L315 |
+| — Bookmark rail（width 284 = 可见 220 + 面板下 64，End 对齐 → 右端统一延伸至面板之下，verticalScroll 可滚动，无额外背景，spacedBy 6 间隙，底部 Spacer 保证滚到底完整） | 仅 isPdfMode 且书签非空时显示 | L96-L137 |
+| — — BookmarkStrip ×N | 半透明（color alpha **0.55**）左半圆书签条：click→跳转页码, long-press→菜单（**编辑**/删除红字），文字 13sp **单行不换行**，requiredWidthIn(300) 宽度随名长（过长省略） | L109-L135 |
+| — Thumbnails Column (300dp, **align CenterEnd** 面板层) | composable | L139-L315 |
+| — — Close button Box | L142-L159 |
+| — — gridState + LaunchedEffect scroll-to-current | L161-L170 |
+| — — LazyVerticalGrid (2 cols, state=gridState) | L172-L224 |
+| — — — itemsIndexed → Column（click→跳页, **long-press→添加书签弹窗**） | L180-L224 |
+| — — — — Thumbnail AsyncImage | L192-L206 |
+| — — — — Page number Text | L207-L215 |
+| `BookmarkDialog` | private @Composable — 添加/编辑共用（命名 ≤50 字 + 8 色 RGB 色板） | L317-L372 |
 
 ---
 

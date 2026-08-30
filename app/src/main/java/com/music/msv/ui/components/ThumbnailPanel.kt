@@ -112,11 +112,11 @@ fun ThumbnailPanel(
     var bmMenuId by remember { mutableStateOf<String?>(null) }
 
     Box(modifier.width(520.dp)) {
-        // 书签栏：位于缩略图面板下一图层，书签条右端延伸至面板之下；右端对齐；无额外背景；可上下滚动
+        // 书签栏：位于缩略图面板下一图层；书签条 End 对齐（右端统一延伸至面板之下 64dp），左端半圆随名字长度自然错落
         Column(
             modifier = Modifier
                 .fillMaxHeight()
-                .width(220.dp)
+                .width(284.dp)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -127,8 +127,7 @@ fun ThumbnailPanel(
                 Box {
                     Row(
                         modifier = Modifier
-                            .requiredWidthIn(max = 348.dp)
-                            .offset(x = 64.dp)
+                            .requiredWidthIn(max = 300.dp)
                             .background(
                                 Color(bm.color).copy(alpha = 0.55f),
                                 RoundedCornerShape(topStart = 21.dp, bottomStart = 21.dp, topEnd = 4.dp, bottomEnd = 4.dp)
@@ -179,6 +178,7 @@ fun ThumbnailPanel(
             modifier = Modifier
                 .width(300.dp)
                 .fillMaxHeight()
+                .align(Alignment.CenterEnd)
                 .background(panelBg, RoundedCornerShape(topStart = 22.dp, bottomStart = 22.dp))
                 .border(1.dp, panelBorder, RoundedCornerShape(topStart = 22.dp, bottomStart = 22.dp))
         ) {
