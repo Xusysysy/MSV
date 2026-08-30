@@ -43,6 +43,7 @@ fun SettingsPanel(
     showVersionLog: Boolean,
     versionNotes: String,
     versionNotesLoading: Boolean,
+    downloadProgress: Int,
     updateStatus: UpdateStatus,
     updateInfo: UpdateInfo?,
     updateMessage: String,
@@ -153,7 +154,26 @@ fun SettingsPanel(
                 UpdateStatus.Idle, UpdateStatus.Checking -> {}
                 UpdateStatus.UpToDate -> StatusText(updateMessage.ifEmpty { "已是最新版本" }, muted)
                 UpdateStatus.Error -> StatusText(updateMessage.ifEmpty { "检查失败，请重试" }, muted)
-                UpdateStatus.Downloading -> StatusText("正在下载更新包…（进度见系统通知栏）", muted)
+                UpdateStatus.Downloading -> {
+                    StatusText("正在下载更新包… $downloadProgress%", muted)
+                    Spacer(Modifier.height(8.dp))
+                    // 应用内下载进度条（accent 填充）
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(ctrlBg)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(downloadProgress.coerceIn(0, 100) / 100f)
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(accent)
+                        )
+                    }
+                }
                 UpdateStatus.Available -> {
                     val info = updateInfo
                     if (info != null) {

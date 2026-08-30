@@ -38,7 +38,8 @@ data class ViewerState(
     val showUpdateDialog: Boolean = false,
     val showVersionLog: Boolean = false,
     val versionNotes: String = "",
-    val versionNotesLoading: Boolean = false
+    val versionNotesLoading: Boolean = false,
+    val downloadProgress: Int = 0
 )
 
 enum class ShelfSort { NAME, DATE }
@@ -84,7 +85,8 @@ sealed class ViewerEvent {
 data class ShelfFile(
     val name: String,
     val uri: Uri,
-    val thumbnailUri: Uri? = null
+    val thumbnailUri: Uri? = null,
+    val lastModified: Long = 0
 )
 
 data class UpdateInfo(

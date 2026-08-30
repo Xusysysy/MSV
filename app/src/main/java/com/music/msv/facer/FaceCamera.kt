@@ -98,10 +98,16 @@ fun FaceCamera(
             }, ctx2.mainExecutor)
         } }, Modifier.fillMaxSize())
 
-        if (visible && state.landmarks != null) {
+        if (visible && state.landmarks != null && state.frameWidth > 0) {
             val lm = state.landmarks!!
             Canvas(Modifier.fillMaxSize()) { val w = size.width; val h = size.height
-                fun d(c: IntArray, cl: Color, sw: Float) { var i = 0; while (i < c.size - 1) { val a = c[i]; val bb = c[i + 1]; if (a < lm.size && bb < lm.size) { drawLine(cl, Offset((1f - lm[a].x()) * w, lm[a].y() * h), Offset((1f - lm[bb].x()) * w, lm[bb].y() * h), strokeWidth = sw) }; i += 2 } }
+                // 预览为 FIT_CENTER：按送检位图（已旋转/镜像）尺寸计算缩放与留白，线条与画面精确对齐
+                val fw = state.frameWidth.toFloat(); val fh = state.frameHeight.toFloat()
+                val scale = minOf(w / fw, h / fh)
+                val dx = (w - fw * scale) / 2f
+                val dy = (h - fh * scale) / 2f
+                fun px(i: Int) = Offset(dx + lm[i].x() * fw * scale, dy + lm[i].y() * fh * scale)
+                fun d(c: IntArray, cl: Color, sw: Float) { var i = 0; while (i < c.size - 1) { val a = c[i]; val bb = c[i + 1]; if (a < lm.size && bb < lm.size) { drawLine(cl, px(a), px(bb), strokeWidth = sw) }; i += 2 } }
                 d(F, Color(0xCCB08CFF), 3f); d(E, Color(0xDD00D4FF), 3f); d(B, Color(0xCC00D4FF), 2.5f); d(L, Color(0xDDFF3D8F), 3f)
             }
         }

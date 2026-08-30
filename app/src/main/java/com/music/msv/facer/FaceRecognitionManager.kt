@@ -33,7 +33,8 @@ class FaceRecognitionManager(context: Context) {
         val thresholds: Thresholds = Thresholds(), val mirrored: Boolean = true,
         val actionThreshold: Float = 0.1f, val actionActive: Boolean = false,
         val fps: Int = 0, val scores: GestureScores = GestureScores(),
-        val landmarks: List<NormalizedLandmark>? = null, val status: String = ""
+        val landmarks: List<NormalizedLandmark>? = null, val status: String = "",
+        val frameWidth: Int = 0, val frameHeight: Int = 0
     )
     data class Thresholds(val blink: Float = 0.35f, val pucker: Float = 0.25f, val puckerBiasL: Float = 0.21f, val puckerBiasR: Float = 0.21f)
     data class GestureScores(val lWink: Float = 0f, val rWink: Float = 0f, val lPucker: Float = 0f, val rPucker: Float = 0f)
@@ -77,6 +78,7 @@ class FaceRecognitionManager(context: Context) {
         try {
             val bmp = decode(ip)
             if (frameCount <= 3) FaceLog.d(TAG, "process $frameCount: decode完成 ${bmp.width}x${bmp.height}")
+            val bw = bmp.width; val bh = bmp.height
             val result = l.detect(BitmapImageBuilder(bmp).build()); bmp.recycle()
             if (frameCount <= 3) FaceLog.d(TAG, "process $frameCount: detect完成")
             val rawLM = result.faceLandmarks(); val lm = if (rawLM.isNotEmpty()) rawLM[0] else null
@@ -85,7 +87,8 @@ class FaceRecognitionManager(context: Context) {
             val gesture = if (cats != null) processBlendshapes(cats) else Gesture.NONE
             fpsC++; val now = System.currentTimeMillis()
             val fps = if (now - fpsT >= 1000) { val f = fpsC; fpsC = 0; fpsT = now; f } else _state.value.fps
-            _state.update { it.copy(fps = fps, landmarks = lm, status = "LM:${rawLM.size}f ${lm?.size ?: 0}pts") }
+            // 记录送入检测的位图尺寸（已旋转/镜像），供叠加层按 FIT_CENTER 精确映射
+            _state.update { it.copy(fps = fps, landmarks = lm, status = "LM:${rawLM.size}f ${lm?.size ?: 0}pts", frameWidth = bw, frameHeight = bh) }
             if (gesture != Gesture.NONE && System.currentTimeMillis() - lastAct >= 800) {
                 lastAct = System.currentTimeMillis(); val g = gesture
                 FaceLog.i(TAG, "process: 检测到手势 $g")

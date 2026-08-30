@@ -1,20 +1,22 @@
 package com.music.msv.data.repository
 
-import android.app.DownloadManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
-import android.os.Environment
 import android.provider.Settings
 import androidx.core.content.FileProvider
 import androidx.core.content.pm.PackageInfoCompat
 import com.music.msv.data.model.UpdateInfo
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import kotlin.coroutines.coroutineContext
 
 /**
  * 逐段数值版本比较：a < b → 负数，相等 → 0，a > b → 正数。
@@ -140,20 +142,42 @@ class UpdateRepository(private val context: Context) {
 
     // ── 下载（系统 DownloadManager，进度由通知栏展示）──
 
-    /** 清理同 URL 的进行中/暂停任务，避免并发写同一文件 */
-    fun removeStaleDownloads(apkUrl: String) {
-        val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-        val q = DownloadManager.Query().setFilterByStatus(
-            DownloadManager.STATUS_RUNNING or
-                DownloadManager.STATUS_PENDING or
-                DownloadManager.STATUS_PAUSED
-        )
-        dm.query(q).use { c ->
-            val uriIdx = c.getColumnIndexOrThrow(DownloadManager.COLUMN_URI)
-            val idIdx = c.getColumnIndexOrThrow(DownloadManager.COLUMN_ID)
-            while (c.moveToNext()) {
-                if (c.getString(uriIdx) == apkUrl) dm.remove(c.getLong(idIdx))
+    /** 应用内流式下载更新包（替代系统 DownloadManager，进度经 onProgress 回调；支持协程取消），成功返回已下载文件 */
+    suspend fun downloadApk(url: String, tag: String, onProgress: (Int) -> Unit): File? = withContext(Dispatchers.IO) {
+        val file = updateApkFile(tag)
+        file.delete()
+        try {
+            val conn = URL(url).openConnection() as HttpURLConnection
+            conn.connectTimeout = TIMEOUT_MS
+            conn.readTimeout = 30000
+            conn.instanceFollowRedirects = true
+            conn.connect()
+            val total = conn.contentLengthLong
+            conn.inputStream.use { input ->
+                file.outputStream().use { out ->
+                    val buf = ByteArray(8192)
+                    var done = 0L
+                    var lastPct = -1
+                    while (true) {
+                        coroutineContext.ensureActive() // 协作式取消：下载中断开即停止
+                        val n = input.read(buf)
+                        if (n == -1) break
+                        out.write(buf, 0, n)
+                        done += n
+                        if (total > 0) {
+                            val pct = (done * 100 / total).toInt()
+                            if (pct != lastPct) { lastPct = pct; onProgress(pct) }
+                        }
+                    }
+                }
             }
+            if (file.exists() && file.length() > 0) file else null
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            file.delete()
+            throw e
+        } catch (_: Exception) {
+            file.delete()
+            null
         }
     }
 
@@ -162,29 +186,6 @@ class UpdateRepository(private val context: Context) {
     fun updateApkFile(tag: String): File {
         val dir = File(context.getExternalFilesDir(null), UPDATE_DIR).apply { mkdirs() }
         return File(dir, apkFileName(tag))
-    }
-
-    fun enqueueDownload(apkUrl: String, tag: String): Long {
-        val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-        updateApkFile(tag).delete()
-        val request = DownloadManager.Request(Uri.parse(apkUrl)).apply {
-            setTitle("MSV v$tag")
-            setDescription("正在更新 MSV 乐谱查看器")
-            setMimeType(APK_MIME)
-            setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            setDestinationInExternalFilesDir(context, null, "$UPDATE_DIR/${apkFileName(tag)}")
-            setAllowedOverRoaming(false)
-        }
-        return dm.enqueue(request)
-    }
-
-    fun queryDownloadStatus(id: Long): Int? {
-        if (id <= 0) return null
-        val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-        dm.query(DownloadManager.Query().setFilterById(id)).use { c ->
-            if (!c.moveToFirst()) return null
-            return c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
-        }
     }
 
     /** 升级成功后清理已安装版本对应的历史安装包（不误删未安装的新版包） */

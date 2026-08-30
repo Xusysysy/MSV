@@ -230,6 +230,7 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                     showVersionLog = state.showVersionLog,
                     versionNotes = state.versionNotes,
                     versionNotesLoading = state.versionNotesLoading,
+                    downloadProgress = state.downloadProgress,
                     updateStatus = state.updateStatus,
                     updateInfo = state.updateInfo,
                     updateMessage = state.updateMessage,

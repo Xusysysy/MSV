@@ -1,15 +1,10 @@
 package com.music.msv.viewmodel
 
 import android.app.Application
-import android.app.DownloadManager
-import android.content.BroadcastReceiver
-import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.net.Uri
 import android.os.Build
 import com.music.msv.facer.FaceLog
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.music.msv.data.model.Mode
@@ -70,22 +65,13 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     private var settleJob: Job? = null
 
     private var singleRenderJob: Job? = null
-    private var currentDownloadId = -1L
-
-    private val downloadReceiver = object : BroadcastReceiver() {
-        override fun onReceive(ctx: Context?, intent: Intent?) {
-            val id = intent?.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L) ?: return
-            if (id != currentDownloadId) return
-            viewModelScope.launch(Dispatchers.IO) { onDownloadComplete(id) }
-        }
-    }
+    private var downloadJob: Job? = null
 
     init {
         FaceLog.d("MSV_VM", "ViewerViewModel init")
         _uiState.update {
             it.copy(appVersionName = updateRepo.installedVersionName, appVersionCode = updateRepo.installedVersionCode)
         }
-        registerDownloadReceiver()
         viewModelScope.launch {
             sessionRepo.getPageMap().collect { pageMap = it }
         }
@@ -532,7 +518,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun setShelfSort(sort: ShelfSort) {
         if (_uiState.value.shelfSortBy == sort) return
-        _uiState.update { it.copy(shelfSortBy = sort) }
+        _uiState.update { it.copy(shelfSortBy = sort, statusMessage = if (sort == ShelfSort.NAME) "已按名称排序" else "已按日期排序") }
         loadShelfFiles()
     }
 
@@ -589,7 +575,8 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 ShelfFile(
                     name = file.name,
                     uri = Uri.fromFile(file),
-                    thumbnailUri = if (fileRepo.isImage(file.name)) Uri.fromFile(file) else null
+                    thumbnailUri = if (fileRepo.isImage(file.name)) Uri.fromFile(file) else null,
+                    lastModified = file.lastModified()
                 )
             }
             _uiState.update { it.copy(shelfFiles = files) }
@@ -709,15 +696,6 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     // ── OTA 更新 ──
 
-    private fun registerDownloadReceiver() {
-        ContextCompat.registerReceiver(
-            getApplication(),
-            downloadReceiver,
-            IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
-            ContextCompat.RECEIVER_NOT_EXPORTED
-        )
-    }
-
     /** 检查更新：Gitee/GitHub 并行查询，仅接受比当前版本新的候选，平手时 Gitee 优先 */
     private fun checkUpdate(manual: Boolean) {
         _uiState.update { it.copy(updateStatus = UpdateStatus.Checking, updateMessage = "") }
@@ -744,32 +722,25 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    /** 应用内下载更新包（带进度回调），完成后自动调起安装；设置面板同步显示进度与安装按钮 */
     private fun downloadUpdate() {
         val info = _uiState.value.updateInfo ?: return
         if (_uiState.value.updateStatus == UpdateStatus.Downloading) return
-        viewModelScope.launch(Dispatchers.IO) {
-            updateRepo.removeStaleDownloads(info.apkUrl)
-            currentDownloadId = updateRepo.enqueueDownload(info.apkUrl, info.tag)
+        downloadJob?.cancel()
+        downloadJob = viewModelScope.launch(Dispatchers.IO) {
             _uiState.update {
-                it.copy(
-                    updateStatus = UpdateStatus.Downloading,
-                    showUpdateDialog = false,
-                    statusMessage = "已开始下载 v${info.tag} 更新包，完成后将提示安装"
-                )
+                it.copy(updateStatus = UpdateStatus.Downloading, showUpdateDialog = false, downloadProgress = 0, statusMessage = "开始下载 v${info.tag} 更新包…")
             }
-        }
-    }
-
-    private fun onDownloadComplete(id: Long) {
-        val status = updateRepo.queryDownloadStatus(id)
-        if (status == DownloadManager.STATUS_SUCCESSFUL) {
-            _uiState.update {
-                it.copy(updateStatus = UpdateStatus.Downloaded, updateMessage = "", statusMessage = "更新包下载完成")
+            val file = updateRepo.downloadApk(info.apkUrl, info.tag) { pct ->
+                _uiState.update { it.copy(downloadProgress = pct) }
             }
-            // 下载完成后自动调起安装（未授权"安装未知应用"时会在 installUpdate 内引导授权）
-            installUpdate()
-        } else {
-            _uiState.update { it.copy(updateStatus = UpdateStatus.Error, updateMessage = "下载失败，请重试") }
+            if (file != null) {
+                _uiState.update { it.copy(updateStatus = UpdateStatus.Downloaded, downloadProgress = 100, statusMessage = "更新包下载完成") }
+                // 下载完成后自动调起安装（未授权"安装未知应用"时会在 installUpdate 内引导授权）
+                installUpdate()
+            } else {
+                _uiState.update { it.copy(updateStatus = UpdateStatus.Error, updateMessage = "下载失败，请重试") }
+            }
         }
     }
 
@@ -952,7 +923,6 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     override fun onCleared() {
         super.onCleared()
-        runCatching { getApplication<Application>().unregisterReceiver(downloadReceiver) }
         pdfRenderer.close()
     }
 }

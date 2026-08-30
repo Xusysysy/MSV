@@ -45,6 +45,36 @@ import kotlinx.coroutines.withContext
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
+/** 单页渲染：升级换缓存时旧 URI 垫底显示（Coil 内存缓存命中），新图解码完成后覆盖，零空窗防闪烁 */
+@Composable
+private fun ScorePageImage(uri: Uri, pageIndex: Int, isDark: Boolean, modifier: Modifier) {
+    val context = LocalContext.current
+    var current by remember { mutableStateOf(uri) }
+    var previous by remember { mutableStateOf<Uri?>(null) }
+    if (uri != current) {
+        previous = current
+        current = uri
+    }
+    Box(modifier) {
+        previous?.let { prev ->
+            AsyncImage(
+                model = remember(prev) { ImageRequest.Builder(context).data(prev).build() },
+                contentDescription = null,
+                contentScale = ContentScale.FillBounds,
+                colorFilter = if (isDark) ColorFilter.colorMatrix(invertColorMatrix) else null,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+        AsyncImage(
+            model = remember(current) { ImageRequest.Builder(context).data(current).build() },
+            contentDescription = "page $pageIndex",
+            contentScale = ContentScale.FillBounds,
+            colorFilter = if (isDark) ColorFilter.colorMatrix(invertColorMatrix) else null,
+            modifier = Modifier.fillMaxSize()
+        )
+    }
+}
+
 private val invertColorMatrix = ColorMatrix(
     floatArrayOf(
         -1f, 0f, 0f, 0f, 255f,
@@ -339,15 +369,8 @@ fun Stage(
                             with(LocalDensity.current) { dh.toDp() }
                         )
                 ) {
-                    AsyncImage(
-                        // remember 固化请求：避免其他页渲染完成触发重组时重建 ImageRequest 导致请求重启、已渲染页面闪没又出现
-                        model = remember(uri) { ImageRequest.Builder(context).data(uri).build() },
-                        contentDescription = "page $pageIndex",
-                        contentScale = ContentScale.FillBounds,
-                        colorFilter = if (isDark) ColorFilter.colorMatrix(invertColorMatrix) else null,
-                        modifier = Modifier
-                            .fillMaxSize()
-                    )
+                    ScorePageImage(uri = uri, pageIndex = pageIndex, isDark = isDark, modifier = Modifier
+                            .fillMaxSize())
                 }
             }
 
@@ -423,15 +446,8 @@ fun Stage(
                             with(LocalDensity.current) { dh.toDp() }
                         )
                 ) {
-                    AsyncImage(
-                        // remember 固化请求：避免其他页渲染完成触发重组时重建 ImageRequest 导致请求重启、已渲染页面闪没又出现
-                        model = remember(uri) { ImageRequest.Builder(context).data(uri).build() },
-                        contentDescription = "page $pageIndex",
-                        contentScale = ContentScale.FillBounds,
-                        colorFilter = if (isDark) ColorFilter.colorMatrix(invertColorMatrix) else null,
-                        modifier = Modifier
-                            .fillMaxSize()
-                    )
+                    ScorePageImage(uri = uri, pageIndex = pageIndex, isDark = isDark, modifier = Modifier
+                            .fillMaxSize())
                 }
             }
         }

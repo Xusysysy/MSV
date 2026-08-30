@@ -88,7 +88,16 @@ fun ShelfPanel(
     var renameTarget by remember { mutableStateOf<Uri?>(null) }
     var renameText by remember { mutableStateOf("") }
     var menuTarget by remember { mutableStateOf<ShelfFile?>(null) }
+    var deleteTarget by remember { mutableStateOf<ShelfFile?>(null) }
     var sortMenuOpen by remember { mutableStateOf(false) }
+    // 排序在渲染层兜底执行：无论加载链路状态如何，选择器切换必然改变可见顺序
+    val sortedFiles = remember(shelfFiles, shelfSortBy) {
+        when (shelfSortBy) {
+            ShelfSort.NAME -> shelfFiles.sortedBy { it.name.lowercase() }
+            ShelfSort.DATE -> shelfFiles.sortedByDescending { it.lastModified }
+        }
+    }
+    val menuContainer = if (isDark) Color(0xFF1A1E2E) else Color.White
 
     Column(
         modifier = modifier
@@ -154,7 +163,12 @@ fun ShelfPanel(
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold
                 )
-                DropdownMenu(expanded = sortMenuOpen, onDismissRequest = { sortMenuOpen = false }) {
+                DropdownMenu(
+                    expanded = sortMenuOpen,
+                    onDismissRequest = { sortMenuOpen = false },
+                    containerColor = menuContainer,
+                    shape = RoundedCornerShape(10.dp)
+                ) {
                     DropdownMenuItem(
                         text = {
                             Text(
@@ -198,7 +212,7 @@ fun ShelfPanel(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
-                itemsIndexed(shelfFiles) { _, sf ->
+                itemsIndexed(sortedFiles) { _, sf ->
                     Column(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
@@ -250,7 +264,9 @@ fun ShelfPanel(
                         // 长按弹出操作菜单（锚定在该乐谱条目位置）
                         DropdownMenu(
                             expanded = menuTarget == sf,
-                            onDismissRequest = { menuTarget = null }
+                            onDismissRequest = { menuTarget = null },
+                            containerColor = menuContainer,
+                            shape = RoundedCornerShape(10.dp)
                         ) {
                             DropdownMenuItem(
                                 text = { Text("重命名", color = text) },
@@ -264,7 +280,7 @@ fun ShelfPanel(
                                 text = { Text("删除", color = danger) },
                                 onClick = {
                                     menuTarget = null
-                                    onDelete(sf.uri)
+                                    deleteTarget = sf
                                 }
                             )
                         }
@@ -272,6 +288,23 @@ fun ShelfPanel(
                 }
             }
         }
+    }
+
+    if (deleteTarget != null) {
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            title = { Text("删除乐谱") },
+            text = { Text("确定删除「${deleteTarget?.name}」吗？此操作不可恢复。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    deleteTarget?.let { onDelete(it.uri) }
+                    deleteTarget = null
+                }) { Text("删除", color = danger) }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteTarget = null }) { Text("取消") }
+            }
+        )
     }
 
     if (renameTarget != null) {

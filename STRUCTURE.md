@@ -168,35 +168,26 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 7. ui/components/Stage.kt (L1-L439)
+### 7. ui/components/Stage.kt (L1-L455)
 
 | Element | Type | Lines |
 |---|---|---|
 | Package + imports | — | L1-L46 |
-| `invertColorMatrix` | private val ColorMatrix — dark-theme page inversion | L48-L55 |
-| `Stage` | @Composable fun | L57-L438 |
-| Parameters (22): | isDark, pageUris, currentPage, pageCount, pageWidth, pageHeight, zoom, panOffsetX, panOffsetY, isSpreadMode, pendingFlip(default=null), onCenterTap, onDoubleTap, onZoomChange, onPanChange, onNextPage, onPrevPage, onFlipDone(default={}), onViewportSizeChanged, onSpreadModeChanged, onPreloadAround(default={}), modifier(default=Modifier) | L58-L81 |
-| `bg` / `context` | derived vals（context 供 remember(uri) 固化 ImageRequest 使用） | L82-L83 |
-| `stageWidth` / `stageHeight` | mutableStateOf(0) | L84-L85 |
-| `currentZoom` | mutableFloatStateOf(zoom) | L86 |
-| `transition` / `scope` | Animatable(0f) / rememberCoroutineScope | L87-L88 |
-| `flipJob` / `flipDir` / `lastPage` | Job? + 翻页动画方向（1/-1/0）+ 触发翻页前的页码（动画期锚定滑出页） | L89-L93 |
-| `dragOffset` | mutableFloatStateOf(0f) | L94 |
-| `isZoomed` / `pw` | derived vals | L96-L97 |
-| `displaySize` | derived Pair? — fit-to-viewport display dimensions (null until measured) | L99-L113 |
-| `autoSpreadMode` | derived Boolean — landscape + narrow pages | L115-L118 |
-| LaunchedEffect(autoSpreadMode) | fires onSpreadModeChanged | L120-L122 |
-| `currentIsZoomed` etc. | 8× rememberUpdatedState + displayW + flipUnit + touchSlop + pendingFlip | L124-L133 |
-| LaunchedEffect(pageWidth, pageHeight) | resets transition to 0 | L135-L137 |
-| `doFlip(dir, fromOffset, easing)` | local fun — 触发瞬间记录 lastPage 并推进页码，动画只负责视觉；finally 带 `flipJob === selfJob` 守卫（被接替的旧动画不复位 snapTo/flipDir，防快速往返闪回旧页） | L139-L175 |
-| `doBounce(dir)` | local fun — boundary bounce animation（不改 flipDir/lastPage） | L177-L187 |
-| LaunchedEffect(currentPendingFlip) | face-triggered pending flip → doFlip | L189-L195 |
-| `pagesToShow` | derived val — visible page window (±5 single, ±6 spread), sorted descending | L197-L201 |
-| Root Box | composable (gestures + rendering) | L202-L438 |
-| — tap/drag awaitEachGesture pointerInput | 1/3 tap zones (flip/bounce/center tap), drag follow with boundary reversal | L206-L285 |
-| — transform pointerInput (isZoomed guard) | pinch zoom + pan | L287-L294 |
-| — Spread branch | gap fill Box、pages loop（L325 refPage：动画期 = lastPage 保证两对页滑动衔接）、gradient edge masks；AsyncImage remember(uri) 固化请求 | L298-L377 |
-| — Single branch | pages loop；base when（L397-L403）/pageOffsetX when（L405-L411）：动画期以 lastPage 锚定滑出页（消除 currentPage 滞后窗口的前一页闪现）、拖拽期当前页/前页跟手、后续页停靠 stageWidth 防透闪 | L379-L438 |
+| `ScorePageImage` | private @Composable — 单页渲染图层化：旧 URI 垫底 + 新 URI 前层，升级换缓存零空窗防闪烁 | L48-L85 |
+| `invertColorMatrix` | private val ColorMatrix — dark-theme page inversion | L87-L94 |
+| `Stage` | @Composable fun | L96-L454 |
+| Parameters (22): | isDark, pageUris, currentPage, pageCount, pageWidth, pageHeight, zoom, panOffsetX, panOffsetY, isSpreadMode, pendingFlip(default=null), onCenterTap, onDoubleTap, onZoomChange, onPanChange, onNextPage, onPrevPage, onFlipDone(default={}), onViewportSizeChanged, onSpreadModeChanged, onPreloadAround(default={}), modifier(default=Modifier) | L97-L120 |
+| states（bg/context/stageWidth/Height/zoom/transition/scope/flipJob/flipDir/lastPage/dragOffset） | L121-L137 |
+| derived vals（isZoomed/pw/displaySize/autoSpreadMode/两个 LaunchedEffect/currentIsZoomed 组） | L139-L167 |
+| `doFlip(dir, fromOffset, easing)` | local fun — 触发瞬间记录 lastPage 并推进页码，动画只负责视觉；finally 带 `flipJob === selfJob` 守卫（被接替的旧动画不复位 snapTo/flipDir，防快速往返闪回旧页） | L169-L205 |
+| `doBounce(dir)` | local fun — boundary bounce animation（不改 flipDir/lastPage） | L207-L217 |
+| LaunchedEffect(currentPendingFlip) | face-triggered pending flip → doFlip | L219-L225 |
+| `pagesToShow` | derived val — visible page window (±5 single, ±6 spread), sorted descending | L227-L231 |
+| Root Box | composable (gestures + rendering) | L232-L454 |
+| — tap/drag awaitEachGesture pointerInput | 1/3 tap zones (flip/bounce/center tap), drag follow with boundary reversal | L236-L303 |
+| — transform pointerInput (isZoomed guard) | pinch zoom + pan | L305-L311 |
+| — Spread branch | gap fill Box、pages loop（L363 refPage：动画期 = lastPage 保证两对页滑动衔接）、gradient edge masks；页面用 ScorePageImage 图层渲染 | L313-L382 |
+| — Single branch | pages loop；base when（L421-L427）/pageOffsetX when（L429-L433）：动画期以 lastPage 锚定滑出页（消除 currentPage 滞后窗口的前一页闪现）、拖拽期当前页/前页跟手、后续页停靠 stageWidth 防透闪 | L384-L454 |
 
 ---
 
@@ -275,29 +266,30 @@ Single-screen app — no Navigation component. State-based content switching via
 | `invertColorMatrix` | private val ColorMatrix | L57-L63 |
 | `ShelfPanel` | @Composable fun | L66-L302 |
 | Parameters (10): | isDark, shelfFiles, shelfSortBy, onFileSelected, onImportClick, onClose, onRename, onSortSelected, onDelete, modifier | L67-L83 |
-| Local colors + states | panelBg, panelBorder, itemBg, itemBorder, muted, accent, text, danger + renameTarget/renameText/menuTarget/sortMenuOpen | L84-L97 |
+| Local colors + states | panelBg, panelBorder, itemBg, itemBorder, muted, accent, text, danger + renameTarget/renameText/menuTarget/deleteTarget/sortMenuOpen + **sortedFiles（渲染层排序兜底）** | L84-L101 |
 | Column root (300dp left panel, 22dp 圆角) | composable | L99-L239 |
 | — Close button Box | 同 ThumbnailPanel 样式 | L102-L119 |
 | — Import + sort selector Row | L121-L175 |
 | — — Import button ("+ 导入乐谱") | L127-L147 |
 | — — Sort trigger (↓/A) + DropdownMenu（按日期排序/按名称排序，当前项 accent+✓） | L149-L175 |
 | — Empty state Text ("暂无导入的乐谱") | L177-L187 |
-| — LazyVerticalGrid (2 cols) | L188-L240 |
+| — LazyVerticalGrid (2 cols, 渲染 sortedFiles) | L188-L240 |
 | — — itemsIndexed → Column（combinedClickable: click→打开, longClick→menuTarget） | L181-L239 |
 | — — — Thumbnail (AsyncImage or 🎼 fallback) | L196-L214 |
 | — — — File name Text | L215-L222 |
-| — — — DropdownMenu 长按菜单：重命名 / **删除（danger 红字）** | L223-L236 |
-| Rename AlertDialog（由菜单"重命名"触发） | L241-L303 |
+| — — — DropdownMenu 长按菜单：重命名 / 删除（danger 红字，需确认） | L223-L236 |
+| Delete AlertDialog（二次确认："确定删除…此操作不可恢复"） | L241-L262 |
+| Rename AlertDialog（由菜单"重命名"触发） | L264-L303 |
 
 ---
 
-### 11c. ui/components/SettingsPanel.kt (L1-L229)
+### 11c. ui/components/SettingsPanel.kt (L1-L247)
 
 | Element | Type | Lines |
 |---|---|---|
 | Package + imports | — | L1-L36 |
-| `SettingsPanel(...)` | @Composable fun | L38-L204 |
-| Parameters (15): | isDark, versionName, versionCode, showVersionLog, versionNotes, versionNotesLoading, updateStatus, updateInfo, updateMessage, onCheckUpdate, onToggleVersionLog, onDownloadUpdate, onInstallUpdate, onClose, modifier | L40-L54 |
+| `SettingsPanel(...)` | @Composable fun | L38-L245 |
+| Parameters (16): | isDark, versionName, versionCode, showVersionLog, versionNotes, versionNotesLoading, downloadProgress, updateStatus, updateInfo, updateMessage, onCheckUpdate, onToggleVersionLog, onDownloadUpdate, onInstallUpdate, onClose, modifier | L40-L55 |
 | Local colors | panelBg, panelBorder, text, muted, divider, ctrlBg, ctrlBorder, accent, onAccent | L55-L63 |
 | Root Column (300dp right panel, 22dp 圆角) | composable | L65-L204 |
 | — Close button Box | 同 ThumbnailPanel 样式 | L72-L89 |
@@ -306,7 +298,7 @@ Single-screen app — no Navigation component. State-based content switching via
 | — — 查看本版本更新日志 toggle（showVersionLog 展开，L107-L120 滚动显示 versionNotes/加载中） | L101-L120 |
 | — — divider | L122 |
 | — — Check-update button（Checking/Downloading 时禁用，文案"检查中…"/"下载中…"） | L125-L148 |
-| — — `when(updateStatus)` 状态区 | Idle/Checking 空态 · UpToDate/Error/Downloading 文案 · Available 版本+notes+查看更新日志展开+立即更新按钮 · Downloaded 立即安装按钮 | L150-L178 |
+| — — `when(updateStatus)` 状态区 | Idle/Checking 空态 · UpToDate/Error 文案 · Downloading **应用内进度条+百分比** · Available 版本+notes+查看更新日志展开+立即更新按钮 · Downloaded 立即安装按钮 | L150-L195 |
 | — Footer Spacer(weight) + 版权行 "© 2026 Xusysysy · MSV 乐谱查看器" | L180-L183 |
 | `StatusText` | private @Composable | L186-L189 |
 | `OutlineButton` | private @Composable — accent 描边按钮 | L191-L204 |
@@ -348,9 +340,7 @@ Single-screen app — no Navigation component. State-based content switching via
 | `pageMap` | private var Map<String, Int> — per-file last-read page (KEY_PAGE_MAP) | L63 |
 | `pageScales` | private val ConcurrentHashMap<Int, Float> — 每页渲染比例（1f 全分辨率 / 0.6f / 0.4f 压缩层），翻页升级判断依据 | L65-L66 |
 | `flipTimestamps` / `settleJob` | ArrayDeque<Long> 翻页时间戳 + 停止翻动后恢复正常分辨率的延时任务 | L68-L70 |
-| `singleRenderJob` | private var Job? — renderPageToCacheComputeSize 的当前页渲染任务（切换谱子时取消） | L72 |
-| `currentDownloadId` | private var Long — 当前 OTA 下载任务 id | L73 |
-| `downloadReceiver` | private val BroadcastReceiver — ACTION_DOWNLOAD_COMPLETE → onDownloadComplete | L75-L81 |
+| `singleRenderJob` / `downloadJob` | private var Job? — 当前页渲染任务 + 应用内更新包下载任务 | L72-L73 |
 | `init` block | 版本字段填充 + 注册下载接收器 + pageMap collector + face prefs load + faceState 同步 + onGesture→faceFlip + restoreSession() + 冷启动静默检查更新 | L83-L115 |
 | `handleShareIntent(intent)` | public fun | L117-L146 |
 | `onEvent(event)` | public fun (event dispatch, spread-aware page step, +6 update/log events, +SetShelfSort/DeleteShelfFile) | L148-L187 |
@@ -385,11 +375,9 @@ Single-screen app — no Navigation component. State-based content switching via
 | `flipDone()` | private fun — clears pendingFlip | L694-L697 |
 | `showFaceOverlay()` | private fun | L699-L702 |
 | `hideFaceOverlay()` | private fun — hides + persists face prefs via faceRepo.save | L704-L710 |
-| `registerDownloadReceiver()` | private fun — ContextCompat.registerReceiver RECEIVER_NOT_EXPORTED | L712-L720 |
 | `checkUpdate(manual)` | private fun — Gitee/GitHub 并行查询，仅取比当前新的候选（平手 Gitee 优先）；manual 失败显示 Error，自动静默回 Idle | L722-L745 |
-| `downloadUpdate()` | private fun — 幂等（Downloading 中忽略）→ removeStale → enqueue → Downloading + 关弹窗 | L747-L761 |
-| `onDownloadComplete(id)` | private fun — STATUS_SUCCESSFUL → Downloaded + **自动调起 installUpdate()**；否则 Error | L763-L774 |
-| `installUpdate()` | private fun — 未授权 → 跳 unknown sources 授权页；已授权 → FileProvider 安装 Intent | L776-L789 |
+| `downloadUpdate()` | private fun — **应用内流式下载**（downloadApk 进度回调→downloadProgress 状态），完成后 Downloaded + **自动调起 installUpdate()** | L726-L745 |
+| `installUpdate()` | private fun — 未授权 → 跳 unknown sources 授权页；已授权 → FileProvider 安装 Intent（下载完成自动调起 + 设置面板"立即安装"按钮均可触发） | L747-L760 |
 | `startActivity(intent)` | private fun — runCatching 包装 | L791-L793 |
 | `dismissUpdateDialog()` | private fun — 仅关弹窗（保留 Available 状态） | L795-L798 |
 | `toggleVersionLog()` | private fun — 展开/收起本版本更新日志；首次展开按已安装版本 tag 从两平台拉取 release body | L800-L815 |
@@ -401,7 +389,7 @@ Single-screen app — no Navigation component. State-based content switching via
 | `preloadPage(pageIndex)` | public fun（当前无调用方） | L879-L898 |
 | `preloadThumbnails()` | private fun — PNG thumbs keyed by docCacheKey | L900-L924 |
 | `restoreSession()` | private fun — accessibility check, restores mode/page/uris | L926-L951 |
-| `onCleared()` | override fun — 注销下载接收器 + close pdfRenderer | L953-L957 |
+| `onCleared()` | override fun — close pdfRenderer | L924-L928 |
 
 ---
 
@@ -510,7 +498,7 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 18. facer/FaceCamera.kt (L1-L107)
+### 18. facer/FaceCamera.kt (L1-L114)
 
 | Element | Type | Lines |
 |---|---|---|
@@ -523,8 +511,8 @@ Single-screen app — no Navigation component. State-based content switching via
 | `exec` | single-thread analyzer executor + DisposableEffect shutdown | L69-L70 |
 | `state` collect + alpha animation | fade-in when visible | L72-L75 |
 | `camModifier` | visible → fillMaxWidth 4:3; hidden → 1dp (keeps analyzer alive) | L77-L81 |
-| Box + AndroidView(PreviewView) | binds Preview + ImageAnalysis(320x240, KEEP_ONLY_LATEST) to front camera | L83-L97 |
-| Landmarks Canvas overlay | draws F/E/B/L polylines, x mirrored, only when visible + landmarks present | L99-L105 |
+| Box + AndroidView(PreviewView) | binds Preview + ImageAnalysis(320x240, KEEP_ONLY_LATEST) to front camera；**绑定后显式对齐分析流 targetRotation**（竖屏 rotationDegrees 一致性） | L83-L99 |
+| Landmarks Canvas overlay | draws F/E/B/L polylines **按送检位图尺寸 FIT_CENTER 映射**（frameWidth/Height），线条与预览精确对齐 | L101-L112 |
 
 ---
 
@@ -543,14 +531,14 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 20. facer/FaceRecognitionManager.kt (L1-L184)
+### 20. facer/FaceRecognitionManager.kt (L1-L207)
 
 | Element | Type | Lines |
 |---|---|---|
 | Package + imports | — | L1-L24 |
 | `FaceRecognitionManager(context)` | class | L26-L184 |
 | Companion `TAG` | const "MSV_FACE" | L27 |
-| `FaceState` | data class — running, enabled, triggerMode, thresholds, mirrored, actionThreshold, actionActive, fps, scores, landmarks, status | L31-L37 |
+| `FaceState` | data class — running, enabled, triggerMode, thresholds, mirrored, actionThreshold, actionActive, fps, scores, landmarks, status, **frameWidth/Height（送检位图尺寸，供叠加层映射）** | L31-L37 |
 | `Thresholds` | data class — blink, pucker, puckerBiasL, puckerBiasR | L38 |
 | `GestureScores` | data class — lWink, rWink, lPucker, rPucker | L39 |
 | `TriggerMode` | enum (WINK, PUCKER, BOTH) | L40 |
@@ -563,7 +551,8 @@ Single-screen app — no Navigation component. State-based content switching via
 | `process(ip: ImageProxy)` | fun — decode → detect → blendshapes → gesture (800ms cooldown) → mainHandler callback | L72-L98 |
 | `processBlendshapes(cats): Gesture` | private fun — EMA smooth + hysteresis + left/right bias, updates scores + actionActive | L100-L117 |
 | `score / ema / hyst` | private fun — lookup, EMA smoothing, hysteresis state | L119-L127 |
-| `decode(ip): Bitmap` | private fun — YUV→NV21→ARGB_8888 direct conversion, rotation + optional mirror | L128-L159 |
+| `decode(ip): Bitmap` | private fun — **逐行拷贝 YUV 平面（兼容 rowStride 填充，修复竖屏花屏识别失败）**→NV21→ARGB_8888, rotation + optional mirror | L131-L164 |
+| `copyPlaneToNv21(...)` | private fun — 按 rowStride/pixelStride 逐行拷贝，无填充走整块快路径 | L166-L184 |
 | `convertYuvToBitmap(nv21, w, h, out)` | private fun — BT.601 YUV→RGB pixel loop | L161-L181 |
 | `close()` | fun — closes landmarker, clears smoothing state | L182 |
 
