@@ -22,15 +22,21 @@ app/src/main/java/com/music/msv/
 │   └── screen/
 │       └── ViewerScreen.kt      ← Root orchestrator, wires ViewModel → components
 ├── viewmodel/
-│   └── ViewerViewModel.kt       ← Central state holder, MVVM, preload logic
+│   └── ViewerViewModel.kt       ← Central state holder, MVVM, preload logic, face wiring
 ├── data/
 │   ├── model/
 │   │   └── ViewerState.kt       ← UI state data class + Mode sealed class + ViewerEvent sealed class
 │   ├── repository/
 │   │   ├── FileRepository.kt    ← SAF file access, local copy, MIME detection
-│   │   └── SessionRepository.kt ← 24h DataStore persistence
+│   │   └── SessionRepository.kt ← DataStore persistence (session + per-file page map)
 │   └── pdf/
 │       └── PdfPageRenderer.kt   ← Android PdfRenderer wrapper, LRU bitmap cache
+├── facer/
+│   ├── FaceCamera.kt            ← CameraX front-camera feed + landmark overlay canvas
+│   ├── FaceLog.kt               ← Dual-write logger (logcat + msv_face_log.txt)
+│   ├── FaceRecognitionManager.kt ← MediaPipe FaceLandmarker pipeline + gesture state machine
+│   ├── FaceRecognitionOverlay.kt ← Face settings fullscreen overlay (portrait/landscape)
+│   └── FaceRecognitionRepository.kt ← DataStore persistence of face prefs ("face_prefs")
 ```
 
 ## Key Decisions
@@ -44,6 +50,7 @@ app/src/main/java/com/music/msv/
 | Persistence | DataStore Preferences | Lightweight key-value, coroutine-native |
 | File access | Storage Access Framework | Standard Android file picking |
 | Animations | Compose Animation APIs | Sufficient for all required transitions |
+| Face page-flip | MediaPipe FaceLandmarker 0.10.18 (IMAGE mode) + CameraX 1.3.4 | Wink/pucker gestures flip pages; model asset `app/src/main/assets/face_landmarker.task` |
 | minSdk | 26 (Android 8.0) | User preference |
 
 ## Navigation
@@ -54,15 +61,15 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ## Per-File Breakdown
 
-### 1. MainActivity.kt (L1-L45)
+### 1. MainActivity.kt (L1-L52)
 
 | Element | Type | Lines |
 |---|---|---|
-| Package + imports | — | L1-L15 |
-| `MainActivity` | class : ComponentActivity | L17-L45 |
-| `shareIntentState` | private val MutableState<Intent?> | L19 |
-| `onCreate(savedInstanceState)` | override fun | L21-L38 |
-| `onNewIntent(intent)` | override fun | L40-L44 |
+| Package + imports | — | L1-L18 |
+| `MainActivity` | class : ComponentActivity | L20-L52 |
+| `shareIntentState` | private val MutableState<Intent?> | L22 |
+| `onCreate(savedInstanceState)` | override fun — edge-to-edge, status bar hidden, `FaceLog.init(this)` | L24-L45 |
+| `onNewIntent(intent)` | override fun | L47-L51 |
 
 ---
 
@@ -127,78 +134,83 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 6. ui/screen/ViewerScreen.kt (L1-L275)
+### 6. ui/screen/ViewerScreen.kt (L1-L296)
 
 | Element | Type | Lines |
 |---|---|---|
-| Package + imports | — | L1-L48 |
-| `ViewerScreen(viewModel: ViewerViewModel)` | @Composable fun | L50-L275 |
-| `state` | collectAsState | L52 |
-| `filePickerLauncher` | rememberLauncherForActivityResult | L55-L61 |
-| `openFilePicker` | local val lambda | L63-L65 |
-| `showPageDialog` / `pageInput` / `showResetDialog` | mutableStateOf | L67-L69 |
-| `isDark` / `appBg` / `isViewing` | derived vals | L71-L74 |
-| Root Box | composable | L76-L273 |
-| — Inner Box (shell/viewing conditional) | composable | L83-L223 |
-| — — `Mode.Idle` → EmptyView (with onShelfClick) | composable | L97-L102 |
-| — — `else` → Stage | composable | L104-L132 |
-| — — TopBar (AnimatedVisibility, slide+top, onShelfClick) | composable | L138-L160 |
-| — — BottomFooter (AnimatedVisibility, slide+bottom) | composable | L163-L174 |
-| — — ThumbnailPanel (AnimatedVisibility, slide+right) | composable | L176-L201 |
-| — — Thumbnail backdrop click Box | composable | L178-L185 |
-| — — ShelfPanel (AnimatedVisibility, slide+left) | composable | L204-L220 |
-| — — Shelf backdrop click Box | composable | L204-L212 |
-| — Page jump AlertDialog | composable | L226-L253 |
-| — Reset/Reload AlertDialog | composable | L256-L273 |
+| Package + imports | — | L1-L51 |
+| `ViewerScreen(viewModel: ViewerViewModel)` | @Composable fun | L53-L296 |
+| `state` | collectAsState | L55 |
+| `filePickerLauncher` | rememberLauncherForActivityResult | L58-L64 |
+| `openFilePicker` | local val lambda | L66-L68 |
+| `showPageDialog` / `pageInput` / `showResetDialog` | mutableStateOf | L70-L72 |
+| `isDark` / `appBg` | derived vals | L74-L75 |
+| `isViewing` | derived val | L77 |
+| Root Box | composable | L79-L295 |
+| — Inner Box (shell/viewing conditional) | composable | L86-L235 |
+| — — `Mode.Idle` → EmptyView (with onShelfClick) | composable | L100-L105 |
+| — — `else` → Stage (+pendingFlip, onFlipDone) + LoadingOverlay | composable | L106-L134 |
+| — — TopBar (AnimatedVisibility, slide+top, faceEnabled/faceActive/onFaceClick/onFaceLongClick) | composable | L137-L164 |
+| — — BottomFooter (AnimatedVisibility, slide+bottom) | composable | L166-L178 |
+| — — Thumbnail backdrop click Box | composable | L180-L189 |
+| — — ThumbnailPanel (AnimatedVisibility, slide+right) | composable | L191-L205 |
+| — — Shelf backdrop click Box | composable | L207-L216 |
+| — — ShelfPanel (AnimatedVisibility, slide+left) | composable | L218-L234 |
+| — Page jump AlertDialog | composable | L237-L265 |
+| — Reset/Reload AlertDialog | composable | L267-L285 |
+| — FaceRecognitionOverlay wiring (visible/onDismiss/onToggle/manager) | composable | L287-L294 |
 
 ---
 
-### 7. ui/components/Stage.kt (L1-L320)
+### 7. ui/components/Stage.kt (L1-L406)
 
 | Element | Type | Lines |
 |---|---|---|
-| Package + imports | — | L1-L44 |
-| `SWIPE_THRESHOLD` | private const val (0.30f) | L46 |
-| `Stage` | @Composable fun | L48-L320 |
-| Parameters (19): | isDark, pageUris, currentPage, pageCount, pageWidth, pageHeight, zoom, panOffsetX, panOffsetY, isSpreadMode, onCenterTap, onDoubleTap, onZoomChange, onPanChange, onNextPage, onPrevPage, onViewportSizeChanged, onSpreadModeChanged, onPreloadAround(default={}), modifier(default=Modifier) | L49-L68 |
-| `bg` | derived val background color | L70 |
-| `stageWidth` | mutableStateOf(0) | L71 |
-| `stageHeight` | mutableStateOf(0) | L72 |
-| `currentZoom` | mutableFloatStateOf(zoom) | L73 |
-| `transition` | Animatable(0f) | L74 |
-| `scope` | rememberCoroutineScope | L75 |
-| `flipJob` | mutableStateOf<Job?>(null) | L76 |
-| `dragOffset` | mutableFloatStateOf(0f) | L77 |
-| `isZoomed` / `pw` | derived vals | L89-L90 |
-| `displaySize` | derived Pair — fit-to-viewport display dimensions maintaining aspect ratio | L91-L105 |
-| `autoSpreadMode` | derived Boolean — landscape + narrow pages | L107-L110 |
-| `spreadW` / `spreadOffsetX` | derived Float — spread total width and left offset | L114-L115 |
-| `currentIsZoomed` etc. | 5× rememberUpdatedState + displayW + flipUnit | L117-L123 |
-| `baseX(pageIndex)` | local fun — static x offset (uses displayW) | L125-L128 |
-| `pageX(pageIndex)` | local fun — animated x offset | L130-L138 |
-| `doFlip(dir, fromOffset, easing)` | local fun — page flip animation (spring-based, uses flipUnit) | L140-L164 |
-| `doBounce(dir)` | local fun — boundary bounce animation | L166-L175 |
-| `pagesToShow` | derived val — visible page window (±3 single, ±6 spread) | L177-L182 |
-| Root Box | composable (gestures + rendering, centered display) | L184-L295 |
-| — spread mask Box | left gap fill when spread centered | L297-L306 |
-| — `for (pageIndex in pagesToShow)` | page Box with AsyncImage, centered via displaySize | L308-L326 |
+| Package + imports | — | L1-L45 |
+| `invertColorMatrix` | private val ColorMatrix — dark-theme page inversion | L47-L54 |
+| `Stage` | @Composable fun | L56-L406 |
+| Parameters (22): | isDark, pageUris, currentPage, pageCount, pageWidth, pageHeight, zoom, panOffsetX, panOffsetY, isSpreadMode, pendingFlip(default=null), onCenterTap, onDoubleTap, onZoomChange, onPanChange, onNextPage, onPrevPage, onFlipDone(default={}), onViewportSizeChanged, onSpreadModeChanged, onPreloadAround(default={}), modifier(default=Modifier) | L57-L80 |
+| `bg` | derived val background color | L81 |
+| `stageWidth` / `stageHeight` | mutableStateOf(0) | L82-L83 |
+| `currentZoom` | mutableFloatStateOf(zoom) | L84 |
+| `transition` | Animatable(0f) | L85 |
+| `scope` | rememberCoroutineScope | L86 |
+| `flipJob` | mutableStateOf<Job?>(null) | L87 |
+| `dragOffset` | mutableFloatStateOf(0f) | L88 |
+| `isZoomed` / `pw` | derived vals | L90-L91 |
+| `displaySize` | derived Pair? — fit-to-viewport display dimensions (null until measured) | L93-L107 |
+| `autoSpreadMode` | derived Boolean — landscape + narrow pages | L109-L111 |
+| LaunchedEffect(autoSpreadMode) | fires onSpreadModeChanged | L113-L115 |
+| `currentIsZoomed` etc. | 8× rememberUpdatedState + displayW + flipUnit + touchSlop + pendingFlip | L117-L127 |
+| LaunchedEffect(pageWidth, pageHeight) | resets transition to 0 | L129-L131 |
+| `doFlip(dir, fromOffset, easing)` | local fun — spring flip; NonCancellable finally: snapTo(0) + onNextPage/onPrevPage + onFlipDone | L133-L160 |
+| `doBounce(dir)` | local fun — boundary bounce animation | L162-L171 |
+| LaunchedEffect(currentPendingFlip) | face-triggered pending flip → doFlip | L173-L180 |
+| `pagesToShow` | derived val — visible page window (±5 single, ±6 spread), sorted descending | L182-L186 |
+| Root Box | composable (gestures + rendering) | L188-L405 |
+| — tap/drag awaitEachGesture pointerInput | 1/3 tap zones (flip/bounce/center tap), drag follow with boundary reversal | L197-L276 |
+| — transform pointerInput (isZoomed guard) | pinch zoom + pan | L277-L285 |
+| — Spread branch | left gap fill Box L295-L305, pages loop L307-L334, gradient edge masks L336-L367 | L290-L367 |
+| — Single branch | pages loop with flip offset (AsyncImage, centered via displaySize) | L368-L404 |
 
 ---
 
-### 8. ui/components/TopBar.kt (L1-L162)
+### 8. ui/components/TopBar.kt (L1-L175)
 
 | Element | Type | Lines |
 |---|---|---|
-| Package + imports | — | L1-L28 |
-| `TopBar` | @Composable fun | L29-L162 |
-| Parameters (11): | isDark, fileName, currentPage, pageCount, showPageNav, onShelfClick, onPageJumpClick, onThumbnailsClick, onThemeClick, onResetClick, modifier | L31-L41 |
-| Local colors | bg, border, text, muted, divider, ctrlBg, ctrlBorder, accent | L43-L50 |
-| Main Row | composable | L52-L161 |
-| — Shelf button Box | icon + text, clickable (calls onShelfClick) | L63-L75 |
-| — Page nav (if showPageNav) | page number display + divider | L77-L101 |
-| — Weight Spacer | L104 |
-| — File name Text | L107-L116 |
-| — Action buttons (if showPageNav) | thumbnail, theme, reset | L118-L160 |
+| Package + imports | — | L1-L29 |
+| `TopBar` | @Composable fun | L31-L175 |
+| Parameters (15): | isDark, fileName(unused, kept for API compat), currentPage, pageCount, showPageNav, onShelfClick, onPageJumpClick, onThumbnailsClick, onResetClick, onThemeLongClick, faceEnabled(default=false), faceActive(default=false), onFaceClick(default={}), onFaceLongClick(default={}), modifier | L33-L49 |
+| Local colors | bg, border, text, muted, divider, ctrlBg, ctrlBorder, accent | L50-L57 |
+| Main Row | composable | L59-L174 |
+| — Shelf button Row | icon + text, clickable (calls onShelfClick) | L70-L82 |
+| — Page nav (if showPageNav) | page number display (click → jump dialog) + divider | L84-L108 |
+| — Weight Spacer | L111 |
+| — Action buttons (if showPageNav) | thumbnail, face, reset | L113-L173 |
+| — — Thumbnail button ▦ | clickable | L115-L125 |
+| — — Face button 👁 | click → ToggleFace; long-press → ShowFaceOverlay; red highlight when faceActive | L127-L156 |
+| — — Reset button ↺ | click → reset dialog; long-press → toggle theme | L158-L172 |
 
 ---
 
@@ -230,22 +242,22 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 11. ui/components/ThumbnailPanel.kt (L1-L159)
+### 11. ui/components/ThumbnailPanel.kt (L1-L162)
 
 | Element | Type | Lines |
 |---|---|---|
 | Package + imports | — | L1-L42 |
 | `invertColorMatrix` | private val ColorMatrix | L44-L51 |
-| `ThumbnailPanel` | @Composable fun | L53-L159 |
-| Parameters (7): | isDark, pageCount, currentPage, getThumbnailUri, onPageSelected, onClose, modifier | L54-L61 |
+| `ThumbnailPanel` | @Composable fun | L53-L162 |
+| Parameters (7): | isDark, pageCount, currentPage, getThumbnailUri, onPageSelected, onClose, modifier | L54-L62 |
 | Local colors | panelBg, panelBorder, itemBg, itemBorder, itemActiveBg, itemActiveBorder, muted | L63-L69 |
-| Column root | composable | L71-L158 |
+| Column root | composable | L71-L161 |
 | — Close button Box | L78-L95 |
-| — gridState + LaunchedEffect scroll-to-current | L98-L103 |
-| — LazyVerticalGrid (2 cols, state=gridState) | L105-L157 |
-| — — itemsIndexed (pageIndex → thumbnail item) | L113-L156 |
-| — — — Thumbnail AsyncImage | L133-L146 |
-| — — — Page number Text | L147-L154 |
+| — gridState + LaunchedEffect scroll-to-current | L98-L106 |
+| — LazyVerticalGrid (2 cols, state=gridState) | L108-L160 |
+| — — itemsIndexed (pageIndex → thumbnail item) | L116-L159 |
+| — — — Thumbnail AsyncImage | L136-L149 |
+| — — — Page number Text | L150-L157 |
 
 ---
 
@@ -271,101 +283,115 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 12. ui/components/LoadingOverlay.kt (L1-L44)
+### 12. ui/components/LoadingOverlay.kt (L1-L53)
 
 | Element | Type | Lines |
 |---|---|---|
-| Package + imports | — | L1-L17 |
-| `LoadingOverlay` | @Composable fun | L19-L44 |
-| Parameters (3): | isDark(default=true), visible(default=true), modifier | L21-L23 |
-| Early return | if (!visible) return | L25 |
-| Local colors | bg, accent, track | L27-L29 |
-| Box overlay | CircularProgressIndicator centered | L31-L43 |
+| Package + imports | — | L1-L19 |
+| `LoadingOverlay` | @Composable fun | L21-L53 |
+| Parameters (3): | isDark(default=true), visible(default=true), modifier | L22-L26 |
+| Early return | if (!visible) return | L27 |
+| Local colors | bg, accent, track | L29-L31 |
+| Box overlay | pointerInput consumes all events + CircularProgressIndicator centered | L33-L52 |
 
 ---
 
-### 13. viewmodel/ViewerViewModel.kt (L1-L530)
+### 13. viewmodel/ViewerViewModel.kt (L1-L669)
 
 | Element | Type | Lines |
 |---|---|---|
-| Package + imports | — | L1-L22 |
-| `ViewerViewModel(application)` | class : AndroidViewModel | L24-L530 |
-| `fileRepo` | private val FileRepository | L26 |
-| `sessionRepo` | private val SessionRepository | L27 |
-| `pdfRenderer` | private val PdfPageRenderer | L28 |
-| `_uiState` | private val MutableStateFlow | L30 |
-| `uiState` | val StateFlow (public) | L31 |
-| `imageUris` | private var List<Uri> | L33 |
-| `pdfUri` | private var Uri? | L34 |
-| `loadJob` | private var Job? | L35 |
-| `thumbnailCache` | private val ConcurrentHashMap | L36 |
-| `init` block | restoreSession() | L38-L40 |
-| `handleShareIntent(intent)` | public fun | L42-L71 |
-| `onEvent(event)` | public fun (event dispatch) | L73-L91 |
-| `handleFilesSelected(uris)` | private fun — imports file, then calls loadShelfFiles() if shelf is visible | L94-L120 |
-| `openPdf(uri, name, restorePage=0)` | private fun | L120-L161 |
-| `openImages(uris, name, initialPage=0)` | private fun | L163-L187 |
-| `goToPage(page)` | private fun | L189-L197 |
-| `renderPageToCacheComputeSize(pageIndex, ratio)` | private fun | L199-L219 |
-| `preloadAround(center)` | public fun | L221-L254 |
-| `renderPage(pageIndex, pageW, pageH, zoom)` | private fun | L256-L266 |
-| `updateViewportSize(width, height)` | private fun | L268-L280 |
-| `setZoom(zoom)` | private fun | L282-L284 |
-| `panBy(dx, dy)` | private fun | L286-L290 |
-| `toggleUI()` | private fun | L292-L294 |
-| `toggleThumbnails()` | private fun | L296-L300 |
-| `toggleShelf()` | private fun | L305-L309 |
-| `toggleShelfSort()` | private fun — toggles NAME↔DATE, reloads shelf | L311-L315 |
-| `loadShelfFiles()` | private fun — sorts by shelfSortBy, maps to ShelfFile, generates PDF thumbnails via uri-key (not index) | L317-L338 |
-| `generatePdfThumbnail(fileUri)` | private fun — renders page 0 at 200px, caches by filePath hash | L340-L363 |
-| `renameShelfFile(oldUri, newName)` | private fun — renames file in docsDir, refreshes shelf | L365-L377 |
-| `openShelfFile(uri)` | private fun — closes shelf, loads file by URI | L379-L386 |
-| `toggleTheme()` | private fun | L366-L368 |
-| `resetZoom()` | private fun | L370-L372 |
-| `reset()` | private fun | L380-L387 |
-| `reload()` | private fun | L389-L404 |
-| `saveSession()` | private fun | L406-L426 |
-| `getThumbnailUri(pageIndex)` | public fun | L428-L429 |
-| `preloadPage(pageIndex)` | public fun | L431-L450 |
-| `preloadThumbnails()` | private fun | L452-L475 |
-| `restoreSession()` | private fun | L477-L502 |
-| `onCleared()` | override fun | L504-L507 |
+| Package + imports | — | L1-L29 |
+| `ViewerViewModel(application)` | class : AndroidViewModel | L31-L669 |
+| `fileRepo` | private val FileRepository | L33 |
+| `sessionRepo` | private val SessionRepository | L34 |
+| `pdfRenderer` | private val PdfPageRenderer | L35 |
+| `faceManager` | public val FaceRecognitionManager | L36 |
+| `faceRepo` | private val FaceRecognitionRepository | L37 |
+| `_uiState` | private val MutableStateFlow | L39 |
+| `uiState` | val StateFlow (public) | L40 |
+| `imageUris` | private var List<Uri> | L42 |
+| `pdfUri` | private var Uri? | L43 |
+| `loadJob` / `preloadJob` | private var Job? | L44-L45 |
+| `thumbnailCache` | private val ConcurrentHashMap<Int, Uri> | L46 |
+| `pageMap` | private var Map<String, Int> — per-file last-read page (KEY_PAGE_MAP) | L47 |
+| `init` block | pageMap collector + face prefs load + faceState→faceActive/faceEnabled sync + onGesture→faceFlip + restoreSession() | L49-L72 |
+| `handleShareIntent(intent)` | public fun | L74-L103 |
+| `onEvent(event)` | public fun (event dispatch, spread-aware page step) | L105-L136 |
+| `handleFilesSelected(uris)` | private fun — imports file, then calls loadShelfFiles() if shelf is visible | L138-L164 |
+| `openPdf(uri, name, restorePage=0)` | private fun | L166-L207 |
+| `openImages(uris, name, initialPage=0)` | private fun | L209-L231 |
+| `goToPage(page)` | private fun | L233-L241 |
+| `renderPageToCacheComputeSize(pageIndex, ratio)` | private fun | L243-L261 |
+| `preloadAround(center)` | public fun — tiered render: center/next Q95, ±1 Q90, 2-3 Q85@0.6x, ≥4 Q80@0.4x, evict outside window, loading gate | L263-L332 |
+| `docCacheKey` | private val getter — pdfUri path hash (cache file namespacing) | L334-L335 |
+| `renderPage(pageIndex, pageW, pageH, zoom, quality=95)` | private fun — JPEG into cacheDir | L337-L348 |
+| `updateViewportSize(width, height)` | private fun | L350-L362 |
+| `setZoom(zoom)` | private fun | L364-L366 |
+| `panBy(dx, dy)` | private fun | L368-L372 |
+| `toggleUI()` | private fun | L374-L376 |
+| `toggleThumbnails()` | private fun | L378-L382 |
+| `toggleShelf()` | private fun | L384-L388 |
+| `toggleShelfSort()` | private fun — toggles NAME↔DATE, reloads shelf | L390-L395 |
+| `setSpreadMode(spread)` | private fun — on enable, aligns current page to even index | L397-L404 |
+| `loadShelfFiles()` | private fun — sorts by shelfSortBy, maps to ShelfFile, generates PDF thumbnails per file | L406-L435 |
+| `generatePdfThumbnail(fileUri)` | private fun — renders page 0 at 200px PNG, caches by path hash | L437-L461 |
+| `renameShelfFile(oldUri, newName)` | private fun — renames file, refreshes shelf, reopens at same page | L463-L483 |
+| `openShelfFile(uri)` | private fun — closes shelf, restores page via pageMap[name] | L485-L498 |
+| `toggleTheme()` | private fun | L500-L502 |
+| `toggleFace()` | private fun — syncs faceManager running/enabled with uiState.faceEnabled | L504-L513 |
+| `faceFlip(dir)` | private fun — sets uiState.pendingFlip (consumed by Stage) | L515-L518 |
+| `flipDone()` | private fun — clears pendingFlip | L520-L523 |
+| `showFaceOverlay()` | private fun | L525-L528 |
+| `hideFaceOverlay()` | private fun — hides + persists face prefs via faceRepo.save | L530-L534 |
+| `resetZoom()` | private fun | L536-L538 |
+| `reset()` | private fun | L540-L547 |
+| `reload()` | private fun | L549-L564 |
+| `saveSession()` | private fun | L566-L586 |
+| `getThumbnailUri(pageIndex)` | public fun | L588-L589 |
+| `preloadPage(pageIndex)` | public fun | L591-L610 |
+| `preloadThumbnails()` | private fun — PNG thumbs keyed by docCacheKey | L612-L636 |
+| `restoreSession()` | private fun — accessibility check, restores mode/page/uris | L638-L663 |
+| `onCleared()` | override fun | L665-L668 |
 
 ---
 
-### 14. data/model/ViewerState.kt (L1-L62)
+### 14. data/model/ViewerState.kt (L1-L71)
 
 | Element | Type | Lines |
 |---|---|---|
 | Package + import | — | L1-L3 |
-| `ViewerState` | data class (21 fields) | L5-L28 |
-| Fields: | mode, currentPage, pageCount, zoom, panOffsetX, panOffsetY, showUI, showThumbnails, showShelf, isDarkTheme, statusMessage, isLoading, fileName, pageUris, pageWidth, pageHeight, viewportWidth, viewportHeight, thumbnailsLoading, shelfFiles(emptyList()), shelfSortBy(ShelfSort.DATE), isSpreadMode(false) | L6-L27 |
-| `ShelfSort` | enum (NAME, DATE) | L29 |
-| `Mode` | sealed class | L31-L35 |
-| — `Idle` | data object | L32 |
-| — `Image` | data object | L33 |
-| — `Pdf` | data object | L34 |
-| `ViewerEvent` | sealed class | L37-L55 |
-| — `FilesSelected(uris)` | data class | L38 |
-| — `GoToPage(page)` | data class | L39 |
-| — `NextPage` | data object | L40 |
-| — `PrevPage` | data object | L41 |
-| — `SetZoom(zoom)` | data class | L42 |
-| — `PanBy(dx, dy)` | data class | L43 |
-| — `UpdateViewportSize(width, height)` | data class | L44 |
-| — `ToggleUI` | data object | L45 |
-| — `ToggleThumbnails` | data object | L46 |
-| — `ToggleTheme` | data object | L47 |
-| — `ResetZoom` | data object | L48 |
-| — `Reset` | data object | L49 |
-| — `Reload` | data object | L50 |
-| — `ToggleShelf` | data object | L51 |
-| — `OpenShelfFile(uri)` | data class | L52 |
-| — `RenameShelfFile(uri, newName)` | data class | L53 |
-| — `ToggleShelfSort` | data object | L54 |
-| — `SetSpreadMode(spread)` | data class | L55 |
-| `ShelfFile` | data class (3 fields) | L57-L62 |
-| Fields: | name(String), uri(Uri), thumbnailUri(Uri?) | L59-L61 |
+| `ViewerState` | data class (25 fields) | L5-L32 |
+| Fields: | mode, currentPage, pageCount, zoom, panOffsetX, panOffsetY, showUI, showThumbnails, showShelf, isDarkTheme, statusMessage, isLoading, fileName, pageUris, pageWidth, pageHeight, viewportWidth, viewportHeight, thumbnailsLoading, shelfFiles(emptyList()), shelfSortBy(ShelfSort.DATE), isSpreadMode(false), faceEnabled(false), faceActive(false), showFaceOverlay(false), pendingFlip(null) | L6-L31 |
+| `ShelfSort` | enum (NAME, DATE) | L34 |
+| `Mode` | sealed class | L36-L40 |
+| — `Idle` | data object | L37 |
+| — `Image` | data object | L38 |
+| — `Pdf` | data object | L39 |
+| `ViewerEvent` | sealed class | L42-L65 |
+| — `FilesSelected(uris)` | data class | L43 |
+| — `GoToPage(page)` | data class | L44 |
+| — `NextPage` | data object | L45 |
+| — `PrevPage` | data object | L46 |
+| — `SetZoom(zoom)` | data class | L47 |
+| — `PanBy(dx, dy)` | data class | L48 |
+| — `UpdateViewportSize(width, height)` | data class | L49 |
+| — `ToggleUI` | data object | L50 |
+| — `ToggleThumbnails` | data object | L51 |
+| — `ToggleTheme` | data object | L52 |
+| — `ResetZoom` | data object | L53 |
+| — `Reset` | data object | L54 |
+| — `Reload` | data object | L55 |
+| — `ToggleShelf` | data object | L56 |
+| — `OpenShelfFile(uri)` | data class | L57 |
+| — `RenameShelfFile(uri, newName)` | data class | L58 |
+| — `ToggleShelfSort` | data object | L59 |
+| — `SetSpreadMode(spread)` | data class | L60 |
+| — `ToggleFace` | data object | L61 |
+| — `ShowFaceOverlay` | data object | L62 |
+| — `HideFaceOverlay` | data object | L63 |
+| — `FlipDone` | data object | L64 |
+| `ShelfFile` | data class (3 fields) | L67-L71 |
+| Fields: | name(String), uri(Uri), thumbnailUri(Uri?) | L68-L70 |
 
 ---
 
@@ -388,18 +414,19 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 16. data/repository/SessionRepository.kt (L1-L55)
+### 16. data/repository/SessionRepository.kt (L1-L69)
 
 | Element | Type | Lines |
 |---|---|---|
-| Package + imports | — | L1-L9 |
-| `Context.dataStore` | extension property | L11 |
-| `SessionRepository(context)` | class | L13-L55 |
-| Companion object — keys | KEY_MODE, KEY_CURRENT_PAGE, KEY_URIS, KEY_FILE_NAME | L15-L20 |
-| `SessionData` | nested data class (4 fields) | L22-L27 |
-| `sessionFlow: Flow<SessionData?>` | val | L29-L36 |
-| `saveSession(mode, currentPage, uris, fileName)` | suspend fun | L38-L50 |
-| `clearSession()` | suspend fun | L52-L54 |
+| Package + imports | — | L1-L10 |
+| `Context.dataStore` | extension property ("session") | L12 |
+| `SessionRepository(context)` | class | L14-L69 |
+| Companion object — keys | KEY_MODE, KEY_CURRENT_PAGE, KEY_URIS, KEY_FILE_NAME, KEY_PAGE_MAP | L16-L22 |
+| `SessionData` | nested data class (4 fields) | L24-L29 |
+| `sessionFlow: Flow<SessionData?>` | val | L31-L38 |
+| `saveSession(mode, currentPage, uris, fileName)` | suspend fun — also records fileName→currentPage into KEY_PAGE_MAP JSON | L40-L56 |
+| `getPageMap(): Flow<Map<String, Int>>` | fun — parses KEY_PAGE_MAP JSON (per-file last-read page) | L58-L64 |
+| `clearSession()` | suspend fun | L66-L68 |
 
 ---
 
@@ -420,3 +447,101 @@ Single-screen app — no Navigation component. State-based content switching via
 | `pageHeight: Int` | val (getter from pdf page 0) | L105-L111 |
 | `close()` | fun | L113-L119 |
 | `getPageCount(): Int` | fun | L121 |
+
+---
+
+### 18. facer/FaceCamera.kt (L1-L107)
+
+| Element | Type | Lines |
+|---|---|---|
+| Package + imports | — | L1-L42 |
+| `F` / `E` / `L` / `B` | private val IntArray — landmark index pairs: face oval / eyes / lips / brows | L44-L47 |
+| `FaceCamera(manager, visible, modifier)` | @Composable fun | L49-L107 |
+| Permission state + request launcher | camera permission, Toast on deny | L55-L58 |
+| LaunchedEffect permission request | L60 |
+| Early returns | no permission L62; model init failure L64-L67 | L62-L67 |
+| `exec` | single-thread analyzer executor + DisposableEffect shutdown | L69-L70 |
+| `state` collect + alpha animation | fade-in when visible | L72-L75 |
+| `camModifier` | visible → fillMaxWidth 4:3; hidden → 1dp (keeps analyzer alive) | L77-L81 |
+| Box + AndroidView(PreviewView) | binds Preview + ImageAnalysis(320x240, KEEP_ONLY_LATEST) to front camera | L83-L97 |
+| Landmarks Canvas overlay | draws F/E/B/L polylines, x mirrored, only when visible + landmarks present | L99-L105 |
+
+---
+
+### 19. facer/FaceLog.kt (L1-L69)
+
+| Element | Type | Lines |
+|---|---|---|
+| Package + imports | — | L1-L11 |
+| `FaceLog` | object | L13-L69 |
+| `LOG_FILE` / `writer` / `sdf` | const "msv_face_log.txt" / PrintWriter? / timestamp format | L14-L16 |
+| `logFile: File?` | @Volatile val (private set) | L18-L20 |
+| `init(ctx)` | fun — creates log in externalFilesDir, deletes if >5MB | L22-L31 |
+| `d/i/w/e(tag, msg)` | fun — dual write: logcat + file (e appends stacktrace) | L33-L58 |
+| `write(line)` | @Synchronized private fun | L60-L66 |
+| `getLogPath()` | fun | L68 |
+
+---
+
+### 20. facer/FaceRecognitionManager.kt (L1-L184)
+
+| Element | Type | Lines |
+|---|---|---|
+| Package + imports | — | L1-L24 |
+| `FaceRecognitionManager(context)` | class | L26-L184 |
+| Companion `TAG` | const "MSV_FACE" | L27 |
+| `FaceState` | data class — running, enabled, triggerMode, thresholds, mirrored, actionThreshold, actionActive, fps, scores, landmarks, status | L31-L37 |
+| `Thresholds` | data class — blink, pucker, puckerBiasL, puckerBiasR | L38 |
+| `GestureScores` | data class — lWink, rWink, lPucker, rPucker | L39 |
+| `TriggerMode` | enum (WINK, PUCKER, BOTH) | L40 |
+| `Gesture` | enum (LEFT_WINK, RIGHT_WINK, LEFT_PUCKER, RIGHT_PUCKER, NONE) | L41 |
+| `_state` / `stateFlow` | MutableStateFlow / StateFlow<FaceState> | L43-L44 |
+| `onGesture` | public var ((Gesture) -> Unit)? — invoked on main handler | L45 |
+| `landmarker` + smoothing/hysteresis fields | private | L47-L50 |
+| `init(): Boolean` | fun — loads face_landmarker.task, RunningMode.IMAGE, blendshapes on, 1 face | L52-L65 |
+| `updateState / currentState / isReady` | fun | L67-L69 |
+| `process(ip: ImageProxy)` | fun — decode → detect → blendshapes → gesture (800ms cooldown) → mainHandler callback | L72-L98 |
+| `processBlendshapes(cats): Gesture` | private fun — EMA smooth + hysteresis + left/right bias, updates scores + actionActive | L100-L117 |
+| `score / ema / hyst` | private fun — lookup, EMA smoothing, hysteresis state | L119-L127 |
+| `decode(ip): Bitmap` | private fun — YUV→NV21→ARGB_8888 direct conversion, rotation + optional mirror | L128-L159 |
+| `convertYuvToBitmap(nv21, w, h, out)` | private fun — BT.601 YUV→RGB pixel loop | L161-L181 |
+| `close()` | fun — closes landmarker, clears smoothing state | L182 |
+
+---
+
+### 21. facer/FaceRecognitionOverlay.kt (L1-L177)
+
+| Element | Type | Lines |
+|---|---|---|
+| Package + imports | — | L1-L48 |
+| `FaceRecognitionOverlay(visible, faceEnabled, onDismiss, onToggle, manager, isDark, modifier)` | @Composable fun | L50-L109 |
+| Early return | if (!visible && !faceEnabled) return | L52 |
+| isLand + camera permission + request | L54-L57 |
+| Hidden mode | 1dp Box + FaceCamera(visible=false) — keeps pipeline running while overlay closed | L60-L64 |
+| Local colors | bg, card, b, t, t2, ac, dn, gr | L66-L70 |
+| Root Box scrim | click → onDismiss | L72 |
+| — Landscape Row layout | 2 columns: preview+scores / controls | L74-L92 |
+| — Portrait Column layout | scrollable single column | L93-L107 |
+| `Header` | private @Composable — title + LIVE/OFF pill (fps), toggles running | L111-L121 |
+| `AR` | private @Composable — 4 gesture score cards row | L123-L128 |
+| `Card` | private @Composable — single emoji+score card | L130-L135 |
+| `Modes` | private @Composable — trigger mode buttons (Wink/撅嘴/两者) | L137-L146 |
+| `SliderCard` | private @Composable — labeled slider (blink/pucker/action/bias L/R) | L148-L154 |
+| `MirrorToggle` | private @Composable — 镜像/原始 toggle | L156-L163 |
+| `Debug` | private @Composable — diagnostics line + status | L165-L171 |
+| `MBtn` | private @Composable — mode select button | L173-L177 |
+
+---
+
+### 22. facer/FaceRecognitionRepository.kt (L1-L73)
+
+| Element | Type | Lines |
+|---|---|---|
+| Package + imports | — | L1-L10 |
+| `Context.faceStore` | extension property ("face_prefs" DataStore) | L12 |
+| `FaceRecognitionRepository(context)` | class | L14-L73 |
+| `FacePrefs` | data class (6 fields) — mirrored, blinkThreshold, puckerThreshold, puckerBiasL, puckerBiasR, actionThreshold | L16-L23 |
+| Companion — keys | K_MIRROR, K_BLINK, K_PUCKER, K_BIAS_L, K_BIAS_R, K_ACTION | L25-L32 |
+| `prefsFlow: Flow<FacePrefs>` | val | L34-L43 |
+| `save(manager)` | suspend fun — persists FaceState → DataStore | L45-L55 |
+| `load(manager)` | suspend fun — restores DataStore → FaceState | L57-L72 |
