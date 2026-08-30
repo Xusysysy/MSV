@@ -181,6 +181,10 @@ fun SettingsPanel(
                             "发现新版本 v${info.tag}（来源：${info.source}）",
                             color = text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold
                         )
+                        if (updateMessage.isNotBlank()) {
+                            Spacer(Modifier.height(4.dp))
+                            Text(updateMessage, color = muted, fontSize = 11.sp)
+                        }
                         Spacer(Modifier.height(6.dp))
                         Text(info.notes, color = muted, fontSize = 12.sp, lineHeight = 17.sp)
                         var showFullLog by remember { mutableStateOf(false) }

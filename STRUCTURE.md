@@ -323,7 +323,7 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 13. viewmodel/ViewerViewModel.kt (L1-L1031)
+### 13. viewmodel/ViewerViewModel.kt (L1-L1034)
 
 | Element | Type | Lines |
 |---|---|---|
@@ -385,7 +385,7 @@ Single-screen app — no Navigation component. State-based content switching via
 | `flipDone()` | private fun — clears pendingFlip | L694-L697 |
 | `showFaceOverlay()` | private fun | L699-L702 |
 | `hideFaceOverlay()` | private fun — hides + persists face prefs via faceRepo.save | L704-L710 |
-| `checkUpdate(manual)` | private fun — Gitee/GitHub 并行查询，仅取比当前新的候选（平手 Gitee 优先）；**已下载未安装时直达 Downloaded+安装**；manual 失败显示 Error，自动静默回 Idle | L722-L752 |
+| `checkUpdate(manual)` | private fun — **双源 async 并行查询**（耗时取最大），仅取比当前新的候选（平手 Gitee 优先）；**各源可达性写入 updateMessage（Gitee:✓/✗ · GitHub:✓/✗）**；**已下载未安装时直达 Downloaded+安装**；manual 双失败显示 Error，自动静默回 Idle | L785-L823 |
 | `downloadUpdate()` | private fun — **断点续传**（isDownloaded 快路径直达安装；downloadApk Range 续传，进度→downloadProgress），完成后 Downloaded + 自动调起 installUpdate() | L754-L780 |
 | `installUpdate()` | private fun — 未授权 → 跳 unknown sources 授权页；已授权 → FileProvider 安装 Intent（下载完成自动调起 + 设置面板"立即安装"按钮均可触发） | L747-L760 |
 | `startActivity(intent)` | private fun — runCatching 包装 | L791-L793 |
@@ -612,7 +612,7 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 23. data/repository/UpdateRepository.kt (L1-L243)
+### 23. data/repository/UpdateRepository.kt (L1-L252)
 
 | Element | Type | Lines |
 |---|---|---|
@@ -625,11 +625,11 @@ Single-screen app — no Navigation component. State-based content switching via
 | `fetchLatest(url, isGitee)` | private fun — httpGetString → JSONObject；assets 按 `.apk`+前缀过滤（排除源码包）；notes=摘要 fullNotes=完整 body；失败返回 null | L75-L97 |
 | `fetchTagNotes(tag)` | fun — 按版本 tag 查 release body（**Gitee 优先**，GitHub 兜底）供设置页"查看本版本更新日志" | L99-L101 |
 | `fetchTagBody(url, isGitee)` | private fun — httpGetString → 解析 body | L103-L110 |
-| `httpGetString(url, isGitee)` | private fun — HttpURLConnection GET（UA/超时/Accept 头） | L112-L126 |
+| `httpGetString(url, isGitee)` | private fun — HttpURLConnection GET（UA/超时/Accept 头）；**失败自动重试一次（仅快速失败 <2s，如限流 403；超时不重试防成倍等待）** | L112-L135 |
 | `summarizeNotes(body, maxLen=300)` | fun — release body 摘要（去标题前缀/拼行/截断） | L128-L144 |
-| `downloadApk(url, tag, onProgress)` | suspend fun — **应用内流式下载 + Range 断点续传**（206 续传/416 视为完整/失败保留断点/协作式取消） | L146-L189 |
-| `remoteApkSize(url)` | private fun — HEAD 查询远端大小 | L191-L204 |
-| `isDownloaded(url, tag)` | fun — 本地长度 == 远端长度（已完整下载） | L206-L212 |
+| `downloadApk(url, tag, onProgress)` | suspend fun — **应用内流式下载 + Range 断点续传**（206 续传/416 视为完整/失败保留断点/协作式取消） | L155-L198 |
+| `remoteApkSize(url)` | private fun — HEAD 查询远端大小（**4s 短超时**，探测用途） | L200-L213 |
+| `isDownloaded(url, tag)` | fun — 本地长度 == 远端长度（已完整下载） | L215-L221 |
 | `apkFileName(tag)` / `updateApkFile(tag)` | fun — `update/msv-update-{tag}.apk`（外部专属目录） | L214-L220 |
 | `cleanupDownloadedApk(installedVersion)` | fun — 升级成功后清理已装版本的历史安装包 | L222-L229 |
 | `isInstallPermissionGranted()` | fun — canRequestPackageInstalls | L231 |

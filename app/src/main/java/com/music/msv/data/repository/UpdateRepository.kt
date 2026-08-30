@@ -109,19 +109,28 @@ class UpdateRepository(private val context: Context) {
             }
         }
 
-    private fun httpGetString(url: String, isGitee: Boolean): String? = try {
-        val conn = (URL(url).openConnection() as HttpURLConnection).apply {
-            connectTimeout = TIMEOUT_MS
-            readTimeout = TIMEOUT_MS
-            requestMethod = "GET"
-            setRequestProperty("User-Agent", "MSV-Updater")
-            if (!isGitee) setRequestProperty("Accept", "application/vnd.github+json")
+    private fun httpGetString(url: String, isGitee: Boolean): String? {
+        // 失败重试一次：仅针对快速失败（限流 403/5xx 类）；超时类失败不重试（避免成倍等待）
+        repeat(2) { attempt ->
+            val started = System.currentTimeMillis()
+            try {
+                val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+                    connectTimeout = TIMEOUT_MS
+                    readTimeout = TIMEOUT_MS
+                    requestMethod = "GET"
+                    setRequestProperty("User-Agent", "MSV-Updater")
+                    if (!isGitee) setRequestProperty("Accept", "application/vnd.github+json")
+                }
+                val body = conn.inputStream.bufferedReader().use { it.readText() }
+                conn.disconnect()
+                return body
+            } catch (_: Exception) {
+                if (attempt == 0 && System.currentTimeMillis() - started < 2000) {
+                    try { Thread.sleep(400) } catch (_: InterruptedException) {}
+                }
+            }
         }
-        val body = conn.inputStream.bufferedReader().use { it.readText() }
-        conn.disconnect()
-        body
-    } catch (_: Exception) {
-        null
+        return null
     }
 
     /** release body 摘要：去标题前缀、拼行、超长截断 */
@@ -190,8 +199,8 @@ class UpdateRepository(private val context: Context) {
     /** HEAD 查询远端 APK 大小（-1 = 查询失败） */
     private fun remoteApkSize(url: String): Long = try {
         val conn = URL(url).openConnection() as HttpURLConnection
-        conn.connectTimeout = TIMEOUT_MS
-        conn.readTimeout = TIMEOUT_MS
+        conn.connectTimeout = 4000
+        conn.readTimeout = 4000
         conn.requestMethod = "HEAD"
         conn.instanceFollowRedirects = true
         conn.connect()

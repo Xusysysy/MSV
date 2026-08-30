@@ -781,13 +781,17 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     // ── OTA 更新 ──
 
-    /** 检查更新：Gitee/GitHub 并行查询，仅接受比当前版本新的候选，平手时 Gitee 优先 */
+    /** 检查更新：Gitee/GitHub 并行查询（耗时取最大而非相加），仅接受比当前版本新的候选，平手时 Gitee 优先 */
     private fun checkUpdate(manual: Boolean) {
         _uiState.update { it.copy(updateStatus = UpdateStatus.Checking, updateMessage = "") }
         viewModelScope.launch(Dispatchers.IO) {
-            val gitee = updateRepo.fetchGiteeLatest()
-            val github = updateRepo.fetchGitHubLatest()
+            val giteeDef = async { updateRepo.fetchGiteeLatest() }
+            val githubDef = async { updateRepo.fetchGitHubLatest() }
+            val gitee = giteeDef.await()
+            val github = githubDef.await()
             val installed = _uiState.value.appVersionName
+            // 各源可达性反馈：单一来源结果（如只有 GitHub）时可直观看到另一源不可达（如 Gitee 匿名限流）
+            val srcStatus = "Gitee:${if (gitee != null) "✓" else "✗"} · GitHub:${if (github != null) "✓" else "✗"}"
             val best = listOfNotNull(gitee, github)
                 .filter { compareVersions(it.tag, installed) > 0 }
                 .reduceOrNull { acc, info -> if (compareVersions(info.tag, acc.tag) > 0) info else acc }
@@ -796,21 +800,21 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                     // 已下载未安装：跳过下载阶段直接进入安装
                     if (updateRepo.isDownloaded(best.apkUrl, best.tag)) {
                         _uiState.update {
-                            it.copy(updateStatus = UpdateStatus.Downloaded, updateInfo = best, downloadProgress = 100, showUpdateDialog = false, statusMessage = "更新包已就绪")
+                            it.copy(updateStatus = UpdateStatus.Downloaded, updateInfo = best, downloadProgress = 100, showUpdateDialog = false, statusMessage = "更新包已就绪", updateMessage = srcStatus)
                         }
                         installUpdate()
                     } else {
                         _uiState.update {
-                            it.copy(updateStatus = UpdateStatus.Available, updateInfo = best, showUpdateDialog = true)
+                            it.copy(updateStatus = UpdateStatus.Available, updateInfo = best, showUpdateDialog = true, updateMessage = srcStatus)
                         }
                     }
                 }
                 gitee != null || github != null -> _uiState.update {
-                    if (manual) it.copy(updateStatus = UpdateStatus.UpToDate, updateMessage = "已是最新版本 v$installed")
+                    if (manual) it.copy(updateStatus = UpdateStatus.UpToDate, updateMessage = "已是最新版本 v$installed（$srcStatus）")
                     else it.copy(updateStatus = UpdateStatus.Idle)
                 }
                 else -> _uiState.update {
-                    if (manual) it.copy(updateStatus = UpdateStatus.Error, updateMessage = "检查失败，请检查网络")
+                    if (manual) it.copy(updateStatus = UpdateStatus.Error, updateMessage = "检查失败，请检查网络（$srcStatus）")
                     else it.copy(updateStatus = UpdateStatus.Idle)
                 }
             }
