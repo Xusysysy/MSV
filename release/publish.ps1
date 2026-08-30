@@ -107,7 +107,7 @@ if (-not $token) {
     try {
         $relId = $null; $hasApk = $false
         try {
-            $existing = Invoke-RestMethod -Uri "$GiteeApi/releases/tags/$tag" -Method Get
+            $existing = Invoke-RestMethod -Uri "$GiteeApi/releases/tags/$tag`?access_token=$token" -Method Get
             $relId = $existing.id
             $hasApk = ($existing.assets | Where-Object { $_.name -eq $apkName }) -ne $null
         } catch {
