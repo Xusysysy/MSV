@@ -112,6 +112,8 @@ $env:JAVA_HOME = "D:\software\AndroidStudio\jbr"; .\gradlew.bat assembleDebug
 
 3. **Line-range precision**: Every documented class, function, composable, and logical block MUST have its line range noted as `L{start}-{end}`. The STRUCTURE.md must be precise enough that anyone can locate any piece of logic without reading the source.
 
+4. **Browse via STRUCTURE.md**: Whenever browsing or exploring the project, read `STRUCTURE.md` directly — do NOT read files one by one.
+
 **STRUCTURE.md format**: Top-level directory tree → per-file breakdown with line ranges for every significant element (classes, functions, composables, sealed classes, events, key constants, init blocks, nested components).
 
 ---
