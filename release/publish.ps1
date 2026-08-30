@@ -15,7 +15,7 @@ $ErrorActionPreference = "Stop"
 $Owner = "lin-xiaochuan"; $Repo = "msv"
 $GhRepo = "Xusysysy/MSV"
 $GiteeApi = "https://gitee.com/api/v5/repos/$Owner/$Repo"
-$GiteeAttachField = "files"
+$GiteeAttachField = "file"   # 实测 Gitee attach_files 要求字段名 file（单数），用 files 会报 file is missing
 $JavaHome = "D:\software\AndroidStudio\jbr"
 
 function Fail($msg) { Write-Host "[publish] $msg" -ForegroundColor Red; exit 1 }
