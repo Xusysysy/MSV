@@ -1,4 +1,4 @@
-# MSV OTA 双平台发布脚本（PowerShell 5.1+）
+﻿# MSV OTA 双平台发布脚本（PowerShell 5.1+）
 # 用法: powershell -ExecutionPolicy Bypass -File release\publish.ps1 [-SkipBuild] [-NoUpload] [-NoteFile <path>]
 # 流程: 解析版本 → assembleRelease → 复制 APK → tag(=versionName) 推送双远程
 #       → GitHub gh release → Gitee REST API（token: $env:MSV_GITEE_TOKEN）
@@ -68,8 +68,12 @@ try {
     $ghCmd = Get-Command gh -ErrorAction SilentlyContinue
     $ghExe = if ($ghCmd) { $ghCmd.Source } else { "C:\Program Files\GitHub CLI\gh.exe" }
     if (-not (Test-Path $ghExe)) { throw "未找到 gh CLI" }
+    # PS5.1: EAP=Stop 时 2>$null 会把 native stderr 变成终止错误，需临时降级 EAP
+    $ErrorActionPreference = "Continue"
     & $ghExe release view $tag -R $GhRepo 2>$null | Out-Null
-    if ($LASTEXITCODE -eq 0) {
+    $viewExit = $LASTEXITCODE
+    $ErrorActionPreference = "Stop"
+    if ($viewExit -eq 0) {
         & $ghExe release upload $tag "release\$apkName" -R $GhRepo --clobber
         if ($LASTEXITCODE -ne 0) { throw "upload 失败" }
         Write-Host "[GitHub] release $tag 已存在，APK 已覆盖上传" -ForegroundColor Green
