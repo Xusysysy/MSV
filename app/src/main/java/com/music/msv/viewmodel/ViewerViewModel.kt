@@ -178,7 +178,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             ViewerEvent.ToggleVersionLog -> toggleVersionLog()
             is ViewerEvent.AddBookmark -> addBookmark(event.page, event.title, event.color)
             is ViewerEvent.DeleteBookmark -> deleteBookmark(event.id)
-            is ViewerEvent.RenameBookmark -> renameBookmark(event.id, event.title)
+            is ViewerEvent.RenameBookmark -> renameBookmark(event.id, event.title, event.color)
         }
     }
 
@@ -738,8 +738,8 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         writePdfBookmarks()
     }
 
-    private fun renameBookmark(id: String, title: String) {
-        _uiState.update { it.copy(bookmarks = it.bookmarks.map { b -> if (b.id == id) b.copy(title = title.take(50)) else b }) }
+    private fun renameBookmark(id: String, title: String, color: Int) {
+        _uiState.update { it.copy(bookmarks = it.bookmarks.map { b -> if (b.id == id) b.copy(title = title.take(50), color = color) else b }) }
         writePdfBookmarks()
     }
 
@@ -792,8 +792,18 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 .filter { compareVersions(it.tag, installed) > 0 }
                 .reduceOrNull { acc, info -> if (compareVersions(info.tag, acc.tag) > 0) info else acc }
             when {
-                best != null -> _uiState.update {
-                    it.copy(updateStatus = UpdateStatus.Available, updateInfo = best, showUpdateDialog = true)
+                best != null -> {
+                    // 已下载未安装：跳过下载阶段直接进入安装
+                    if (updateRepo.isDownloaded(best.apkUrl, best.tag)) {
+                        _uiState.update {
+                            it.copy(updateStatus = UpdateStatus.Downloaded, updateInfo = best, downloadProgress = 100, showUpdateDialog = false, statusMessage = "更新包已就绪")
+                        }
+                        installUpdate()
+                    } else {
+                        _uiState.update {
+                            it.copy(updateStatus = UpdateStatus.Available, updateInfo = best, showUpdateDialog = true)
+                        }
+                    }
                 }
                 gitee != null || github != null -> _uiState.update {
                     if (manual) it.copy(updateStatus = UpdateStatus.UpToDate, updateMessage = "已是最新版本 v$installed")
@@ -813,6 +823,14 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         if (_uiState.value.updateStatus == UpdateStatus.Downloading) return
         downloadJob?.cancel()
         downloadJob = viewModelScope.launch(Dispatchers.IO) {
+            // 断点续传：本地已与远端等长时跳过下载直接进入安装
+            if (updateRepo.isDownloaded(info.apkUrl, info.tag)) {
+                _uiState.update {
+                    it.copy(updateStatus = UpdateStatus.Downloaded, downloadProgress = 100, showUpdateDialog = false, statusMessage = "更新包已就绪")
+                }
+                installUpdate()
+                return@launch
+            }
             _uiState.update {
                 it.copy(updateStatus = UpdateStatus.Downloading, showUpdateDialog = false, downloadProgress = 0, statusMessage = "开始下载 v${info.tag} 更新包…")
             }
@@ -824,7 +842,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 // 下载完成后自动调起安装（未授权"安装未知应用"时会在 installUpdate 内引导授权）
                 installUpdate()
             } else {
-                _uiState.update { it.copy(updateStatus = UpdateStatus.Error, updateMessage = "下载失败，请重试") }
+                _uiState.update { it.copy(updateStatus = UpdateStatus.Error, updateMessage = "下载失败，已保留进度，请重试") }
             }
         }
     }

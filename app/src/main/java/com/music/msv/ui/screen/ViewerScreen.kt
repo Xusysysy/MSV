@@ -207,7 +207,7 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                     onBookmarkClick = { viewModel.onEvent(ViewerEvent.GoToPage(it)) },
                     onAddBookmark = { page, title, color -> viewModel.onEvent(ViewerEvent.AddBookmark(page, title, color)) },
                     onDeleteBookmark = { id -> viewModel.onEvent(ViewerEvent.DeleteBookmark(id)) },
-                    onRenameBookmark = { id, title -> viewModel.onEvent(ViewerEvent.RenameBookmark(id, title)) },
+                    onEditBookmark = { id, title, color -> viewModel.onEvent(ViewerEvent.RenameBookmark(id, title, color)) },
                     onClose = { viewModel.onEvent(ViewerEvent.ToggleThumbnails) }
                 )
             }

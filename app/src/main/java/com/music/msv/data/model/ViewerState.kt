@@ -83,7 +83,7 @@ sealed class ViewerEvent {
     data object ToggleVersionLog : ViewerEvent()
     data class AddBookmark(val page: Int, val title: String, val color: Int) : ViewerEvent()
     data class DeleteBookmark(val id: String) : ViewerEvent()
-    data class RenameBookmark(val id: String, val title: String) : ViewerEvent()
+    data class RenameBookmark(val id: String, val title: String, val color: Int) : ViewerEvent()
 }
 
 data class ShelfFile(

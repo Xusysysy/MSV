@@ -239,19 +239,19 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 11. ui/components/ThumbnailPanel.kt (L1-L350)
+### 11. ui/components/ThumbnailPanel.kt (L1-L373)
 
 | Element | Type | Lines |
 |---|---|---|
 | Package + imports | — | L1-L55 |
 | `invertColorMatrix` | private val ColorMatrix | L57-L63 |
 | `bookmarkPresets` | private val List<Int> — 8 个预设 RGB 书签色 | L65-L68 |
-| `ThumbnailPanel` | @OptIn(ExperimentalFoundationApi) @Composable fun | L70-L349 |
-| Parameters (13): | isDark, pageCount, currentPage, isPdfMode, bookmarks, getThumbnailUri, onPageSelected, onBookmarkClick, onAddBookmark, onDeleteBookmark, onRenameBookmark, onClose, modifier | L71-L84 |
-| Local colors + states | panelBg…muted/text + addPage/addTitle/addColor/renameBmId/renameBmText/bmMenuId | L85-L101 |
-| Row root（书签栏 + 缩略图列同动画进出） | composable | L103-L259 |
-| — Bookmark rail（无额外背景，verticalScroll 可滚动） | 仅 isPdfMode 且书签非空时显示 | L104-L141 |
-| — — BookmarkStrip ×N | 半透明（color alpha 0.75）左半圆书签条：click→跳转页码, long-press→菜单（重命名/删除红字），宽度随名长 | L111-L140 |
+| `ThumbnailPanel` | @OptIn(ExperimentalFoundationApi) @Composable fun | L72-L316 |
+| Parameters (13): | isDark, pageCount, currentPage, isPdfMode, bookmarks, getThumbnailUri, onPageSelected, onBookmarkClick, onAddBookmark, onDeleteBookmark, onEditBookmark, onClose, modifier | L73-L86 |
+| Local colors + states | panelBg…muted/text/danger/menuContainer + addPage/addTitle/addColor/editBm/bmMenuId | L87-L95 |
+| Box root（书签栏在缩略图面板**下一图层**，520dp 容器） | composable | L97-L316 |
+| — Bookmark rail（width 220，End 对齐 + offset 64 延伸至面板之下，verticalScroll 可滚动，无额外背景，spacedBy 6 间隙，底部 Spacer 保证滚到底完整） | 仅 isPdfMode 且书签非空时显示 | L99-L141 |
+| — — BookmarkStrip ×N | 半透明（color alpha **0.55**）左半圆书签条：click→跳转页码, long-press→菜单（**编辑**/删除红字），文字 13sp **单行不换行**，requiredWidthIn(284) 宽度随名长 | L114-L140 |
 | — Thumbnails Column (300dp) | composable | L143-L259 |
 | — — Close button Box | L146-L163 |
 | — — gridState + LaunchedEffect scroll-to-current | L165-L174 |
@@ -259,8 +259,7 @@ Single-screen app — no Navigation component. State-based content switching via
 | — — — itemsIndexed → Column（click→跳页, **long-press→添加书签弹窗**） | L184-L228 |
 | — — — — Thumbnail AsyncImage | L196-L210 |
 | — — — — Page number Text | L211-L219 |
-| Add bookmark AlertDialog（命名 ≤50 字 + 8 色 RGB 色板） | L262-L308 |
-| Rename bookmark AlertDialog | L310-L349 |
+| `BookmarkDialog` | private @Composable — 添加/编辑共用（命名 ≤50 字 + 8 色 RGB 色板） | L318-L373 |
 
 ---
 
@@ -324,7 +323,7 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 13. viewmodel/ViewerViewModel.kt (L1-L1013)
+### 13. viewmodel/ViewerViewModel.kt (L1-L1031)
 
 | Element | Type | Lines |
 |---|---|---|
@@ -386,8 +385,8 @@ Single-screen app — no Navigation component. State-based content switching via
 | `flipDone()` | private fun — clears pendingFlip | L694-L697 |
 | `showFaceOverlay()` | private fun | L699-L702 |
 | `hideFaceOverlay()` | private fun — hides + persists face prefs via faceRepo.save | L704-L710 |
-| `checkUpdate(manual)` | private fun — Gitee/GitHub 并行查询，仅取比当前新的候选（平手 Gitee 优先）；manual 失败显示 Error，自动静默回 Idle | L722-L745 |
-| `downloadUpdate()` | private fun — **应用内流式下载**（downloadApk 进度回调→downloadProgress 状态），完成后 Downloaded + **自动调起 installUpdate()** | L726-L745 |
+| `checkUpdate(manual)` | private fun — Gitee/GitHub 并行查询，仅取比当前新的候选（平手 Gitee 优先）；**已下载未安装时直达 Downloaded+安装**；manual 失败显示 Error，自动静默回 Idle | L722-L752 |
+| `downloadUpdate()` | private fun — **断点续传**（isDownloaded 快路径直达安装；downloadApk Range 续传，进度→downloadProgress），完成后 Downloaded + 自动调起 installUpdate() | L754-L780 |
 | `installUpdate()` | private fun — 未授权 → 跳 unknown sources 授权页；已授权 → FileProvider 安装 Intent（下载完成自动调起 + 设置面板"立即安装"按钮均可触发） | L747-L760 |
 | `startActivity(intent)` | private fun — runCatching 包装 | L791-L793 |
 | `dismissUpdateDialog()` | private fun — 仅关弹窗（保留 Available 状态） | L795-L798 |
@@ -613,29 +612,29 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 23. data/repository/UpdateRepository.kt (L1-L214)
+### 23. data/repository/UpdateRepository.kt (L1-L243)
 
 | Element | Type | Lines |
 |---|---|---|
-| Package + imports | — | L1-L17 |
-| `compareVersions(a, b)` | top-level fun — 逐段数值版本比较（短段补 0、容错 v 前缀）；单测 `app/src/test/java/com/music/msv/CompareVersionsTest.kt` | L23-L35 |
-| `UpdateRepository(context)` | class | L38-L214 |
-| Companion constants | GITEE_REPO_API / GITHUB_REPO_API / GITEE_LATEST / GITHUB_LATEST / TIMEOUT_MS(8000) / APK_PREFIX("MSV-ScoreViewer") / UPDATE_DIR("update") / APK_MIME | L40-L48 |
-| `installedVersionName` / `installedVersionCode` | val getter — PackageManager（API33 PackageInfoFlags 分支） | L50-L67 |
-| `fetchGiteeLatest` / `fetchGitHubLatest` | fun — → fetchLatest | L69-L71 |
-| `fetchLatest(url, isGitee)` | private fun — httpGetString → JSONObject；assets 按 `.apk`+前缀过滤（排除源码包）；notes=摘要 fullNotes=完整 body；失败返回 null | L73-L95 |
-| `fetchTagNotes(tag)` | fun — 按版本 tag 查 release body（**Gitee 优先**，GitHub 兜底）供设置页"查看本版本更新日志" | L97-L99 |
-| `fetchTagBody(url, isGitee)` | private fun — httpGetString → 解析 body | L101-L108 |
-| `httpGetString(url, isGitee)` | private fun — HttpURLConnection GET（UA/超时/Accept 头） | L110-L124 |
-| `summarizeNotes(body, maxLen=300)` | fun — release body 摘要（去标题前缀/拼行/截断） | L126-L142 |
-| `removeStaleDownloads(apkUrl)` | fun — 清理同 URL 的 RUNNING/PENDING/PAUSED 下载任务 | L144-L158 |
-| `apkFileName(tag)` / `updateApkFile(tag)` | fun — `update/msv-update-{tag}.apk`（外部专属目录） | L160-L165 |
-| `enqueueDownload(apkUrl, tag)` | fun — DownloadManager（系统通知栏进度、删残留文件、禁止漫游） | L167-L179 |
-| `queryDownloadStatus(id)` | fun | L181-L189 |
-| `cleanupDownloadedApk(installedVersion)` | fun — 升级成功后清理已装版本的历史安装包 | L191-L198 |
-| `isInstallPermissionGranted()` | fun — canRequestPackageInstalls | L200 |
-| `unknownSourcesIntent()` | fun — ACTION_MANAGE_UNKNOWN_APP_SOURCES 授权引导 | L202-L206 |
-| `installIntent(tag)` | fun — FileProvider(`${applicationId}.fileprovider`) URI + ACTION_VIEW 安装 Intent | L208-L214 |
+| Package + imports | — | L1-L20 |
+| `compareVersions(a, b)` | top-level fun — 逐段数值版本比较（短段补 0、容错 v 前缀）；单测 `app/src/test/java/com/music/msv/CompareVersionsTest.kt` | L25-L37 |
+| `UpdateRepository(context)` | class | L39-L243 |
+| Companion constants | GITEE_REPO_API / GITHUB_REPO_API / GITEE_LATEST / GITHUB_LATEST / TIMEOUT_MS(8000) / APK_PREFIX("MSV-ScoreViewer") / UPDATE_DIR("update") / APK_MIME | L41-L49 |
+| `installedVersionName` / `installedVersionCode` | val getter — PackageManager（API33 PackageInfoFlags 分支） | L51-L68 |
+| `fetchGiteeLatest` / `fetchGitHubLatest` | fun — → fetchLatest | L70-L72 |
+| `fetchLatest(url, isGitee)` | private fun — httpGetString → JSONObject；assets 按 `.apk`+前缀过滤（排除源码包）；notes=摘要 fullNotes=完整 body；失败返回 null | L75-L97 |
+| `fetchTagNotes(tag)` | fun — 按版本 tag 查 release body（**Gitee 优先**，GitHub 兜底）供设置页"查看本版本更新日志" | L99-L101 |
+| `fetchTagBody(url, isGitee)` | private fun — httpGetString → 解析 body | L103-L110 |
+| `httpGetString(url, isGitee)` | private fun — HttpURLConnection GET（UA/超时/Accept 头） | L112-L126 |
+| `summarizeNotes(body, maxLen=300)` | fun — release body 摘要（去标题前缀/拼行/截断） | L128-L144 |
+| `downloadApk(url, tag, onProgress)` | suspend fun — **应用内流式下载 + Range 断点续传**（206 续传/416 视为完整/失败保留断点/协作式取消） | L146-L189 |
+| `remoteApkSize(url)` | private fun — HEAD 查询远端大小 | L191-L204 |
+| `isDownloaded(url, tag)` | fun — 本地长度 == 远端长度（已完整下载） | L206-L212 |
+| `apkFileName(tag)` / `updateApkFile(tag)` | fun — `update/msv-update-{tag}.apk`（外部专属目录） | L214-L220 |
+| `cleanupDownloadedApk(installedVersion)` | fun — 升级成功后清理已装版本的历史安装包 | L222-L229 |
+| `isInstallPermissionGranted()` | fun — canRequestPackageInstalls | L231 |
+| `unknownSourcesIntent()` | fun — ACTION_MANAGE_UNKNOWN_APP_SOURCES 授权引导 | L233-L237 |
+| `installIntent(tag)` | fun — FileProvider(`${applicationId}.fileprovider`) URI + ACTION_VIEW 安装 Intent | L239-L243 |
 
 ---
 

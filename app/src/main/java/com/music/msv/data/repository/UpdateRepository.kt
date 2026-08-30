@@ -142,30 +142,38 @@ class UpdateRepository(private val context: Context) {
 
     // ── 下载（系统 DownloadManager，进度由通知栏展示）──
 
-    /** 应用内流式下载更新包（替代系统 DownloadManager，进度经 onProgress 回调；支持协程取消），成功返回已下载文件 */
+    /** 应用内流式下载更新包：支持 Range 断点续传（416 视为已完整），失败保留断点，进度经 onProgress 回调，支持协程取消 */
     suspend fun downloadApk(url: String, tag: String, onProgress: (Int) -> Unit): File? = withContext(Dispatchers.IO) {
         val file = updateApkFile(tag)
-        file.delete()
+        var resumeFrom = if (file.exists()) file.length() else 0L
         try {
             val conn = URL(url).openConnection() as HttpURLConnection
             conn.connectTimeout = TIMEOUT_MS
             conn.readTimeout = 30000
             conn.instanceFollowRedirects = true
+            if (resumeFrom > 0) conn.setRequestProperty("Range", "bytes=$resumeFrom-")
             conn.connect()
-            val total = conn.contentLengthLong
+            val code = conn.responseCode
+            if (resumeFrom > 0 && code == 416) {
+                // 请求范围越界：本地已与远端等长（上次已下载完成）
+                return@withContext if (file.exists() && file.length() > 0) file else null
+            }
+            val resuming = resumeFrom > 0 && code == 206
+            if (resumeFrom > 0 && !resuming) resumeFrom = 0 // 服务器不支持断点，重头下载
+            val total = if (resuming) resumeFrom + conn.contentLengthLong else conn.contentLengthLong
             conn.inputStream.use { input ->
-                file.outputStream().use { out ->
+                java.io.FileOutputStream(file, resuming).use { out ->
                     val buf = ByteArray(8192)
-                    var done = 0L
+                    var done = resumeFrom
                     var lastPct = -1
                     while (true) {
-                        coroutineContext.ensureActive() // 协作式取消：下载中断开即停止
+                        coroutineContext.ensureActive() // 协作式取消：保留断点
                         val n = input.read(buf)
                         if (n == -1) break
                         out.write(buf, 0, n)
                         done += n
                         if (total > 0) {
-                            val pct = (done * 100 / total).toInt()
+                            val pct = (done * 100 / total).toInt().coerceIn(0, 100)
                             if (pct != lastPct) { lastPct = pct; onProgress(pct) }
                         }
                     }
@@ -173,12 +181,34 @@ class UpdateRepository(private val context: Context) {
             }
             if (file.exists() && file.length() > 0) file else null
         } catch (e: kotlinx.coroutines.CancellationException) {
-            file.delete()
-            throw e
+            throw e // 保留已下载部分供断点续传
         } catch (_: Exception) {
-            file.delete()
-            null
+            null // 失败保留断点，下次续传
         }
+    }
+
+    /** HEAD 查询远端 APK 大小（-1 = 查询失败） */
+    private fun remoteApkSize(url: String): Long = try {
+        val conn = URL(url).openConnection() as HttpURLConnection
+        conn.connectTimeout = TIMEOUT_MS
+        conn.readTimeout = TIMEOUT_MS
+        conn.requestMethod = "HEAD"
+        conn.instanceFollowRedirects = true
+        conn.connect()
+        val len = conn.contentLengthLong
+        conn.disconnect()
+        len
+    } catch (_: Exception) {
+        -1L
+    }
+
+    /** 本地更新包是否已完整下载（长度与远端一致） */
+    fun isDownloaded(url: String, tag: String): Boolean = try {
+        val expected = remoteApkSize(url)
+        val f = updateApkFile(tag)
+        expected > 0 && f.exists() && f.length() == expected
+    } catch (_: Exception) {
+        false
     }
 
     fun apkFileName(tag: String) = "msv-update-$tag.apk"

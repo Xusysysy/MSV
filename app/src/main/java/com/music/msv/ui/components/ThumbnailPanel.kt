@@ -18,7 +18,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredWidthIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -88,7 +90,7 @@ fun ThumbnailPanel(
     onBookmarkClick: (Int) -> Unit,
     onAddBookmark: (Int, String, Int) -> Unit,
     onDeleteBookmark: (String) -> Unit,
-    onRenameBookmark: (String, String) -> Unit,
+    onEditBookmark: (String, String, Int) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -106,70 +108,71 @@ fun ThumbnailPanel(
     var addPage by remember { mutableStateOf<Int?>(null) }
     var addTitle by remember { mutableStateOf("") }
     var addColor by remember { mutableStateOf(bookmarkPresets[4]) }
-    var renameBmId by remember { mutableStateOf<String?>(null) }
-    var renameBmText by remember { mutableStateOf("") }
+    var editBm by remember { mutableStateOf<PageBookmark?>(null) }
     var bmMenuId by remember { mutableStateOf<String?>(null) }
 
-    Row(modifier = modifier) {
-        // 书签栏：横向书签条自上而下贴着排列，左侧半圆、宽度随名字长度、半透明、无额外背景、可上下滚动
-        if (isPdfMode && bookmarks.isNotEmpty()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .widthIn(max = 180.dp)
-                    .verticalScroll(rememberScrollState())
-            ) {
-                bookmarks.forEach { bm ->
-                    var bmMenuOpen by remember { mutableStateOf(false) }
-                    Box {
-                        Row(
-                            modifier = Modifier
-                                .widthIn(max = 180.dp)
-                                .background(
-                                    Color(bm.color).copy(alpha = 0.75f),
-                                    RoundedCornerShape(topStart = 17.dp, bottomStart = 17.dp, topEnd = 4.dp, bottomEnd = 4.dp)
-                                )
-                                .combinedClickable(
-                                    onClick = { onBookmarkClick(bm.page) },
-                                    onLongClick = { bmMenuOpen = !bmMenuOpen }
-                                )
-                                .padding(start = 14.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                bm.title,
-                                color = Color.White,
-                                fontSize = 11.sp,
-                                lineHeight = 14.sp,
-                                maxLines = 2,
-                                modifier = Modifier.widthIn(max = 150.dp)
+    Box(modifier.width(520.dp)) {
+        // 书签栏：位于缩略图面板下一图层，书签条右端延伸至面板之下；右端对齐；无额外背景；可上下滚动
+        Column(
+            modifier = Modifier
+                .fillMaxHeight()
+                .width(220.dp)
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Spacer(Modifier.height(14.dp))
+            bookmarks.forEach { bm ->
+                var bmMenuOpen by remember { mutableStateOf(false) }
+                Box {
+                    Row(
+                        modifier = Modifier
+                            .requiredWidthIn(max = 348.dp)
+                            .offset(x = 64.dp)
+                            .background(
+                                Color(bm.color).copy(alpha = 0.55f),
+                                RoundedCornerShape(topStart = 21.dp, bottomStart = 21.dp, topEnd = 4.dp, bottomEnd = 4.dp)
                             )
-                            DropdownMenu(
-                                expanded = bmMenuOpen,
-                                onDismissRequest = { bmMenuOpen = false },
-                                containerColor = menuContainer,
-                                shape = RoundedCornerShape(10.dp)
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text("重命名", color = text) },
-                                    onClick = {
-                                        bmMenuOpen = false
-                                        renameBmId = bm.id
-                                        renameBmText = bm.title
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("删除", color = danger) },
-                                    onClick = {
-                                        bmMenuOpen = false
-                                        onDeleteBookmark(bm.id)
-                                    }
-                                )
-                            }
+                            .combinedClickable(
+                                onClick = { onBookmarkClick(bm.page) },
+                                onLongClick = { bmMenuOpen = !bmMenuOpen }
+                            )
+                            .padding(start = 18.dp, end = 64.dp, top = 10.dp, bottom = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            bm.title,
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        DropdownMenu(
+                            expanded = bmMenuOpen,
+                            onDismissRequest = { bmMenuOpen = false },
+                            containerColor = menuContainer,
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("编辑", color = text) },
+                                onClick = {
+                                    bmMenuOpen = false
+                                    editBm = bm
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("删除", color = danger) },
+                                onClick = {
+                                    bmMenuOpen = false
+                                    onDeleteBookmark(bm.id)
+                                }
+                            )
                         }
                     }
                 }
             }
+            Spacer(Modifier.height(20.dp))
         }
 
         Column(
@@ -277,76 +280,96 @@ fun ThumbnailPanel(
 
     // 添加书签弹窗（长按页面缩略图呼出；命名上限 50 字 + RGB 颜色选择）
     if (addPage != null) {
-        AlertDialog(
-            onDismissRequest = { addPage = null },
-            title = { Text("添加书签 · 第${(addPage ?: 0) + 1}页") },
-            text = {
-                Column {
-                    OutlinedTextField(
-                        value = addTitle,
-                        onValueChange = { addTitle = it.take(50) },
-                        singleLine = true,
-                        placeholder = { Text("书签名（最多50字）") },
-                        supportingText = { Text("${addTitle.length}/50") }
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    Text("颜色", color = muted, fontSize = 12.sp)
-                    Spacer(Modifier.height(6.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        bookmarkPresets.forEach { c ->
-                            Box(
-                                modifier = Modifier
-                                    .size(28.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(c))
-                                    .border(
-                                        if (addColor == c) 2.dp else 1.dp,
-                                        if (addColor == c) text else itemBorder,
-                                        CircleShape
-                                    )
-                                    .clickable { addColor = c }
-                            )
-                        }
-                    }
-                }
+        BookmarkDialog(
+            isDark = isDark,
+            title = "添加书签 · 第${(addPage ?: 0) + 1}页",
+            initialName = addTitle,
+            initialColor = addColor,
+            confirmText = "添加",
+            muted = muted,
+            border = itemBorder,
+            onConfirm = { name, color ->
+                val p = addPage
+                if (p != null && name.isNotBlank()) onAddBookmark(p, name, color)
+                addPage = null
             },
-            confirmButton = {
-                TextButton(onClick = {
-                    val p = addPage
-                    if (p != null && addTitle.isNotBlank()) onAddBookmark(p, addTitle.trim(), addColor)
-                    addPage = null
-                }) { Text("添加") }
-            },
-            dismissButton = {
-                TextButton(onClick = { addPage = null }) { Text("取消") }
-            }
+            onDismiss = { addPage = null }
         )
     }
 
-    // 书签重命名弹窗
-    if (renameBmId != null) {
-        AlertDialog(
-            onDismissRequest = { renameBmId = null },
-            title = { Text("重命名书签") },
-            text = {
-                OutlinedTextField(
-                    value = renameBmText,
-                    onValueChange = { renameBmText = it.take(50) },
-                    singleLine = true,
-                    placeholder = { Text("书签名（最多50字）") },
-                    supportingText = { Text("${renameBmText.length}/50") }
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    val id = renameBmId
-                    if (id != null && renameBmText.isNotBlank()) onRenameBookmark(id, renameBmText.trim())
-                    renameBmId = null
-                }) { Text("确定") }
-            },
-            dismissButton = {
-                TextButton(onClick = { renameBmId = null }) { Text("取消") }
-            }
+    // 编辑书签弹窗（与新建一致：命名 + 颜色）
+    if (editBm != null) {
+        val bm = editBm!!
+        BookmarkDialog(
+            isDark = isDark,
+            title = "编辑书签 · 第${bm.page + 1}页",
+            initialName = bm.title,
+            initialColor = bm.color,
+            confirmText = "保存",
+            muted = muted,
+            border = itemBorder,
+            onConfirm = { name, color -> onEditBookmark(bm.id, name, color) },
+            onDismiss = { editBm = null }
         )
     }
+}
+
+@Composable
+private fun BookmarkDialog(
+    isDark: Boolean,
+    title: String,
+    initialName: String,
+    initialColor: Int,
+    confirmText: String,
+    muted: Color,
+    border: Color,
+    onConfirm: (String, Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var name by remember { mutableStateOf(initialName) }
+    var color by remember { mutableStateOf(initialColor) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it.take(50) },
+                    singleLine = true,
+                    placeholder = { Text("书签名（最多50字）") },
+                    supportingText = { Text("${name.length}/50") }
+                )
+                Spacer(Modifier.height(12.dp))
+                Text("颜色", color = muted, fontSize = 12.sp)
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val ring = if (isDark) Color.White else Color(0xFF1B2230)
+                    bookmarkPresets.forEach { c ->
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(Color(c))
+                                .border(
+                                    if (color == c) 2.dp else 1.dp,
+                                    if (color == c) ring else border,
+                                    CircleShape
+                                )
+                                .clickable { color = c }
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                if (name.isNotBlank()) onConfirm(name.trim(), color)
+                onDismiss()
+            }) { Text(confirmText) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("取消") }
+        }
+    )
 }
