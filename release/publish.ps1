@@ -33,7 +33,10 @@ Write-Host "[publish] 版本: v$verName (versionCode=$verCode) tag=$tag"
 # ── 2. 发布说明 ──
 if (-not $NoteFile) { $NoteFile = "release\releasenote$verCode.md" }
 $body = $tag
-if (Test-Path $NoteFile) { $body = Get-Content $NoteFile -Raw -Encoding UTF8 }
+if (Test-Path $NoteFile) {
+    # 用 ReadAllText 而非 Get-Content：后者会给字符串附加 PSPath 等扩展属性，ConvertTo-Json 会把 body 序列化成对象导致 Gitee 报 body is invalid
+    $body = [IO.File]::ReadAllText($NoteFile, [Text.Encoding]::UTF8)
+}
 else { Write-Warning "[publish] 未找到发布说明 $NoteFile，body 将仅含版本号" }
 
 # ── 3. 构建 ──
