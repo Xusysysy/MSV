@@ -35,7 +35,10 @@ data class ViewerState(
     val updateStatus: UpdateStatus = UpdateStatus.Idle,
     val updateInfo: UpdateInfo? = null,
     val updateMessage: String = "",
-    val showUpdateDialog: Boolean = false
+    val showUpdateDialog: Boolean = false,
+    val showVersionLog: Boolean = false,
+    val versionNotes: String = "",
+    val versionNotesLoading: Boolean = false
 )
 
 enum class ShelfSort { NAME, DATE }
@@ -74,6 +77,7 @@ sealed class ViewerEvent {
     data object DownloadUpdate : ViewerEvent()
     data object InstallUpdate : ViewerEvent()
     data object DismissUpdateDialog : ViewerEvent()
+    data object ToggleVersionLog : ViewerEvent()
 }
 
 data class ShelfFile(

@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
+import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
@@ -140,6 +141,7 @@ fun Stage(
         flipJob?.cancel()
         flipDir = dir
         flipJob = scope.launch {
+            val selfJob = coroutineContext[Job]
             transition.snapTo(fromOffset)
             // 触发瞬间即推进页码（页码显示/渲染/预加载全部以目标页为准），动画只负责视觉过渡
             if (dir > 0) onNextPage() else onPrevPage()
@@ -157,8 +159,12 @@ fun Stage(
                 }
             } finally {
                 withContext(NonCancellable) {
-                    transition.snapTo(0f)
-                    flipDir = 0
+                    // 仅当本动画仍是当前动画时才复位：被新翻页接替的旧动画不得复位位置/方向，
+                    // 否则其 snapTo(0)+flipDir=0 会打断新动画并导致页面闪回旧页
+                    if (flipJob === selfJob) {
+                        transition.snapTo(0f)
+                        flipDir = 0
+                    }
                     onFlipDone()
                 }
             }

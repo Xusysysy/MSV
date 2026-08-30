@@ -38,10 +38,10 @@ fun compareVersions(a: String, b: String): Int {
 class UpdateRepository(private val context: Context) {
 
     companion object {
-        private const val GITEE_LATEST =
-            "https://gitee.com/api/v5/repos/lin-xiaochuan/msv/releases/latest"
-        private const val GITHUB_LATEST =
-            "https://api.github.com/repos/Xusysysy/MSV/releases/latest"
+        private const val GITEE_REPO_API = "https://gitee.com/api/v5/repos/lin-xiaochuan/msv"
+        private const val GITHUB_REPO_API = "https://api.github.com/repos/Xusysysy/MSV"
+        private const val GITEE_LATEST = "$GITEE_REPO_API/releases/latest"
+        private const val GITHUB_LATEST = "$GITHUB_REPO_API/releases/latest"
         private const val TIMEOUT_MS = 8000
         private const val APK_PREFIX = "MSV-ScoreViewer"
         private const val UPDATE_DIR = "update"
@@ -70,7 +70,44 @@ class UpdateRepository(private val context: Context) {
 
     fun fetchGitHubLatest(): UpdateInfo? = fetchLatest(GITHUB_LATEST, isGitee = false)
 
-    private fun fetchLatest(url: String, isGitee: Boolean): UpdateInfo? = try {
+    private fun fetchLatest(url: String, isGitee: Boolean): UpdateInfo? {
+        val body = httpGetString(url, isGitee) ?: return null
+        return try {
+            val json = JSONObject(body)
+            // 两平台 assets 均混有自动生成的源码包，必须按 .apk 前缀过滤
+            val apk = json.optJSONArray("assets")
+                ?.let { arr -> (0 until arr.length()).mapNotNull { arr.optJSONObject(it) } }
+                ?.firstOrNull {
+                    val name = it.optString("name")
+                    name.endsWith(".apk") && name.startsWith(APK_PREFIX)
+                } ?: return null
+            UpdateInfo(
+                tag = json.optString("tag_name"),
+                notes = summarizeNotes(json.optString("body")),
+                fullNotes = json.optString("body"),
+                apkUrl = apk.optString("browser_download_url"),
+                source = if (isGitee) "Gitee" else "GitHub"
+            )
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /** 按已安装版本 tag 查询对应 release 的完整更新日志，Gitee 优先 */
+    fun fetchTagNotes(tag: String): String? =
+        fetchTagBody("$GITEE_REPO_API/releases/tags/$tag", isGitee = true)
+            ?: fetchTagBody("$GITHUB_REPO_API/releases/tags/$tag", isGitee = false)
+
+    private fun fetchTagBody(url: String, isGitee: Boolean): String? =
+        httpGetString(url, isGitee)?.let {
+            try {
+                JSONObject(it).optString("body").ifEmpty { null }
+            } catch (_: Exception) {
+                null
+            }
+        }
+
+    private fun httpGetString(url: String, isGitee: Boolean): String? = try {
         val conn = (URL(url).openConnection() as HttpURLConnection).apply {
             connectTimeout = TIMEOUT_MS
             readTimeout = TIMEOUT_MS
@@ -80,21 +117,7 @@ class UpdateRepository(private val context: Context) {
         }
         val body = conn.inputStream.bufferedReader().use { it.readText() }
         conn.disconnect()
-        val json = JSONObject(body)
-        // 两平台 assets 均混有自动生成的源码包，必须按 .apk 前缀过滤
-        val apk = json.optJSONArray("assets")
-            ?.let { arr -> (0 until arr.length()).mapNotNull { arr.optJSONObject(it) } }
-            ?.firstOrNull {
-                val name = it.optString("name")
-                name.endsWith(".apk") && name.startsWith(APK_PREFIX)
-            } ?: return null
-        UpdateInfo(
-            tag = json.optString("tag_name"),
-            notes = summarizeNotes(json.optString("body")),
-            fullNotes = json.optString("body"),
-            apkUrl = apk.optString("browser_download_url"),
-            source = if (isGitee) "Gitee" else "GitHub"
-        )
+        body
     } catch (_: Exception) {
         null
     }

@@ -40,10 +40,14 @@ fun SettingsPanel(
     isDark: Boolean,
     versionName: String,
     versionCode: Int,
+    showVersionLog: Boolean,
+    versionNotes: String,
+    versionNotesLoading: Boolean,
     updateStatus: UpdateStatus,
     updateInfo: UpdateInfo?,
     updateMessage: String,
     onCheckUpdate: () -> Unit,
+    onToggleVersionLog: () -> Unit,
     onDownloadUpdate: () -> Unit,
     onInstallUpdate: () -> Unit,
     onClose: () -> Unit,
@@ -93,6 +97,27 @@ fun SettingsPanel(
             Text("🎼 MSV 乐谱查看器", color = text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(4.dp))
             Text("版本 $versionName ($versionCode)", color = muted, fontSize = 13.sp)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                if (showVersionLog) "收起本版本更新日志 ▴" else "查看本版本更新日志 ▾",
+                color = accent,
+                fontSize = 12.sp,
+                modifier = Modifier.clickable { onToggleVersionLog() }
+            )
+            if (showVersionLog) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 220.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    if (versionNotesLoading) {
+                        Text("加载中…", color = muted, fontSize = 12.sp, lineHeight = 17.sp)
+                    } else {
+                        Text(versionNotes, color = muted, fontSize = 12.sp, lineHeight = 17.sp)
+                    }
+                }
+            }
             Spacer(Modifier.height(12.dp))
             Box(Modifier.fillMaxWidth().height(1.dp).background(divider))
             Spacer(Modifier.height(12.dp))

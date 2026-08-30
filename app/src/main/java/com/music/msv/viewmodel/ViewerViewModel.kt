@@ -180,6 +180,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             ViewerEvent.DownloadUpdate -> downloadUpdate()
             ViewerEvent.InstallUpdate -> installUpdate()
             ViewerEvent.DismissUpdateDialog -> dismissUpdateDialog()
+            ViewerEvent.ToggleVersionLog -> toggleVersionLog()
         }
     }
 
@@ -761,6 +762,24 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun dismissUpdateDialog() {
         _uiState.update { it.copy(showUpdateDialog = false) }
+    }
+
+    /** 展开/收起本版本更新日志；首次展开时按已安装版本 tag 从两平台拉取 release body */
+    private fun toggleVersionLog() {
+        val show = !_uiState.value.showVersionLog
+        _uiState.update { it.copy(showVersionLog = show) }
+        if (show && _uiState.value.versionNotes.isEmpty() && !_uiState.value.versionNotesLoading) {
+            viewModelScope.launch(Dispatchers.IO) {
+                _uiState.update { it.copy(versionNotesLoading = true) }
+                val notes = updateRepo.fetchTagNotes(updateRepo.installedVersionName)
+                _uiState.update {
+                    it.copy(
+                        versionNotes = notes?.ifEmpty { null } ?: "未找到当前版本的更新日志（可能离线或该版本未发布 Release）",
+                        versionNotesLoading = false
+                    )
+                }
+            }
+        }
     }
 
     private fun resetZoom() {
