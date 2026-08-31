@@ -1,7 +1,7 @@
 {
-    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.2.4/MSV-ScoreViewer-v2.2.4-release.apk",
-    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.2.4/MSV-ScoreViewer-v2.2.4-release.apk",
-    "versionCode":  27,
-    "versionName":  "2.2.4",
-    "notes":  "# MSV 乐谱查看器 v2.2.4\n\n## 修复\n\n- **真乐谱偶发被占位图覆盖**：翻页窗口滑动时页面槽位状态重置导致已加载的真实页淡出回占位图——现在已渲染页在槽位复用时直接可见（淡入仅发生在\"未渲染→渲染完成\"的首次过渡）\n- **缩放模式双击恢复失效**：触摸传感器 0.5px 级抖动被误判为拖动，吞掉了双击判定——改为相对按下点位移超过 24dp 才算拖动，双击恢复正常\n\n## 新增\n\n- **支持开发者**：设置页底部\"开源许可\"右侧新增\"支持开发者 ❤\"入口，弹窗左侧展示微信收款码、右侧是制作路程与感想\n\nversionCode=27, versionName=2.2.4\n"
+    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.2.5/MSV-ScoreViewer-v2.2.5-release.apk",
+    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.2.5/MSV-ScoreViewer-v2.2.5-release.apk",
+    "versionCode":  28,
+    "versionName":  "2.2.5",
+    "notes":  "# MSV 乐谱查看器 v2.2.5\n\n## 修复\n\n- **下载失败自动切换备用源**：主源（Gitee）下载失败时自动改用 GitHub 源重试，不再直接报\"下载失败\"；两源均失败才提示\n- **断点文件损坏自愈**：断点越界（416）时校验本地包与远端大小，损坏自动删除重下；校验失败（网络不可用）时保留本地文件不误删\n- 下载失败原因现在会写入系统日志（logcat: MSV_Update），便于排查网络问题\n\nversionCode=28, versionName=2.2.5\n"
 }
