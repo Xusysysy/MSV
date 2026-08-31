@@ -79,6 +79,8 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     init {
         FaceLog.d("MSV_VM", "ViewerViewModel init")
         PDFBoxResourceLoader.init(getApplication())
+        // 启动预热：解码未渲染页占位图一次并常驻内存（单实例，防多页缓存爆炸）
+        com.music.msv.ui.components.PagePlaceholderCache.get(application)
         _uiState.update {
             it.copy(appVersionName = updateRepo.installedVersionName, appVersionCode = updateRepo.installedVersionCode)
         }

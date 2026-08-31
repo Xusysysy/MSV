@@ -1,10 +1,16 @@
 package com.music.msv.ui.components
 
+import android.content.Context
+import android.graphics.BitmapFactory
 import android.net.Uri
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -27,6 +33,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -38,6 +46,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
+import com.music.msv.R
 import kotlin.coroutines.coroutineContext
 import kotlin.math.abs
 import kotlin.math.hypot
@@ -86,6 +95,43 @@ private val invertColorMatrix = ColorMatrix(
         0f, 0f, 0f, 1f, 0f
     )
 )
+
+/** 未渲染页占位图缓存：首次使用解码一次，全局单实例复用（防多页缓存爆炸）；VM init 预热 */
+object PagePlaceholderCache {
+    @Volatile private var cached: ImageBitmap? = null
+    fun get(context: Context): ImageBitmap = cached ?: synchronized(this) {
+        cached ?: BitmapFactory.decodeResource(context.resources, R.drawable.page_placeholder)
+            .asImageBitmap().also { cached = it }
+    }
+}
+
+/** 未渲染页占位：真实页面渲染完成后 180ms 淡入覆盖（占位图→乐谱短暂渐变过渡，杜绝背景露出） */
+@Composable
+private fun PageWithPlaceholder(uri: Uri?, pageIndex: Int, isDark: Boolean, modifier: Modifier) {
+    Box(modifier) {
+        val context = LocalContext.current
+        val placeholder = remember { PagePlaceholderCache.get(context) }
+        Image(
+            bitmap = placeholder,
+            contentDescription = "页面加载中",
+            contentScale = ContentScale.FillBounds,
+            colorFilter = if (isDark) ColorFilter.colorMatrix(invertColorMatrix) else null,
+            modifier = Modifier.fillMaxSize()
+        )
+        if (uri != null) {
+            var shown by remember(pageIndex) { mutableStateOf(false) }
+            LaunchedEffect(uri) { shown = true }
+            AnimatedVisibility(
+                visible = shown,
+                enter = fadeIn(tween(180)),
+                exit = fadeOut(),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                ScorePageImage(uri = uri, pageIndex = pageIndex, isDark = isDark, modifier = Modifier.fillMaxSize())
+            }
+        }
+    }
+}
 
 @Composable
 fun Stage(
@@ -351,24 +397,25 @@ fun Stage(
                                         }
                                     }
                                 } else {
-                                    // 缩放模式单击：双击检测（<2x 步进放大到 2x，≥2x 恢复退出）
+                                    // 缩放模式单击：双击检测（任意放大状态恢复；仅 1x 时步进放大到 2x）
                                     val now = System.currentTimeMillis()
                                     if (now - lastTapTime < 300 && abs(downX - lastTapX) < 48.dp.toPx() && abs(downY - lastTapY) < 48.dp.toPx()) {
                                         lastTapTime = 0L
-                                        if (renderZoom.value < 2f) {
+                                        if (renderZoom.value > 1.01f) {
+                                            // 任意放大状态双击：恢复并退出缩放模式
+                                            scope.launch {
+                                                renderZoom.animateTo(1f, tween(220))
+                                                renderPanX.animateTo(0f, tween(220))
+                                                renderPanY.animateTo(0f, tween(220))
+                                                onZoomModeExit()
+                                            }
+                                        } else {
                                             scope.launch {
                                                 renderZoom.animateTo(2f, tween(220))
                                                 val maxX = (renderZoom.value - 1f) * stageWidth / 2f
                                                 val maxY = (renderZoom.value - 1f) * stageHeight / 2f
                                                 renderPanX.snapTo(renderPanX.value.coerceIn(-maxX, maxX))
                                                 renderPanY.snapTo(renderPanY.value.coerceIn(-maxY, maxY))
-                                            }
-                                        } else {
-                                            scope.launch {
-                                                renderZoom.animateTo(1f, tween(220))
-                                                renderPanX.animateTo(0f, tween(220))
-                                                renderPanY.animateTo(0f, tween(220))
-                                                onZoomModeExit()
                                             }
                                         }
                                     }
@@ -426,29 +473,29 @@ fun Stage(
                             continue
                         }
                         val change = pressedList[0]
-                        // 缩放模式：单指拖拽 = 平移；单击 = 双击检测（恢复）
+                        // 缩放模式：单指拖拽 = 平移；单击 = 双击检测（任意放大状态恢复）
                         if (currentZoomMode || pinching) {
                             if (!change.pressed) {
                                 if (!moved) {
                                     val now = System.currentTimeMillis()
                                     if (now - lastTapTime < 300 && abs(change.position.x - lastTapX) < 48.dp.toPx() && abs(change.position.y - lastTapY) < 48.dp.toPx()) {
                                         lastTapTime = 0L
-                                        if (renderZoom.value < 2f) {
-                                            // 双击步进放大到 2x（固定比例）
+                                        if (renderZoom.value > 1.01f) {
+                                            // 任意放大状态双击：恢复并退出缩放模式
+                                            scope.launch {
+                                                renderZoom.animateTo(1f, tween(220))
+                                                renderPanX.animateTo(0f, tween(220))
+                                                renderPanY.animateTo(0f, tween(220))
+                                                onZoomModeExit()
+                                            }
+                                        } else {
+                                            // 1x 双击：步进放大到 2x（固定比例）
                                             scope.launch {
                                                 renderZoom.animateTo(2f, tween(220))
                                                 val maxX = (renderZoom.value - 1f) * stageWidth / 2f
                                                 val maxY = (renderZoom.value - 1f) * stageHeight / 2f
                                                 renderPanX.snapTo(renderPanX.value.coerceIn(-maxX, maxX))
                                                 renderPanY.snapTo(renderPanY.value.coerceIn(-maxY, maxY))
-                                            }
-                                        } else {
-                                            // 已 ≥2x：双击恢复并退出缩放模式
-                                            scope.launch {
-                                                renderZoom.animateTo(1f, tween(220))
-                                                renderPanX.animateTo(0f, tween(220))
-                                                renderPanY.animateTo(0f, tween(220))
-                                                onZoomModeExit()
                                             }
                                         }
                                     } else {
@@ -602,7 +649,7 @@ fun Stage(
                 }
 
                 for (pageIndex in pagesToShow) {
-                    val uri = pageUris[pageIndex] ?: continue
+                    val uri = pageUris[pageIndex]
                     // 页码触发瞬间已推进：动画期间以 lastPage（翻页前页码）为基准计算偏移，保证新旧两对页滑动衔接
                     val refPage = if (flipDir != 0) lastPage else currentPage
                     val offsetInSpread = (pageIndex - refPage).toFloat() * dw
@@ -621,7 +668,7 @@ fun Stage(
                                 with(LocalDensity.current) { dh.toDp() }
                             )
                     ) {
-                        ScorePageImage(uri = uri, pageIndex = pageIndex, isDark = isDark, modifier = Modifier
+                        PageWithPlaceholder(uri = uri, pageIndex = pageIndex, isDark = isDark, modifier = Modifier
                                 .fillMaxSize())
                     }
                 }
@@ -663,7 +710,7 @@ fun Stage(
                 val centerY = if (stageHeight > 0) (stageHeight - dh) / 2f else 0f
 
                 for (pageIndex in pagesToShow) {
-                    val uri = pageUris[pageIndex] ?: continue
+                    val uri = pageUris[pageIndex]
                     // 页码在翻页触发瞬间已推进到目标页；动画期以 lastPage（翻页前页码）锚定滑出页，
                     // 避免 currentPage 更新滞后 1-2 帧时"前一页"闪现在当前页位置：
                     // 前向动画：lastPage（旧当前页）叠在 0 处随 t 滑出，新当前页静止在 0 底下
@@ -698,7 +745,7 @@ fun Stage(
                                 with(LocalDensity.current) { dh.toDp() }
                             )
                     ) {
-                        ScorePageImage(uri = uri, pageIndex = pageIndex, isDark = isDark, modifier = Modifier
+                        PageWithPlaceholder(uri = uri, pageIndex = pageIndex, isDark = isDark, modifier = Modifier
                                 .fillMaxSize())
                     }
                 }
