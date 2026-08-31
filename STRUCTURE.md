@@ -168,26 +168,26 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 7. ui/components/Stage.kt (L1-L455)
+### 7. ui/components/Stage.kt (L1-L457)
 
 | Element | Type | Lines |
 |---|---|---|
 | Package + imports | — | L1-L46 |
-| `ScorePageImage` | private @Composable — 单页渲染图层化：旧 URI 垫底 + 新 URI 前层，升级换缓存零空窗防闪烁 | L48-L85 |
-| `invertColorMatrix` | private val ColorMatrix — dark-theme page inversion | L87-L94 |
-| `Stage` | @Composable fun | L96-L454 |
-| Parameters (22): | isDark, pageUris, currentPage, pageCount, pageWidth, pageHeight, zoom, panOffsetX, panOffsetY, isSpreadMode, pendingFlip(default=null), onCenterTap, onDoubleTap, onZoomChange, onPanChange, onNextPage, onPrevPage, onFlipDone(default={}), onViewportSizeChanged, onSpreadModeChanged, onPreloadAround(default={}), modifier(default=Modifier) | L97-L120 |
-| states（bg/context/stageWidth/Height/zoom/transition/scope/flipJob/flipDir/lastPage/dragOffset） | L121-L137 |
-| derived vals（isZoomed/pw/displaySize/autoSpreadMode/两个 LaunchedEffect/currentIsZoomed 组） | L139-L167 |
-| `doFlip(dir, fromOffset, easing)` | local fun — 触发瞬间记录 lastPage 并推进页码，动画只负责视觉；finally 带 `flipJob === selfJob` 守卫（被接替的旧动画不复位 snapTo/flipDir，防快速往返闪回旧页） | L169-L205 |
-| `doBounce(dir)` | local fun — boundary bounce animation（不改 flipDir/lastPage） | L207-L217 |
-| LaunchedEffect(currentPendingFlip) | face-triggered pending flip → doFlip | L219-L225 |
-| `pagesToShow` | derived val — visible page window (±5 single, ±6 spread), sorted descending | L227-L231 |
-| Root Box | composable (gestures + rendering) | L232-L454 |
-| — tap/drag awaitEachGesture pointerInput | 1/3 tap zones (flip/bounce/center tap), drag follow with boundary reversal | L236-L303 |
-| — transform pointerInput (isZoomed guard) | pinch zoom + pan | L305-L311 |
-| — Spread branch | gap fill Box、pages loop（L363 refPage：动画期 = lastPage 保证两对页滑动衔接）、gradient edge masks；页面用 ScorePageImage 图层渲染 | L313-L382 |
-| — Single branch | pages loop；base when（L421-L427）/pageOffsetX when（L429-L433）：动画期以 lastPage 锚定滑出页（消除 currentPage 滞后窗口的前一页闪现）、拖拽期当前页/前页跟手、后续页停靠 stageWidth 防透闪 | L384-L454 |
+| `ScorePageImage` | private @Composable — 单页渲染图层化：旧 URI 垫底 + 新 URI 前层，升级换缓存零空窗防闪烁；**状态 remember(pageIndex) 键控（槽位换页重置，杜绝前一页垫底串位闪现）** | L48-L87 |
+| `invertColorMatrix` | private val ColorMatrix — dark-theme page inversion | L89-L96 |
+| `Stage` | @Composable fun | L98-L456 |
+| Parameters (22): | isDark, pageUris, currentPage, pageCount, pageWidth, pageHeight, zoom, panOffsetX, panOffsetY, isSpreadMode, pendingFlip(default=null), onCenterTap, onDoubleTap, onZoomChange, onPanChange, onNextPage, onPrevPage, onFlipDone(default={}), onViewportSizeChanged, onSpreadModeChanged, onPreloadAround(default={}), modifier(default=Modifier) | L99-L122 |
+| states（bg/context/stageWidth/Height/zoom/transition/scope/flipJob/flipDir/lastPage/dragOffset） | L123-L139 |
+| derived vals（isZoomed/pw/displaySize/autoSpreadMode/两个 LaunchedEffect/currentIsZoomed 组） | L141-L169 |
+| `doFlip(dir, fromOffset, easing)` | local fun — 触发瞬间记录 lastPage 并推进页码，动画只负责视觉；finally 带 `flipJob === selfJob` 守卫（被接替的旧动画不复位 snapTo/flipDir，防快速往返闪回旧页） | L171-L207 |
+| `doBounce(dir)` | local fun — boundary bounce animation（不改 flipDir/lastPage） | L209-L219 |
+| LaunchedEffect(currentPendingFlip) | face-triggered pending flip → doFlip | L221-L227 |
+| `pagesToShow` | derived val — visible page window (±5 single, ±6 spread), sorted descending | L229-L233 |
+| Root Box | composable (gestures + rendering) | L234-L456 |
+| — tap/drag awaitEachGesture pointerInput | 1/3 tap zones (flip/bounce/center tap), drag follow with boundary reversal | L238-L305 |
+| — transform pointerInput (isZoomed guard) | pinch zoom + pan | L307-L313 |
+| — Spread branch | gap fill Box、pages loop（L365 refPage：动画期 = lastPage 保证两对页滑动衔接）、gradient edge masks；页面用 ScorePageImage 图层渲染 | L315-L384 |
+| — Single branch | pages loop；base when（L423-L429）/pageOffsetX when（L431-L435）：动画期以 lastPage 锚定滑出页（消除 currentPage 滞后窗口的前一页闪现）、拖拽期当前页/前页跟手、后续页停靠 stageWidth 防透闪 | L386-L456 |
 
 ---
 

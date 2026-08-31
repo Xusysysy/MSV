@@ -45,12 +45,13 @@ import kotlinx.coroutines.withContext
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-/** 单页渲染：升级换缓存时旧 URI 垫底显示（Coil 内存缓存命中），新图解码完成后覆盖，零空窗防闪烁 */
+/** 单页渲染：升级换缓存时旧 URI 垫底显示（Coil 内存缓存命中），新图解码完成后覆盖，零空窗防闪烁。
+ *  状态以 pageIndex 键控：窗口滑动导致槽位换页时状态重置，杜绝"前一页"垫底串位闪现；同页升级（URI 变化）仍保留垫底防闪烁 */
 @Composable
 private fun ScorePageImage(uri: Uri, pageIndex: Int, isDark: Boolean, modifier: Modifier) {
     val context = LocalContext.current
-    var current by remember { mutableStateOf(uri) }
-    var previous by remember { mutableStateOf<Uri?>(null) }
+    var current by remember(pageIndex) { mutableStateOf(uri) }
+    var previous by remember(pageIndex) { mutableStateOf<Uri?>(null) }
     if (uri != current) {
         previous = current
         current = uri
