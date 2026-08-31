@@ -397,6 +397,25 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
             }
         }
 
+        if (state.showDownloadFailDialog) {
+            AlertDialog(
+                onDismissRequest = { viewModel.onEvent(ViewerEvent.DismissDownloadFailDialog) },
+                title = { Text("下载失败") },
+                text = {
+                    Text("Gitee 与 GitHub 两个下载源均未能完成下载。\n\n可能原因：\n• Gitee 对匿名下载有限流/配额，短时间内多次下载会触发\n• 当前 Wi-Fi 对 Gitee 或 GitHub 的访问被阻断\n\n建议：\n• 切换到移动流量后重试\n• 稍后再试（已保留下载进度，可直接续传）")
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        viewModel.onEvent(ViewerEvent.DismissDownloadFailDialog)
+                        viewModel.onEvent(ViewerEvent.DownloadUpdate)
+                    }) { Text("重试") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { viewModel.onEvent(ViewerEvent.DismissDownloadFailDialog) }) { Text("知道了") }
+                }
+            )
+        }
+
         FaceRecognitionOverlay(
             visible = state.showFaceOverlay,
             faceEnabled = state.faceEnabled,

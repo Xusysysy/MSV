@@ -163,7 +163,7 @@ Single-screen app — no Navigation component. State-based content switching via
 | — — ShelfPanel (AnimatedVisibility, slide+left) | composable | L251-L267 |
 | — Page jump AlertDialog | composable | L270-L298 |
 | — Reset/Reload AlertDialog | composable | L300-L318 |
-| — Update AlertDialog ("发现新版本": 日志默认折叠可展开滚动/立即更新/以后再说) | composable | L344-L397 |
+| — Update AlertDialog ("发现新版本": 日志默认折叠可展开滚动/立即更新/以后再说) | composable | L344-L397 |`n| — DownloadFail AlertDialog (双源失败: Gitee 限流原因解释+切换流量引导+重试/知道了) | composable | L400-L421 |
 | — FaceRecognitionOverlay wiring (visible/onDismiss/onToggle/manager) | composable | L340-L347 |
 
 ---
@@ -329,7 +329,7 @@ Single-screen app — no Navigation component. State-based content switching via
 |---|---|---|
 | Package + imports | — | L1-L38 |
 | `ViewerViewModel(application)` | class : AndroidViewModel | L40-L925 |
-| init 块 | PDFBoxResourceLoader.init + **PagePlaceholderCache 预热**（占位图启动解码）+ 版本号填充 + sessionRepo/face 收集 | L79-L97 |
+| init 块 | PDFBoxResourceLoader.init + **PagePlaceholderCache 预热**（占位图启动解码）+ 版本号填充 + sessionRepo/face 收集 | L79-L99 |
 | companion | FLIP_WINDOW_MS(2000) / FAST_FLIP_COUNT(4) / FLIP_SETTLE_DELAY_MS(1000) — 快速翻动判定参数 | L42-L46 |
 | `fileRepo` | private val FileRepository | L48 |
 | `sessionRepo` | private val SessionRepository | L49 |
@@ -514,13 +514,13 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 18. facer/FaceCamera.kt (L1-L132)
+### 18. facer/FaceCamera.kt (L1-L135)
 
 | Element | Type | Lines |
 |---|---|---|
 | Package + imports | — | L1-L43 |
 | `F` / `E` / `L` / `B` | private val IntArray — landmark index pairs: face oval / eyes / lips / brows | L45-L48 |
-| `FaceCamera(manager, visible, modifier)` | @Composable fun | L50-L131 |
+| `FaceCamera(manager, visible, modifier)` | @Composable fun | L50-L134 |`n| 预览镜像显示层 | aspectRatio Box graphicsLayer scaleX=-1（仅 mirrored=true 时；位图+线条整体翻转，对齐不变，管线不动） | L111-L112 |
 | Permission state + request launcher | camera permission, Toast on deny | L56-L59 |
 | LaunchedEffect permission request | L61 |
 | Early returns | no permission L63; model init failure L65-L68 | L63-L68 |

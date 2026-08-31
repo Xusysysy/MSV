@@ -108,7 +108,8 @@ fun FaceCamera(
             // 送检位图即预览画面（已按 mirrored 在显示帧内旋转/镜像），预览与线条同空间必然对齐；
             // 容器锁定位图宽高比，竖屏不失真不偏大
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Box(Modifier.aspectRatio(fw / fh)) {
+                // 预览镜像修正：mirrored=true 时管线镜像了送检帧，显示层再水平翻转回去（位图与线条整体翻转，对齐关系不变，识别管线不受影响）
+                Box(Modifier.aspectRatio(fw / fh).graphicsLayer { scaleX = if (state.mirrored) -1f else 1f }) {
                     Image(
                         bitmap = previewImage,
                         contentDescription = null,

@@ -36,6 +36,7 @@ data class ViewerState(
     val updateInfo: UpdateInfo? = null,
     val updateMessage: String = "",
     val showUpdateDialog: Boolean = false,
+    val showDownloadFailDialog: Boolean = false,
     val showVersionLog: Boolean = false,
     val versionNotes: String = "",
     val versionNotesLoading: Boolean = false,
@@ -81,6 +82,7 @@ sealed class ViewerEvent {
     data object DownloadUpdate : ViewerEvent()
     data object InstallUpdate : ViewerEvent()
     data object DismissUpdateDialog : ViewerEvent()
+    data object DismissDownloadFailDialog : ViewerEvent()
     data object ToggleVersionLog : ViewerEvent()
     data object PauseDownload : ViewerEvent()
     data class AddBookmark(val page: Int, val title: String, val color: Int) : ViewerEvent()

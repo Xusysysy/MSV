@@ -179,6 +179,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             ViewerEvent.DownloadUpdate -> downloadUpdate()
             ViewerEvent.InstallUpdate -> installUpdate()
             is ViewerEvent.DismissUpdateDialog -> dismissUpdateDialog()
+        ViewerEvent.DismissDownloadFailDialog -> dismissDownloadFailDialog()
             is ViewerEvent.PauseDownload -> pauseDownload()
             is ViewerEvent.ToggleVersionLog -> toggleVersionLog()
             is ViewerEvent.AddBookmark -> addBookmark(event.page, event.title, event.color)
@@ -932,7 +933,14 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 // 下载完成后自动调起安装（未授权"安装未知应用"时会在 installUpdate 内引导授权）
                 installUpdate()
             } else {
-                _uiState.update { it.copy(updateStatus = UpdateStatus.Error, updateMessage = "下载失败，已保留进度，请重试") }
+                // 双源均失败：弹窗解释可能原因（Gitee 限流/网络阻断）并引导切换流量重试
+                _uiState.update {
+                    it.copy(
+                        updateStatus = UpdateStatus.Error,
+                        updateMessage = "下载失败：Gitee 源可能触发限流，GitHub 备用源也不可用（已保留进度）",
+                        showDownloadFailDialog = true
+                    )
+                }
             }
         }
     }
@@ -942,6 +950,10 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         downloadJob?.cancel()
         downloadJob = null
         _uiState.update { it.copy(updateStatus = UpdateStatus.Paused, statusMessage = "下载已暂停") }
+    }
+
+    private fun dismissDownloadFailDialog() {
+        _uiState.update { it.copy(showDownloadFailDialog = false) }
     }
 
     private fun installUpdate() {
