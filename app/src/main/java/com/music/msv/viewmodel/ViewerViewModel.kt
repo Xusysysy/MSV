@@ -19,6 +19,7 @@ import com.music.msv.data.repository.SessionRepository
 import com.music.msv.data.repository.UpdateRepository
 import com.music.msv.data.repository.compareVersions
 import com.music.msv.data.model.PageBookmark
+import com.music.msv.data.model.UpdateInfo
 import com.music.msv.facer.FaceRecognitionManager
 import com.music.msv.facer.FaceRecognitionRepository
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
@@ -781,15 +782,46 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     // ── OTA 更新 ──
 
-    /** 检查更新：Gitee/GitHub 并行查询（耗时取最大而非相加），仅接受比当前版本新的候选，平手时 Gitee 优先 */
+    /** 检查更新：① 静态清单优先（raw 静态文件不走 API 配额，读取失败回退双源 API 并行查询，**不加查询频率限制**）② 仅接受比当前版本新的候选，平手时 Gitee 优先 ③ 各源可达性反馈 */
     private fun checkUpdate(manual: Boolean) {
         _uiState.update { it.copy(updateStatus = UpdateStatus.Checking, updateMessage = "") }
         viewModelScope.launch(Dispatchers.IO) {
+            val installed = _uiState.value.appVersionName
+            val installedCode = _uiState.value.appVersionCode
+            // ① 静态清单优先
+            val manifest = updateRepo.fetchVersionManifest()
+            if (manifest != null) {
+                val newer = compareVersions(manifest.versionName, installed) > 0 ||
+                    manifest.versionCode > installedCode
+                if (newer) {
+                    val candidate = UpdateInfo(
+                        tag = manifest.versionName,
+                        notes = "",
+                        fullNotes = "",
+                        apkUrl = manifest.apkUrl,
+                        source = "清单(${manifest.source})"
+                    )
+                    // 已下载未安装：直接进入安装阶段
+                    if (updateRepo.isDownloaded(candidate.apkUrl, candidate.tag)) {
+                        _uiState.update {
+                            it.copy(updateStatus = UpdateStatus.Downloaded, updateInfo = candidate, downloadProgress = 100, showUpdateDialog = false, statusMessage = "更新包已就绪", updateMessage = "清单 ✓")
+                        }
+                        installUpdate()
+                    } else {
+                        _uiState.update {
+                            it.copy(updateStatus = UpdateStatus.Available, updateInfo = candidate, showUpdateDialog = true, updateMessage = "清单 ✓")
+                        }
+                    }
+                } else if (manual) {
+                    _uiState.update { it.copy(updateStatus = UpdateStatus.UpToDate, updateMessage = "已是最新版本 v$installed（清单）") }
+                }
+                return@launch
+            }
+            // ② 清单不可用 → 回退双源 API 并行查询
             val giteeDef = async { updateRepo.fetchGiteeLatest() }
             val githubDef = async { updateRepo.fetchGitHubLatest() }
             val gitee = giteeDef.await()
             val github = githubDef.await()
-            val installed = _uiState.value.appVersionName
             // 各源可达性反馈：单一来源结果（如只有 GitHub）时可直观看到另一源不可达（如 Gitee 匿名限流）
             val srcStatus = "Gitee:${if (gitee != null) "✓" else "✗"} · GitHub:${if (github != null) "✓" else "✗"}"
             val best = listOfNotNull(gitee, github)

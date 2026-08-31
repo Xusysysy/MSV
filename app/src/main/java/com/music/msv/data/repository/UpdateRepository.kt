@@ -44,10 +44,46 @@ class UpdateRepository(private val context: Context) {
         private const val GITHUB_REPO_API = "https://api.github.com/repos/Xusysysy/MSV"
         private const val GITEE_LATEST = "$GITEE_REPO_API/releases/latest"
         private const val GITHUB_LATEST = "$GITHUB_REPO_API/releases/latest"
+        // 静态清单：raw 文件不走 /api/v5 配额，彻底规避匿名限流
+        private const val GITEE_RAW_VERSION = "https://gitee.com/lin-xiaochuan/msv/raw/master/version.json"
+        private const val GITHUB_RAW_VERSION = "https://raw.githubusercontent.com/Xusysysy/MSV/master/version.json"
         private const val TIMEOUT_MS = 8000
         private const val APK_PREFIX = "MSV-ScoreViewer"
         private const val UPDATE_DIR = "update"
         private const val APK_MIME = "application/vnd.android.package-archive"
+    }
+
+    /** version.json 静态清单解析结果 */
+    data class VersionManifest(
+        val versionName: String,
+        val versionCode: Long,
+        val apkUrl: String,
+        val source: String
+    )
+
+    /** 读取根目录 version.json 静态清单（raw 静态文件不走 API 配额）：Gitee raw 优先，GitHub raw 兜底 */
+    fun fetchVersionManifest(): VersionManifest? {
+        val raw = httpGetString(GITEE_RAW_VERSION, isGitee = true)
+            ?: httpGetString(GITHUB_RAW_VERSION, isGitee = false)
+            ?: return null
+        return try {
+            val json = JSONObject(raw)
+            val name = json.optString("versionName")
+            val code = json.optLong("versionCode")
+            val giteeUrl = json.optString("apkUrlGitee")
+            val githubUrl = json.optString("apkUrlGitHub")
+            if (name.isEmpty() || code <= 0L) return null
+            val url = if (giteeUrl.isNotEmpty()) giteeUrl else githubUrl
+            if (url.isEmpty()) return null
+            VersionManifest(
+                versionName = name,
+                versionCode = code,
+                apkUrl = url,
+                source = if (giteeUrl.isNotEmpty()) "Gitee" else "GitHub"
+            )
+        } catch (_: Exception) {
+            null
+        }
     }
 
     val installedVersionName: String

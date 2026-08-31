@@ -4,9 +4,6 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -36,7 +33,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -81,19 +77,6 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
 
     val isViewing = state.mode != Mode.Idle
 
-    // 呼出缩略图/书签面板时主页面渐变模糊 + 渐入遮罩（API31+ 模糊生效，低版本优雅降级为仅遮罩）
-    val panelOpen = state.showThumbnails
-    val blurRadius by animateDpAsState(
-        targetValue = if (panelOpen) 18.dp else 0.dp,
-        animationSpec = tween(250),
-        label = "panelBlur"
-    )
-    val scrimAlpha by animateFloatAsState(
-        targetValue = if (panelOpen) 0.25f else 0f,
-        animationSpec = tween(250),
-        label = "panelScrim"
-    )
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -114,8 +97,8 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                     } else Modifier
                 )
         ) {
-            // 主内容独立成层：呼出面板时整体渐变模糊，面板与书签保持清晰
-            Box(Modifier.fillMaxSize().blur(blurRadius)) {
+            // 主内容独立成层
+            Box(Modifier.fillMaxSize()) {
                 when (state.mode) {
                     Mode.Idle -> {
                         EmptyView(
@@ -153,11 +136,6 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                         LoadingOverlay(isDark = isDark, visible = state.isLoading)
                     }
                 }
-            }
-
-            // 渐入遮罩：位于主内容之上、面板与顶栏之下
-            if (scrimAlpha > 0f) {
-                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = scrimAlpha)))
             }
 
             AnimatedVisibility(

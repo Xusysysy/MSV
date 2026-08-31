@@ -137,7 +137,7 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 6. ui/screen/ViewerScreen.kt (L1-L349)
+### 6. ui/screen/ViewerScreen.kt (L1-L340)
 
 | Element | Type | Lines |
 |---|---|---|
@@ -239,19 +239,19 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 11. ui/components/ThumbnailPanel.kt (L1-L372)
+### 11. ui/components/ThumbnailPanel.kt (L1-L381)
 
 | Element | Type | Lines |
 |---|---|---|
 | Package + imports | — | L1-L55 |
 | `invertColorMatrix` | private val ColorMatrix | L57-L63 |
 | `bookmarkPresets` | private val List<Int> — 8 个预设 RGB 书签色 | L65-L68 |
-| `ThumbnailPanel` | @OptIn(ExperimentalFoundationApi) @Composable fun | L70-L315 |
+| `ThumbnailPanel` | @OptIn(ExperimentalFoundationApi) @Composable fun | L70-L324 |
 | Parameters (13): | isDark, pageCount, currentPage, isPdfMode, bookmarks, getThumbnailUri, onPageSelected, onBookmarkClick, onAddBookmark, onDeleteBookmark, onEditBookmark, onClose, modifier | L71-L83 |
 | Local colors + states | panelBg…muted/text/danger/menuContainer + addPage/addTitle/addColor/editBm/bmMenuId | L84-L92 |
 | Box root（书签栏在下层 0-284，缩略图面板在上层 CenterEnd 220-520） | composable | L94-L315 |
 | — Bookmark rail（width 284 = 可见 220 + 面板下 64，End 对齐 → 右端统一延伸至面板之下，verticalScroll 可滚动，无额外背景，spacedBy 6 间隙，底部 Spacer 保证滚到底完整） | 仅 isPdfMode 且书签非空时显示 | L96-L137 |
-| — — BookmarkStrip ×N | 半透明（color alpha **0.55**）左半圆书签条：click→跳转页码, long-press→菜单（**编辑**/删除红字），文字 13sp **单行不换行**，requiredWidthIn(300) 宽度随名长（过长省略） | L109-L135 |
+| — — BookmarkStrip ×N | 半透明（color alpha **0.75**）左半圆书签条：click→跳转页码, long-press→菜单（**编辑**/删除红字），文字 13sp 单行（**黑描边层 matchParentSize 与白填充层像素级对齐**），requiredWidthIn(min 220/max 284) 宽度随名长 | L109-L135 |
 | — Thumbnails Column (300dp, **align CenterEnd** 面板层) | composable | L139-L315 |
 | — — Close button Box | L142-L159 |
 | — — gridState + LaunchedEffect scroll-to-current | L161-L170 |
@@ -323,7 +323,7 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 13. viewmodel/ViewerViewModel.kt (L1-L1034)
+### 13. viewmodel/ViewerViewModel.kt (L1-L1067)
 
 | Element | Type | Lines |
 |---|---|---|
@@ -385,7 +385,7 @@ Single-screen app — no Navigation component. State-based content switching via
 | `flipDone()` | private fun — clears pendingFlip | L694-L697 |
 | `showFaceOverlay()` | private fun | L699-L702 |
 | `hideFaceOverlay()` | private fun — hides + persists face prefs via faceRepo.save | L704-L710 |
-| `checkUpdate(manual)` | private fun — **双源 async 并行查询**（耗时取最大），仅取比当前新的候选（平手 Gitee 优先）；**各源可达性写入 updateMessage（Gitee:✓/✗ · GitHub:✓/✗）**；**已下载未安装时直达 Downloaded+安装**；manual 双失败显示 Error，自动静默回 Idle | L785-L823 |
+| `checkUpdate(manual)` | private fun — **① version.json 静态清单优先（raw 静态文件不走 API 配额；不加查询频率限制）② 清单失败回退双源 API 并行查询**；仅取比当前新的候选（平手 Gitee 优先）；各源可达性写入 updateMessage；已下载未安装时直达 Downloaded+安装；manual 双失败显示 Error，自动静默回 Idle | L785-L823 |
 | `downloadUpdate()` | private fun — **断点续传**（isDownloaded 快路径直达安装；downloadApk Range 续传，进度→downloadProgress），完成后 Downloaded + 自动调起 installUpdate() | L754-L780 |
 | `installUpdate()` | private fun — 未授权 → 跳 unknown sources 授权页；已授权 → FileProvider 安装 Intent（下载完成自动调起 + 设置面板"立即安装"按钮均可触发） | L747-L760 |
 | `startActivity(intent)` | private fun — runCatching 包装 | L791-L793 |
@@ -612,14 +612,16 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 23. data/repository/UpdateRepository.kt (L1-L252)
+### 23. data/repository/UpdateRepository.kt (L1-L287)
 
 | Element | Type | Lines |
 |---|---|---|
 | Package + imports | — | L1-L20 |
 | `compareVersions(a, b)` | top-level fun — 逐段数值版本比较（短段补 0、容错 v 前缀）；单测 `app/src/test/java/com/music/msv/CompareVersionsTest.kt` | L25-L37 |
-| `UpdateRepository(context)` | class | L39-L243 |
-| Companion constants | GITEE_REPO_API / GITHUB_REPO_API / GITEE_LATEST / GITHUB_LATEST / TIMEOUT_MS(8000) / APK_PREFIX("MSV-ScoreViewer") / UPDATE_DIR("update") / APK_MIME | L41-L49 |
+| `UpdateRepository(context)` | class | L39-L287 |
+| Companion constants | GITEE_REPO_API / GITHUB_REPO_API / GITEE_LATEST / GITHUB_LATEST / **GITEE_RAW_VERSION / GITHUB_RAW_VERSION（静态清单 raw 地址）** / TIMEOUT_MS(8000) / APK_PREFIX("MSV-ScoreViewer") / UPDATE_DIR("update") / APK_MIME | L41-L52 |
+| `VersionManifest` | nested data class — versionName/versionCode/apkUrl/source | L54-L59 |
+| `fetchVersionManifest()` | fun — 读根目录 version.json 静态清单（**raw 静态文件不走 API 配额**）：Gitee raw 优先 GitHub raw 兜底 | L61-L81 |
 | `installedVersionName` / `installedVersionCode` | val getter — PackageManager（API33 PackageInfoFlags 分支） | L51-L68 |
 | `fetchGiteeLatest` / `fetchGitHubLatest` | fun — → fetchLatest | L70-L72 |
 | `fetchLatest(url, isGitee)` | private fun — httpGetString → JSONObject；assets 按 `.apk`+前缀过滤（排除源码包）；notes=摘要 fullNotes=完整 body；失败返回 null | L75-L97 |

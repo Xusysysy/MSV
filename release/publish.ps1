@@ -1,4 +1,4 @@
-﻿# MSV OTA 双平台发布脚本（PowerShell 5.1+）
+# MSV OTA 双平台发布脚本（PowerShell 5.1+）
 # 用法: powershell -ExecutionPolicy Bypass -File release\publish.ps1 [-SkipBuild] [-NoUpload] [-SkipTag] [-NoteFile <path>]
 # 流程: 解析版本 → assembleRelease → 复制 APK → tag(=versionName) 推送双远程
 #       → GitHub gh release → Gitee REST API（token: $env:MSV_GITEE_TOKEN）
@@ -29,6 +29,18 @@ $verCode = [int]$Matches[1]
 $tag = $verName   # tag 与 versionName 必须一致（OTA 版本比较的前提）
 $apkName = "MSV-ScoreViewer-v$verName-release.apk"
 Write-Host "[publish] 版本: v$verName (versionCode=$verCode) tag=$tag"
+
+# ── 1.5 同步根目录 version.json（应用走 raw 静态清单检测，须提交推送才能被读取）──
+$verJson = @{
+    versionName  = $verName
+    versionCode  = $verCode
+    apkUrlGitee  = "https://gitee.com/$Owner/$Repo/releases/download/$tag/$apkName"
+    apkUrlGitHub = "https://github.com/$GhRepo/releases/download/$tag/$apkName"
+} | ConvertTo-Json
+[IO.File]::WriteAllText("$PSScriptRoot\..\version.json", $verJson, (New-Object System.Text.UTF8Encoding($false)))
+git add version.json
+git commit -m "chore: sync version.json to v$verName" | Out-Null
+if ($LASTEXITCODE -eq 0) { git push origin | Out-Null; git push gitee | Out-Null }
 
 # ── 2. 发布说明 ──
 if (-not $NoteFile) { $NoteFile = "release\releasenote$verCode.md" }
