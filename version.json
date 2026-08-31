@@ -1,7 +1,7 @@
 {
-    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.2.5/MSV-ScoreViewer-v2.2.5-release.apk",
-    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.2.5/MSV-ScoreViewer-v2.2.5-release.apk",
-    "versionCode":  28,
-    "versionName":  "2.2.5",
-    "notes":  "# MSV 乐谱查看器 v2.2.5\n\n## 修复\n\n- **下载失败自动切换备用源**：主源（Gitee）下载失败时自动改用 GitHub 源重试，不再直接报\"下载失败\"；两源均失败才提示\n- **断点文件损坏自愈**：断点越界（416）时校验本地包与远端大小，损坏自动删除重下；校验失败（网络不可用）时保留本地文件不误删\n- 下载失败原因现在会写入系统日志（logcat: MSV_Update），便于排查网络问题\n\nversionCode=28, versionName=2.2.5\n"
+    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.2.6/MSV-ScoreViewer-v2.2.6-release.apk",
+    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.2.6/MSV-ScoreViewer-v2.2.6-release.apk",
+    "versionCode":  29,
+    "versionName":  "2.2.6",
+    "notes":  "# MSV 乐谱查看器 v2.2.6\n\n## 修复\n\n- **下载双源失败弹窗引导**：Gitee 与 GitHub 均失败时弹窗解释可能原因（Gitee 匿名下载限流/当前网络访问被阻断）并引导切换移动流量重试；弹窗内可直接\"重试\"（断点续传）\n- **支持开发者二维码拉伸**：收款码图片改为按原始比例显示（不再纵向拉伸）\n- **面部识别预览窗口镜像**：仅显示层水平翻转回正常视角，位图与识别线条整体翻转保持对齐，识别管线不受影响\n\nversionCode=29, versionName=2.2.6\n"
 }
