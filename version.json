@@ -1,7 +1,7 @@
 {
-    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.3.3/MSV-ScoreViewer-v2.3.3-release.apk",
-    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.3.3/MSV-ScoreViewer-v2.3.3-release.apk",
-    "versionCode":  36,
-    "versionName":  "2.3.3",
-    "notes":  "# MSV 乐谱查看器 v2.3.3\n\n## 修复\n\n- **IMSLP 验证后下载改为 WebView 原生捕获**：验证通过后由 WebView 自己发起下载请求（其浏览上下文刚完成验证，环境完全一致），应用通过 DownloadListener 捕获最终下载地址与原生 User-Agent 落盘——不再依赖 HttpURLConnection 探测（放行凭证对独立请求可能不可见）\n- 新增\"浏览器打开\"兜底按钮：直接调起系统浏览器打开 IMSLP 文件页（浏览器环境验证与下载必定可用），下载后经\"导入乐谱\"导入\n\nversionCode=36, versionName=2.3.3\n"
+    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.3.4/MSV-ScoreViewer-v2.3.4-release.apk",
+    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.3.4/MSV-ScoreViewer-v2.3.4-release.apk",
+    "versionCode":  37,
+    "versionName":  "2.3.4",
+    "notes":  "# MSV 乐谱查看器 v2.3.4\n\n## 修复\n\n- **IMSLP 人机验证组件不渲染**：\n  - WebView 的 cookie 罐此前缺少免责确认 cookie（imslpdisclaimeraccepted），部分门禁页因此降级不渲染验证组件——现在加载前主动写入\n  - \"浏览器打开\"改为直接打开下载直链：浏览器中走完整验证/免责流程后直接下载 PDF\n- **验证组件加载失败提示**：mtcaptcha 为境外第三方服务，其组件脚本在部分网络不可达（浏览器同样受影响）——检测到组件卡在加载时会提示切换网络，并提供\"刷新页面\"按钮\n\nversionCode=37, versionName=2.3.4\n"
 }
