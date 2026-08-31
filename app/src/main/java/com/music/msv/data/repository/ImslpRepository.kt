@@ -70,7 +70,7 @@ class ImslpRepository {
             val works = mutableListOf<ImslpSearchResult>()
             val composers = mutableListOf<ImslpSearchResult>()
 
-            val searchJson = httpGetString("$API?action=query&list=search&srnamespace=0&srwhat=text&srlimit=20&format=json&srsearch=$q")
+            val searchJson = httpGetString("$API?action=query&list=search&srnamespace=0&srwhat=text&srlimit=50&format=json&srsearch=$q")
             if (searchJson != null) {
                 try {
                     val arr = JSONObject(searchJson).optJSONObject("query")?.optJSONArray("search")
@@ -87,7 +87,7 @@ class ImslpRepository {
             }
 
             // 作曲家分类候选：在 Category 命名空间搜分类标题（如 Category:Mozart, Wolfgang Amadeus）
-            val catJson = httpGetString("$API?action=query&list=search&srnamespace=14&srlimit=10&format=json&srsearch=$q")
+            val catJson = httpGetString("$API?action=query&list=search&srnamespace=14&srlimit=20&format=json&srsearch=$q")
             if (catJson != null) {
                 try {
                     val arr = JSONObject(catJson).optJSONObject("query")?.optJSONArray("search")
@@ -108,7 +108,7 @@ class ImslpRepository {
     suspend fun composerWorks(composer: String): List<ImslpSearchResult> = withContext(Dispatchers.IO) {
         val out = mutableListOf<ImslpSearchResult>()
         val json = httpGetString(
-            "$API?action=query&list=categorymembers&cmlimit=50&format=json&cmtitle=" +
+            "$API?action=query&list=categorymembers&cmlimit=500&format=json&cmtitle=" +
                 URLEncoder.encode("Category:$composer", "UTF-8")
         )
         if (json != null) {
@@ -225,7 +225,7 @@ class ImslpRepository {
                 }
                 val isPdfMagic = off == 5 && String(head, 0, 5, Charsets.US_ASCII) == "%PDF-"
                 if (!isPdfMagic) {
-                    // 非 PDF（门禁页/错误页）：继续读取有限内容判断 Bot Check（200 时响应体在 inputStream 而非 errorStream）
+                    // 非 PDF（人机验证门禁页等）：一律转入验证步骤，由用户在 WebView 内亲自完成检查
                     val body = buildString {
                         val buf = ByteArray(4096)
                         var total = 0
@@ -237,8 +237,12 @@ class ImslpRepository {
                         }
                     }
                     conn.disconnect()
-                    return@withContext if (body.contains("Bot Check")) DownloadResult.BotCheck
-                    else DownloadResult.Error("响应非 PDF（$ctype）")
+                    if (body.contains("Bot Check")) {
+                        Log.i(TAG, "downloadPdf hit Bot Check gate for $filename")
+                    } else {
+                        Log.i(TAG, "downloadPdf got non-PDF 200 ($ctype) for $filename — routing to verification")
+                    }
+                    return@withContext DownloadResult.BotCheck
                 }
                 dest.outputStream().use { out ->
                     out.write(head, 0, off) // 先写入已读的魔数

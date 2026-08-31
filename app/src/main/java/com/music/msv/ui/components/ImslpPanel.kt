@@ -20,6 +20,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -262,34 +266,37 @@ fun ImslpDialog(
                 }
 
                 is ImslpStep.Results -> {
-                    if (s.composers.isNotEmpty()) {
-                        Text("👤 作曲家 (${s.composers.size})", color = accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.height(4.dp))
-                    }
-                    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        modifier = Modifier.weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (s.composers.isNotEmpty()) {
+                            item(span = { GridItemSpan(2) }) {
+                                Text("👤 作曲家 (${s.composers.size})", color = accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
                         items(s.composers, key = { "c" + it.pageid + it.title }) { c ->
                             Box(
                                 Modifier
-                                    .fillMaxWidth()
                                     .clip(RoundedCornerShape(10.dp))
                                     .background(itemBg)
                                     .border(1.dp, itemBorder, RoundedCornerShape(10.dp))
                                     .clickable { openComposer(c.title) }
                                     .padding(horizontal = 10.dp, vertical = 8.dp)
                             ) {
-                                Text(c.title, color = text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                Text(c.title, color = text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             }
                         }
                         if (s.works.isNotEmpty()) {
-                            item {
-                                Spacer(Modifier.height(4.dp))
+                            item(span = { GridItemSpan(2) }) {
                                 Text("📄 作品 (${s.works.size})", color = accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                         items(s.works, key = { "w" + it.pageid + it.title }) { w ->
                             Box(
                                 Modifier
-                                    .fillMaxWidth()
                                     .clip(RoundedCornerShape(10.dp))
                                     .background(itemBg)
                                     .border(1.dp, itemBorder, RoundedCornerShape(10.dp))
@@ -297,10 +304,14 @@ fun ImslpDialog(
                                     .padding(horizontal = 10.dp, vertical = 8.dp)
                             ) {
                                 Column {
-                                    Text(w.title, color = text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    Text(w.title, color = text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                                     if (w.snippet.isNotEmpty()) {
-                                        Spacer(Modifier.height(2.dp))
-                                        Text(w.snippet.take(80), color = muted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Spacer(Modifier.height(3.dp))
+                                        Text(
+                                            w.snippet.take(160),
+                                            color = muted, fontSize = 10.sp, lineHeight = 13.sp,
+                                            maxLines = 4, overflow = TextOverflow.Ellipsis
+                                        )
                                     }
                                 }
                             }

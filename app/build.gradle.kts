@@ -15,8 +15,8 @@ android {
         applicationId = "com.scoreviewer.msv"
         minSdk = 26
         targetSdk = 36
-        versionCode = 31
-        versionName = "2.2.8"
+        versionCode = 32
+        versionName = "2.2.9"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
