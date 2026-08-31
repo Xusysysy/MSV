@@ -33,6 +33,7 @@ import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,6 +59,8 @@ import com.music.msv.data.repository.FileRepository
 import com.music.msv.data.repository.ImslpRepository
 import com.music.msv.ui.theme.ButtonShape
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /** 弹窗内步骤状态机：搜索 → 结果 → 作品详情 → 下载中 → 人机验证 */
@@ -107,6 +110,11 @@ fun ImslpDialog(
     var busy by remember { mutableStateOf(false) }
     var statusText by remember { mutableStateOf("") }
     var downloadJob by remember { mutableStateOf<Job?>(null) }
+    // 人机验证自动重试：成功页是瞬时的（通过后页面会自动重载出新挑战），
+    // 轮询 WebView 内容捕获成功瞬间后延时自动续传，最多自动重试 2 次防死循环
+    var webViewRef by remember { mutableStateOf<WebView?>(null) }
+    var verifySuccess by remember { mutableStateOf(false) }
+    var verifyAutoRetries by remember { mutableStateOf(0) }
 
     fun goBack() {
         downloadJob?.cancel()
@@ -168,6 +176,11 @@ fun ImslpDialog(
         val dest = fileRepo.docsDirFile(pdf.filename)
         busy = true
         statusText = ""
+        if (cookies.isEmpty()) {
+            // 全新下载尝试：重置验证自动重试计数
+            verifyAutoRetries = 0
+            verifySuccess = false
+        }
         downloadJob = scope.launch {
             when (val r = repo.downloadPdf(pdf.filename, dest, extraCookies = cookies) { pct ->
                 step = ImslpStep.Downloading(detail, pdf.filename, pct)
@@ -420,7 +433,7 @@ fun ImslpDialog(
                     Text("需要人工验证", color = text, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "IMSLP 对自动下载有人机验证保护。请在下方页面完成\"Start Verification\"验证（出现 Bot Check Passed 即成功），再点击底部重试。",
+                        "IMSLP 对自动下载有人机验证保护。请在下方页面完成\"Start Verification\"验证（出现 Bot Check Passed 即成功），成功后将自动继续下载。",
                         color = muted, fontSize = 11.sp, lineHeight = 15.sp
                     )
                     Spacer(Modifier.height(6.dp))
@@ -462,12 +475,37 @@ fun ImslpDialog(
                                     }
                                     // 直接加载触发门禁的直链（挑战页带 Start Verification 按钮）
                                     loadUrl(repo.directUrl(s.pdf.filename))
+                                    webViewRef = this
                                 }
                             },
                             modifier = Modifier.fillMaxSize()
                         )
                     }
                     Spacer(Modifier.height(8.dp))
+
+                    // 成功检测：成功页会自动重载出新挑战（瞬态），每秒轮询页面文本捕获成功瞬间
+                    LaunchedEffect(s.pdf.filename) {
+                        while (isActive) {
+                            delay(1000)
+                            val wv = webViewRef ?: continue
+                            wv.evaluateJavascript("(document.body ? document.body.innerText : '')") { v ->
+                                if (v != null && (v.contains("Bot Check Passed", true) || v.contains("verify successfully", true))) {
+                                    verifySuccess = true
+                                }
+                            }
+                        }
+                    }
+                    // 捕获成功后延时 1.5s 自动续传（给放行 cookie 生效/后端登记留出时间），最多 2 次防循环
+                    LaunchedEffect(verifySuccess) {
+                        if (verifySuccess && verifyAutoRetries < 2) {
+                            delay(1500)
+                            verifyAutoRetries += 1
+                            verifySuccess = false
+                            statusText = "验证成功，正在继续下载…"
+                            launchDownload(s.detail, s.pdf, repo.verifyCookies())
+                        }
+                    }
+
                     Box(
                         Modifier
                             .fillMaxWidth()
