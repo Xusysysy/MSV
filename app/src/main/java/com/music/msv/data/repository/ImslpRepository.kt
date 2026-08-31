@@ -202,8 +202,17 @@ class ImslpRepository {
         extraCookies: Map<String, String> = emptyMap(),
         onProgress: (Int) -> Unit
     ): DownloadResult = withContext(Dispatchers.IO) {
-        val fname = filename.replace(" ", "_")
-        val url = directUrl(filename)
+        downloadUrl(directUrl(filename), UA, dest, extraCookies, onProgress)
+    }
+
+    /** 下载任意 URL 到 dest（WebView DownloadListener 捕获的最终地址可带其原生 UA，验证上下文最一致） */
+    suspend fun downloadUrl(
+        url: String,
+        userAgent: String,
+        dest: File,
+        extraCookies: Map<String, String> = emptyMap(),
+        onProgress: (Int) -> Unit
+    ): DownloadResult = withContext(Dispatchers.IO) {
         try {
             val cookieHeader = buildString {
                 append("imslpdisclaimeraccepted=yes")
@@ -212,9 +221,9 @@ class ImslpRepository {
             val conn = (URL(url).openConnection() as HttpURLConnection).apply {
                 connectTimeout = TIMEOUT_MS
                 readTimeout = READ_TIMEOUT_MS
-                setRequestProperty("User-Agent", UA)
+                setRequestProperty("User-Agent", userAgent)
                 setRequestProperty("Cookie", cookieHeader)
-                setRequestProperty("Referer", "$BASE/wiki/File:${URLEncoder.encode(fname, "UTF-8").replace("+", "%20")}")
+                setRequestProperty("Referer", "$BASE/")
             }
             val code = conn.responseCode
             if (code != 200) {
@@ -222,7 +231,6 @@ class ImslpRepository {
                 return@withContext DownloadResult.Error("HTTP $code")
             }
             val ctype = conn.contentType ?: ""
-            val total = conn.contentLengthLong
             conn.inputStream.use { input ->
                 // 魔数校验：读前 5 字节判断是否 %PDF-（Content-Type 可能是 octet-stream 等非标准值）
                 val head = ByteArray(5)
@@ -234,7 +242,7 @@ class ImslpRepository {
                 }
                 val isPdfMagic = off == 5 && String(head, 0, 5, Charsets.US_ASCII) == "%PDF-"
                 if (!isPdfMagic) {
-                    // 非 PDF（人机验证门禁页等）：一律转入验证步骤，由用户在 WebView 内亲自完成检查
+                    // 非 PDF（人机验证门禁页等）：转入验证步骤，由用户在 WebView 内亲自完成检查
                     val body = buildString {
                         val buf = ByteArray(4096)
                         var total = 0
@@ -247,12 +255,13 @@ class ImslpRepository {
                     }
                     conn.disconnect()
                     if (body.contains("Bot Check")) {
-                        Log.i(TAG, "downloadPdf hit Bot Check gate for $filename")
+                        Log.i(TAG, "downloadUrl hit Bot Check gate for $url")
                     } else {
-                        Log.i(TAG, "downloadPdf got non-PDF 200 ($ctype) for $filename — routing to verification")
+                        Log.i(TAG, "downloadUrl got non-PDF 200 ($ctype) for $url — routing to verification")
                     }
                     return@withContext DownloadResult.BotCheck
                 }
+                val total = conn.contentLengthLong
                 dest.outputStream().use { out ->
                     out.write(head, 0, off) // 先写入已读的魔数
                     var done = off.toLong()
@@ -280,7 +289,7 @@ class ImslpRepository {
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "downloadPdf failed: $filename", e)
+            Log.e(TAG, "downloadUrl failed: $url", e)
             DownloadResult.Error(e.message ?: "网络异常")
         }
     }
@@ -296,44 +305,4 @@ class ImslpRepository {
         Log.e(TAG, "verifyCookies failed", e)
         emptyMap()
     }
-
-    /**
-     * 探测直链是否已放行（验证是否真正生效）：携带当前 WebView 会话 cookie 轻量请求直链，
-     * 只读响应头与前几字节判定，不落盘。成功页文案可能在 mtcaptcha 的 iframe 内（顶层 innerText 读不到），
-     * 以探测结果为唯一真值。
-     */
-    suspend fun probeVerified(filename: String, extraCookies: Map<String, String>): Boolean =
-        withContext(Dispatchers.IO) {
-            try {
-                val conn = (URL(directUrl(filename)).openConnection() as HttpURLConnection).apply {
-                    connectTimeout = TIMEOUT_MS
-                    readTimeout = TIMEOUT_MS
-                    setRequestProperty("User-Agent", UA)
-                    setRequestProperty("Cookie", (extraCookies.map { (k, v) -> "$k=$v" } + "imslpdisclaimeraccepted=yes").joinToString("; "))
-                    setRequestProperty("Referer", "$BASE/wiki/File:${URLEncoder.encode(filename.replace(" ", "_"), "UTF-8").replace("+", "%20")}")
-                }
-                val code = conn.responseCode
-                val ctype = conn.contentType ?: ""
-                var pdf = false
-                if (code == 200) {
-                    val head = ByteArray(5)
-                    val input = conn.inputStream
-                    var off = 0
-                    while (off < 5) {
-                        val n = input.read(head, off, 5 - off)
-                        if (n == -1) break
-                        off += n
-                    }
-                    pdf = off == 5 && String(head, 0, 5, Charsets.US_ASCII) == "%PDF-"
-                }
-                conn.disconnect()
-                Log.i(TAG, "probeVerified: code=$code ctype=$ctype pdf=$pdf")
-                code == 200 && pdf
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e(TAG, "probeVerified failed", e)
-                false
-            }
-        }
 }

@@ -110,11 +110,6 @@ fun ImslpDialog(
     var busy by remember { mutableStateOf(false) }
     var statusText by remember { mutableStateOf("") }
     var downloadJob by remember { mutableStateOf<Job?>(null) }
-    // 人机验证自动重试：成功页是瞬时的（通过后页面会自动重载出新挑战），
-    // 轮询 WebView 内容捕获成功瞬间后延时自动续传，最多自动重试 2 次防死循环
-    var webViewRef by remember { mutableStateOf<WebView?>(null) }
-    var verifySuccess by remember { mutableStateOf(false) }
-    var verifyAutoRetries by remember { mutableStateOf(0) }
 
     fun goBack() {
         downloadJob?.cancel()
@@ -176,11 +171,6 @@ fun ImslpDialog(
         val dest = fileRepo.docsDirFile(pdf.filename)
         busy = true
         statusText = ""
-        if (cookies.isEmpty()) {
-            // 全新下载尝试：重置验证自动重试计数
-            verifyAutoRetries = 0
-            verifySuccess = false
-        }
         downloadJob = scope.launch {
             when (val r = repo.downloadPdf(pdf.filename, dest, extraCookies = cookies) { pct ->
                 step = ImslpStep.Downloading(detail, pdf.filename, pct)
@@ -473,9 +463,32 @@ fun ImslpDialog(
                                             return true
                                         }
                                     }
+                                    // 核心放行通道：验证通过后 WebView 自身发起的 PDF 请求会触发下载回调——
+                                    // 此时下载可行性已由 WebView 上下文确认，用其最终 URL + 原生 UA + 会话 cookie 落盘
+                                    setDownloadListener { url, agent, _, _, _ ->
+                                        android.util.Log.i("MSV_Imslp", "DownloadListener: $url")
+                                        statusText = "验证生效，已捕获下载地址…"
+                                        scope.launch {
+                                            when (val r = repo.downloadUrl(url, agent, fileRepo.docsDirFile(s.pdf.filename)) { pct ->
+                                                step = ImslpStep.Downloading(s.detail, s.pdf.filename, pct)
+                                            }) {
+                                                is ImslpRepository.DownloadResult.Success -> {
+                                                    busy = false
+                                                    onImported(Uri.fromFile(fileRepo.docsDirFile(s.pdf.filename)))
+                                                }
+                                                is ImslpRepository.DownloadResult.BotCheck -> {
+                                                    busy = false
+                                                    statusText = "验证未生效，请在上方页面重新完成验证"
+                                                }
+                                                is ImslpRepository.DownloadResult.Error -> {
+                                                    busy = false
+                                                    statusText = "下载失败：${r.message}"
+                                                }
+                                            }
+                                        }
+                                    }
                                     // 直接加载触发门禁的直链（挑战页带 Start Verification 按钮）
                                     loadUrl(repo.directUrl(s.pdf.filename))
-                                    webViewRef = this
                                 }
                             },
                             modifier = Modifier.fillMaxSize()
@@ -483,32 +496,38 @@ fun ImslpDialog(
                     }
                     Spacer(Modifier.height(8.dp))
 
-                    // 验证生效检测：每 3 秒用当前 WebView 会话 cookie 探测直链是否已放行
-                    //（成功文案可能在 mtcaptcha 的 iframe 内且成功页为瞬态，顶层页面文本轮询不可靠；探测结果为唯一真值）
-                    LaunchedEffect(s.pdf.filename) {
-                        while (isActive) {
-                            delay(3000)
-                            if (!verifySuccess && repo.probeVerified(s.pdf.filename, repo.verifyCookies())) {
-                                verifySuccess = true
-                                statusText = "验证已生效，正在继续下载…"
-                                launchDownload(s.detail, s.pdf, repo.verifyCookies())
-                            }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(
+                            Modifier
+                                .weight(1f)
+                                .clip(ButtonShape)
+                                .background(accent)
+                                .clickable {
+                                    val cookies = repo.verifyCookies()
+                                    launchDownload(s.detail, s.pdf, cookies)
+                                }
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("我已完成验证，重试下载", color = onAccent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                         }
-                    }
-
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .clip(ButtonShape)
-                            .background(accent)
-                            .clickable {
-                                val cookies = repo.verifyCookies()
-                                launchDownload(s.detail, s.pdf, cookies)
-                            }
-                            .padding(vertical = 10.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("我已完成验证，重试下载", color = onAccent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        Box(
+                            Modifier
+                                .weight(1f)
+                                .clip(ButtonShape)
+                                .background(if (isDark) Color(0x0FFFFFFF) else Color(0x0A1A2230))
+                                .border(1.dp, accent, ButtonShape)
+                                .clickable {
+                                    // 兜底：用系统浏览器打开文件页（浏览器环境验证+下载必定可用），下载后经"导入乐谱"导入
+                                    val page = "https://imslp.org/wiki/File:" +
+                                        java.net.URLEncoder.encode(s.pdf.filename.replace(" ", "_"), "UTF-8").replace("+", "%20")
+                                    context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(page)))
+                                }
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("浏览器打开", color = accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        }
                     }
                 }
             }
