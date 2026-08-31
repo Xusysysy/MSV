@@ -674,8 +674,8 @@ Single-screen app — no Navigation component. State-based content switching via
 | `ImslpDialog(isDark, onDismiss, onImported)` | @Composable Dialog（fillMaxWidth(0.94)×fillMaxHeight(0.88)） | L75-L454 |
 | — 状态/回调 | step/lastResults/query/busy/statusText/downloadJob + doSearch/openComposer/openDetail/launchDownload(cookies)/goBack | L85-L175 |
 | — Search 步 | 搜索框（ImeAction.Search）+ 搜索按钮 + 说明文案 | L214-L247 |
-| — Results 步 | 👤作曲家组 + 📄作品组 LazyColumn（点作曲家→composerWorks，点作品→workDetail） | L249-L306 |
-| — ComposerWorks 步 | 该作曲家作品列表 | L308-L332 |
+| — Results 步 | 👤作曲家组 + 📄作品组 两列网格（LazyVerticalGrid + GridItemSpan(2) 分组头；点作曲家→composerWorks，点作品→workDetail） | L264-L309 |
+| — ComposerWorks 步 | 该作曲家作品列表（两列网格） | L322-L343 |
 | — Detail 步 | 曲名/作曲家/介绍卡片 + 版本列表（去前缀展示名 + 下载按钮） | L334-L404 |
 | — Downloading 步 | 文件名 + LinearProgressIndicator + 百分比 | L406-L418 |
 | — Verify 步（反爬人机验证） | 说明 + AndroidView WebView **加载直链挑战页 + UA 与下载请求一致（USER_AGENT）+ JS/DOM 存储/第三方 Cookie/混合内容/弹窗接管全开（原生 mtcaptcha 组件）** + "我已完成验证，重试下载"（携带 CookieManager 会话 cookie） | L419-L478 |
