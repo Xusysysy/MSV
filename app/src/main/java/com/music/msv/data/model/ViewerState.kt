@@ -102,6 +102,7 @@ data class UpdateInfo(
     val notes: String,
     val fullNotes: String,
     val apkUrl: String,
+    val apkUrlFallback: String = "",
     val source: String
 )
 

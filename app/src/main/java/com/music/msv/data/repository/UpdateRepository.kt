@@ -58,6 +58,7 @@ class UpdateRepository(private val context: Context) {
         val versionName: String,
         val versionCode: Long,
         val apkUrl: String,
+        val apkUrlFallback: String,
         val source: String,
         val notes: String
     )
@@ -77,10 +78,12 @@ class UpdateRepository(private val context: Context) {
             if (name.isEmpty() || code <= 0L) return null
             val url = if (giteeUrl.isNotEmpty()) giteeUrl else githubUrl
             if (url.isEmpty()) return null
+            val fallback = if (giteeUrl.isNotEmpty()) githubUrl else giteeUrl
             VersionManifest(
                 versionName = name,
                 versionCode = code,
                 apkUrl = url,
+                apkUrlFallback = fallback,
                 source = if (giteeUrl.isNotEmpty()) "Gitee" else "GitHub",
                 notes = notes
             )
@@ -203,8 +206,11 @@ class UpdateRepository(private val context: Context) {
             conn.connect()
             val code = conn.responseCode
             if (resumeFrom > 0 && code == 416) {
-                // 请求范围越界：本地已与远端等长（上次已下载完成）
-                return@withContext if (file.exists() && file.length() > 0) file else null
+                // 请求范围越界：本地与远端等长（上次已下载完成）才可信；HEAD 成功且长度不一致视为损坏删除重下，HEAD 失败时保留本地文件
+                val remote = remoteApkSize(url)
+                val ok = file.exists() && file.length() > 0 && (remote == -1L || file.length() == remote)
+                if (!ok) file.delete()
+                return@withContext if (ok) file else null
             }
             val resuming = resumeFrom > 0 && code == 206
             if (resumeFrom > 0 && !resuming) resumeFrom = 0 // 服务器不支持断点，重头下载
@@ -230,7 +236,8 @@ class UpdateRepository(private val context: Context) {
             if (file.exists() && file.length() > 0) file else null
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e // 保留已下载部分供断点续传
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            android.util.Log.e("MSV_Update", "downloadApk failed: $url", e)
             null // 失败保留断点，下次续传
         }
     }

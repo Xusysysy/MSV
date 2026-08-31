@@ -841,6 +841,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                         notes = manifest.notes.take(1200),
                         fullNotes = manifest.notes,
                         apkUrl = manifest.apkUrl,
+                        apkUrlFallback = manifest.apkUrlFallback,
                         source = "清单(${manifest.source})"
                     )
                     // 已下载未安装：直接进入安装阶段
@@ -916,8 +917,15 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             _uiState.update {
                 it.copy(updateStatus = UpdateStatus.Downloading, showUpdateDialog = false, downloadProgress = 0, statusMessage = "开始下载 v${info.tag} 更新包…")
             }
-            val file = updateRepo.downloadApk(info.apkUrl, info.tag) { pct ->
+            var file = updateRepo.downloadApk(info.apkUrl, info.tag) { pct ->
                 _uiState.update { it.copy(downloadProgress = pct) }
+            }
+            if (file == null && info.apkUrlFallback.isNotEmpty() && info.apkUrlFallback != info.apkUrl) {
+                // 主源（Gitee）失败：自动切换备用源（GitHub）重试
+                _uiState.update { it.copy(statusMessage = "主源下载失败，切换备用源重试…") }
+                file = updateRepo.downloadApk(info.apkUrlFallback, info.tag) { pct ->
+                    _uiState.update { it.copy(downloadProgress = pct) }
+                }
             }
             if (file != null) {
                 _uiState.update { it.copy(updateStatus = UpdateStatus.Downloaded, downloadProgress = 100, statusMessage = "更新包下载完成") }
