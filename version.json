@@ -1,7 +1,7 @@
 {
-    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.2.0/MSV-ScoreViewer-v2.2.0-release.apk",
-    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.2.0/MSV-ScoreViewer-v2.2.0-release.apk",
-    "versionCode":  23,
-    "versionName":  "2.2.0",
-    "notes":  "# MSV 乐谱查看器 v2.2.0\n\n## 新增\n\n- **双指缩放模式**：阅读页双指捏合即进入缩放——只显示当前页（横屏双页为一个整体），跟随手指缩放与平移；期间禁用一切翻页（点按/拖拽/面部翻页）、自动收起顶栏与底栏；不清除其他页面缓存（只是移出屏幕）\n- **退出缩放**：双击页面或捏合缩回 ≤1 倍，平滑动画恢复到进入缩放前的状态（页码不变、顶栏滑回）\n- **更新弹窗显示更新日志**：发现新版本弹窗与设置面板现在展示 version.json 携带的完整更新日志（可滚动）\n\n## 技术变更\n\n- Stage 手势循环重写：双指捏合检测（间距比例缩放 + 质心平移）、缩放模式分支（平移钳制/双击恢复）、移除 detectTransformGestures（规避手势冲突）\n- 渲染新增 graphicsLayer 容器（renderZoom/renderPan Animatable 驱动）；Exit 时动画缩回 1x 后切回正常模式\n- version.json 新增 notes 字段；发布脚本同步步骤移至发布说明加载之后\n- versionCode=23, versionName=2.2.0\n"
+    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.2.1/MSV-ScoreViewer-v2.2.1-release.apk",
+    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.2.1/MSV-ScoreViewer-v2.2.1-release.apk",
+    "versionCode":  24,
+    "versionName":  "2.2.1",
+    "notes":  "# MSV 乐谱查看器 v2.1.15\n\n## 修复\n\n- **跳转/翻页加载太慢**：中心页先渲染 0.35x 低分辨率立即显示，随后全分辨率渲染完成后无缝替换（Coil 预热 + 旧图垫底），之后恢复正常缓存逻辑（分层压缩/缓存优先级不变）\n\n## 技术变更\n\n- preloadAround 中心页快速预览先行（0.35x Q70 → 全尺寸 Q95）\n- versionCode=24, versionName=2.1.15\n"
 }
