@@ -296,4 +296,44 @@ class ImslpRepository {
         Log.e(TAG, "verifyCookies failed", e)
         emptyMap()
     }
+
+    /**
+     * 探测直链是否已放行（验证是否真正生效）：携带当前 WebView 会话 cookie 轻量请求直链，
+     * 只读响应头与前几字节判定，不落盘。成功页文案可能在 mtcaptcha 的 iframe 内（顶层 innerText 读不到），
+     * 以探测结果为唯一真值。
+     */
+    suspend fun probeVerified(filename: String, extraCookies: Map<String, String>): Boolean =
+        withContext(Dispatchers.IO) {
+            try {
+                val conn = (URL(directUrl(filename)).openConnection() as HttpURLConnection).apply {
+                    connectTimeout = TIMEOUT_MS
+                    readTimeout = TIMEOUT_MS
+                    setRequestProperty("User-Agent", UA)
+                    setRequestProperty("Cookie", (extraCookies.map { (k, v) -> "$k=$v" } + "imslpdisclaimeraccepted=yes").joinToString("; "))
+                    setRequestProperty("Referer", "$BASE/wiki/File:${URLEncoder.encode(filename.replace(" ", "_"), "UTF-8").replace("+", "%20")}")
+                }
+                val code = conn.responseCode
+                val ctype = conn.contentType ?: ""
+                var pdf = false
+                if (code == 200) {
+                    val head = ByteArray(5)
+                    val input = conn.inputStream
+                    var off = 0
+                    while (off < 5) {
+                        val n = input.read(head, off, 5 - off)
+                        if (n == -1) break
+                        off += n
+                    }
+                    pdf = off == 5 && String(head, 0, 5, Charsets.US_ASCII) == "%PDF-"
+                }
+                conn.disconnect()
+                Log.i(TAG, "probeVerified: code=$code ctype=$ctype pdf=$pdf")
+                code == 200 && pdf
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "probeVerified failed", e)
+                false
+            }
+        }
 }

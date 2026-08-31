@@ -483,26 +483,16 @@ fun ImslpDialog(
                     }
                     Spacer(Modifier.height(8.dp))
 
-                    // 成功检测：成功页会自动重载出新挑战（瞬态），每秒轮询页面文本捕获成功瞬间
+                    // 验证生效检测：每 3 秒用当前 WebView 会话 cookie 探测直链是否已放行
+                    //（成功文案可能在 mtcaptcha 的 iframe 内且成功页为瞬态，顶层页面文本轮询不可靠；探测结果为唯一真值）
                     LaunchedEffect(s.pdf.filename) {
                         while (isActive) {
-                            delay(1000)
-                            val wv = webViewRef ?: continue
-                            wv.evaluateJavascript("(document.body ? document.body.innerText : '')") { v ->
-                                if (v != null && (v.contains("Bot Check Passed", true) || v.contains("verify successfully", true))) {
-                                    verifySuccess = true
-                                }
+                            delay(3000)
+                            if (!verifySuccess && repo.probeVerified(s.pdf.filename, repo.verifyCookies())) {
+                                verifySuccess = true
+                                statusText = "验证已生效，正在继续下载…"
+                                launchDownload(s.detail, s.pdf, repo.verifyCookies())
                             }
-                        }
-                    }
-                    // 捕获成功后延时 1.5s 自动续传（给放行 cookie 生效/后端登记留出时间），最多 2 次防循环
-                    LaunchedEffect(verifySuccess) {
-                        if (verifySuccess && verifyAutoRetries < 2) {
-                            delay(1500)
-                            verifyAutoRetries += 1
-                            verifySuccess = false
-                            statusText = "验证成功，正在继续下载…"
-                            launchDownload(s.detail, s.pdf, repo.verifyCookies())
                         }
                     }
 
