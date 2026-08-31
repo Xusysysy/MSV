@@ -31,8 +31,11 @@ class ImslpRepository {
         private const val TAG = "MSV_Imslp"
         private const val TIMEOUT_MS = 15000
         private const val READ_TIMEOUT_MS = 60000
-        private val UA =
+
+        /** 与 WebView 验证环境统一的 UA（人机验证的放行 cookie 通常绑定 UA+IP，两端必须一致） */
+        const val USER_AGENT =
             "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+        private val UA = USER_AGENT
         private val NON_WORK_PREFIXES =
             listOf("Category:", "Talk:", "File:", "User:", "Template:", "IMSLP:", "Portal:", "Help:", "Wishlist")
     }
@@ -184,7 +187,15 @@ class ImslpRepository {
         }
     }
 
-    /** 下载指定 PDF 到 dest：md5 直链 + 免责/验证 cookie；Bot Check 时返回 BotCheck 由 UI 引导用户验证 */
+    /** 直链：与 downloadPdf 共用（WebView 验证时加载同一 URL，门禁挑战与放行 cookie 绑定该地址） */
+    fun directUrl(filename: String): String {
+        val fname = filename.replace(" ", "_")
+        val md5 = MessageDigest.getInstance("MD5").digest(fname.toByteArray())
+            .joinToString("") { "%02x".format(it) }
+        return "$BASE/images/${md5[0]}/${md5.substring(0, 2)}/${URLEncoder.encode(fname, "UTF-8").replace("+", "%20")}"
+    }
+
+    /** 下载指定 PDF 到 dest：md5 直链 + 免责/验证 cookie；门禁页时返回 BotCheck 由 UI 引导用户验证 */
     suspend fun downloadPdf(
         filename: String,
         dest: File,
@@ -192,9 +203,7 @@ class ImslpRepository {
         onProgress: (Int) -> Unit
     ): DownloadResult = withContext(Dispatchers.IO) {
         val fname = filename.replace(" ", "_")
-        val md5 = MessageDigest.getInstance("MD5").digest(fname.toByteArray())
-            .joinToString("") { "%02x".format(it) }
-        val url = "$BASE/images/${md5[0]}/${md5.substring(0, 2)}/${URLEncoder.encode(fname, "UTF-8").replace("+", "%20")}"
+        val url = directUrl(filename)
         try {
             val cookieHeader = buildString {
                 append("imslpdisclaimeraccepted=yes")

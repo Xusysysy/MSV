@@ -322,18 +322,22 @@ fun ImslpDialog(
                 is ImslpStep.ComposerWorks -> {
                     Text("${s.composer} 的作品 (${s.works.size})", color = text, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(6.dp))
-                    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        modifier = Modifier.weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         items(s.works, key = { it.pageid.toString() + it.title }) { w ->
                             Box(
                                 Modifier
-                                    .fillMaxWidth()
                                     .clip(RoundedCornerShape(10.dp))
                                     .background(itemBg)
                                     .border(1.dp, itemBorder, RoundedCornerShape(10.dp))
                                     .clickable { openDetail(w.title) }
                                     .padding(horizontal = 10.dp, vertical = 8.dp)
                             ) {
-                                Text(w.title, color = text, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                Text(w.title, color = text, fontSize = 12.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
                             }
                         }
                     }
@@ -416,7 +420,7 @@ fun ImslpDialog(
                     Text("需要人工验证", color = text, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "IMSLP 对自动下载有人机验证保护。请在下方页面完成\"Start Verification\"验证后，点击底部重试按钮。",
+                        "IMSLP 对自动下载有人机验证保护。请在下方页面完成\"Start Verification\"验证（出现 Bot Check Passed 即成功），再点击底部重试。",
                         color = muted, fontSize = 11.sp, lineHeight = 15.sp
                     )
                     Spacer(Modifier.height(6.dp))
@@ -431,15 +435,33 @@ fun ImslpDialog(
                         AndroidView(
                             factory = { ctx ->
                                 WebView(ctx).apply {
+                                    // 环境与真实浏览器统一：UA 与下载请求一致（验证放行 cookie 绑定 UA+IP）、
+                                    // 原生验证组件（mtcaptcha）所需能力全部开启
+                                    settings.userAgentString = ImslpRepository.USER_AGENT
                                     settings.javaScriptEnabled = true
                                     settings.domStorageEnabled = true
+                                    settings.databaseEnabled = true
+                                    settings.allowContentAccess = true
+                                    settings.loadsImagesAutomatically = true
+                                    settings.mediaPlaybackRequiresUserGesture = false
+                                    settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                                    settings.cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
                                     CookieManager.getInstance().setAcceptCookie(true)
                                     CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                                     webViewClient = WebViewClient()
-                                    loadUrl(
-                                        "https://imslp.org/wiki/File:" +
-                                            java.net.URLEncoder.encode(s.pdf.filename.replace(" ", "_"), "UTF-8").replace("+", "%20")
-                                    )
+                                    // 弹窗类验证组件可能在新建窗口打开：统一接管到本 WebView
+                                    webChromeClient = object : android.webkit.WebChromeClient() {
+                                        override fun onCreateWindow(
+                                            view: WebView, isDialog: Boolean, isUserGesture: Boolean, resultMsg: android.os.Message
+                                        ): Boolean {
+                                            val transport = resultMsg.obj as android.webkit.WebView.WebViewTransport
+                                            transport.webView = view
+                                            resultMsg.sendToTarget()
+                                            return true
+                                        }
+                                    }
+                                    // 直接加载触发门禁的直链（挑战页带 Start Verification 按钮）
+                                    loadUrl(repo.directUrl(s.pdf.filename))
                                 }
                             },
                             modifier = Modifier.fillMaxSize()
