@@ -1,7 +1,7 @@
 {
-    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.2.1/MSV-ScoreViewer-v2.2.1-release.apk",
-    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.2.1/MSV-ScoreViewer-v2.2.1-release.apk",
-    "versionCode":  24,
-    "versionName":  "2.2.1",
-    "notes":  "# MSV 乐谱查看器 v2.1.15\n\n## 修复\n\n- **跳转/翻页加载太慢**：中心页先渲染 0.35x 低分辨率立即显示，随后全分辨率渲染完成后无缝替换（Coil 预热 + 旧图垫底），之后恢复正常缓存逻辑（分层压缩/缓存优先级不变）\n\n## 技术变更\n\n- preloadAround 中心页快速预览先行（0.35x Q70 → 全尺寸 Q95）\n- versionCode=24, versionName=2.1.15\n"
+    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.2.2/MSV-ScoreViewer-v2.2.2-release.apk",
+    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.2.2/MSV-ScoreViewer-v2.2.2-release.apk",
+    "versionCode":  25,
+    "versionName":  "2.2.2",
+    "notes":  "# MSV 乐谱查看器 v2.2.2\n\n## 修复\n\n- **缩放模式五项修正**：\n  - 进入缩放模式现在正确隐藏顶栏与底部通知（根因：Stage 未接线 onZoomModeEnter/Exit 回调）\n  - 缩放模式下翻页正确禁用（同根因）\n  - 双指缩放松手后单指拖动不再跳变（指针重锚定，保持与松手前对齐）\n  - 双击屏幕中央按固定比例缩放：\u003c2x 放大到 2x，≥2x 恢复 1x 并退出缩放模式；正常模式中央双击直接进入缩放并放大到 2x\n- **更新弹窗日志折叠**：发现新版本弹窗的更新日志默认折叠，点击展开后可滚动（不再挤占设置页面）\n\n## 技术变更\n\n- ViewerScreen Stage 调用补接 onZoomModeEnter/onZoomModeExit\n- Stage 手势循环：wasPinching 指针重锚定、双击步进缩放（正常/缩放模式双路径）\n- versionCode=25, versionName=2.2.2\n"
 }
