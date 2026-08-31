@@ -17,7 +17,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -35,6 +37,17 @@ import com.music.msv.data.model.UpdateInfo
 import com.music.msv.data.model.UpdateStatus
 import com.music.msv.ui.theme.ButtonShape
 
+private val openSourceProjects = listOf(
+    "Kotlin" to "Apache License 2.0",
+    "Jetpack Compose & Material 3" to "Apache License 2.0",
+    "AndroidX (Core / Lifecycle / Activity Compose)" to "Apache License 2.0",
+    "Coil 3 (图片加载)" to "Apache License 2.0",
+    "DataStore Preferences" to "Apache License 2.0",
+    "CameraX (相机)" to "Apache License 2.0",
+    "MediaPipe Tasks Vision (面部识别)" to "Apache License 2.0",
+    "pdfbox-android (PDF 读写)" to "Apache License 2.0"
+)
+
 @Composable
 fun SettingsPanel(
     isDark: Boolean,
@@ -50,11 +63,13 @@ fun SettingsPanel(
     onCheckUpdate: () -> Unit,
     onToggleVersionLog: () -> Unit,
     onDownloadUpdate: () -> Unit,
+    onPauseDownload: () -> Unit,
     onInstallUpdate: () -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val panelBg = if (isDark) Color(0xF00F121C) else Color(0xF2FFFFFF)
+    var licenseOpen by remember { mutableStateOf(false) }
     val panelBorder = if (isDark) Color(0x1AFFFFFF) else Color(0x141A2230)
     val text = if (isDark) Color(0xFFF5F7FF) else Color(0xFF1B2230)
     val muted = if (isDark) Color(0xB8F5F7FF) else Color(0xD11B2230)
@@ -123,23 +138,27 @@ fun SettingsPanel(
             Box(Modifier.fillMaxWidth().height(1.dp).background(divider))
             Spacer(Modifier.height(12.dp))
 
-            // 检查更新按钮（检查中/下载更新包时禁用）
+            // 主操作按钮：检查中禁用；下载中点击=暂停；暂停中点击=继续；其余=检查更新
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(ButtonShape)
                     .background(accent)
-                    .clickable(
-                        enabled = updateStatus != UpdateStatus.Checking &&
-                            updateStatus != UpdateStatus.Downloading
-                    ) { onCheckUpdate() }
+                    .clickable(enabled = updateStatus != UpdateStatus.Checking) {
+                        when {
+                            updateStatus == UpdateStatus.Downloading -> onPauseDownload()
+                            updateStatus == UpdateStatus.Paused -> onDownloadUpdate()
+                            else -> onCheckUpdate()
+                        }
+                    }
                     .padding(vertical = 10.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     when (updateStatus) {
                         UpdateStatus.Checking -> "检查中…"
-                        UpdateStatus.Downloading -> "下载中…"
+                        UpdateStatus.Downloading -> "暂停下载"
+                        UpdateStatus.Paused -> "继续下载"
                         else -> "检查更新"
                     },
                     color = onAccent,
@@ -173,6 +192,11 @@ fun SettingsPanel(
                                 .background(accent)
                         )
                     }
+                }
+                UpdateStatus.Paused -> {
+                    StatusText("下载已暂停，点击下方按钮继续", muted)
+                    Spacer(Modifier.height(10.dp))
+                    OutlineButton("继续下载", accent, ctrlBg, onDownloadUpdate)
                 }
                 UpdateStatus.Available -> {
                     val info = updateInfo
@@ -220,6 +244,16 @@ fun SettingsPanel(
 
         Spacer(Modifier.weight(1f))
         Text(
+            "开源许可",
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { licenseOpen = true },
+            textAlign = TextAlign.Center,
+            color = muted,
+            fontSize = 11.sp
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
             "© 2026 Xusysysy · MSV 乐谱查看器",
             modifier = Modifier
                 .fillMaxWidth()
@@ -227,6 +261,30 @@ fun SettingsPanel(
             textAlign = TextAlign.Center,
             color = muted,
             fontSize = 11.sp
+        )
+    }
+
+    if (licenseOpen) {
+        AlertDialog(
+            onDismissRequest = { licenseOpen = false },
+            title = { Text("开源许可") },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .heightIn(max = 380.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    openSourceProjects.forEach { (name, license) ->
+                        Text(name, color = text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        Text(license, color = muted, fontSize = 11.sp)
+                        Spacer(Modifier.height(10.dp))
+                    }
+                    Text("以上开源项目为本应用所使用，感谢原作者与开源社区。", color = muted, fontSize = 11.sp)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { licenseOpen = false }) { Text("关闭") }
+            }
         )
     }
 }

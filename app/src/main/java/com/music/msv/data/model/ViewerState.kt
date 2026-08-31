@@ -81,6 +81,7 @@ sealed class ViewerEvent {
     data object InstallUpdate : ViewerEvent()
     data object DismissUpdateDialog : ViewerEvent()
     data object ToggleVersionLog : ViewerEvent()
+    data object PauseDownload : ViewerEvent()
     data class AddBookmark(val page: Int, val title: String, val color: Int) : ViewerEvent()
     data class DeleteBookmark(val id: String) : ViewerEvent()
     data class RenameBookmark(val id: String, val title: String, val color: Int) : ViewerEvent()
@@ -109,5 +110,5 @@ data class PageBookmark(
 )
 
 enum class UpdateStatus {
-    Idle, Checking, UpToDate, Available, Downloading, Downloaded, Error
+    Idle, Checking, UpToDate, Available, Downloading, Paused, Downloaded, Error
 }

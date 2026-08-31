@@ -175,8 +175,9 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             ViewerEvent.CheckUpdate -> checkUpdate(manual = true)
             ViewerEvent.DownloadUpdate -> downloadUpdate()
             ViewerEvent.InstallUpdate -> installUpdate()
-            ViewerEvent.DismissUpdateDialog -> dismissUpdateDialog()
-            ViewerEvent.ToggleVersionLog -> toggleVersionLog()
+            is ViewerEvent.DismissUpdateDialog -> dismissUpdateDialog()
+            is ViewerEvent.PauseDownload -> pauseDownload()
+            is ViewerEvent.ToggleVersionLog -> toggleVersionLog()
             is ViewerEvent.AddBookmark -> addBookmark(event.page, event.title, event.color)
             is ViewerEvent.DeleteBookmark -> deleteBookmark(event.id)
             is ViewerEvent.RenameBookmark -> renameBookmark(event.id, event.title, event.color)
@@ -812,8 +813,12 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                             it.copy(updateStatus = UpdateStatus.Available, updateInfo = candidate, showUpdateDialog = true, updateMessage = "清单 ✓")
                         }
                     }
-                } else if (manual) {
-                    _uiState.update { it.copy(updateStatus = UpdateStatus.UpToDate, updateMessage = "已是最新版本 v$installed（清单）") }
+                } else {
+                    // 已是最新：手动检查给出明确反馈；自动（冷启动静默）检查必须重置回 Idle，否则设置页永远卡在"检查中…"
+                    _uiState.update {
+                        if (manual) it.copy(updateStatus = UpdateStatus.UpToDate, updateMessage = "已是最新版本 v$installed（清单）")
+                        else it.copy(updateStatus = UpdateStatus.Idle)
+                    }
                 }
                 return@launch
             }
@@ -881,6 +886,13 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 _uiState.update { it.copy(updateStatus = UpdateStatus.Error, updateMessage = "下载失败，已保留进度，请重试") }
             }
         }
+    }
+
+    /** 暂停应用内下载：取消下载协程但保留断点文件，"继续下载"时按 Range 续传 */
+    private fun pauseDownload() {
+        downloadJob?.cancel()
+        downloadJob = null
+        _uiState.update { it.copy(updateStatus = UpdateStatus.Paused, statusMessage = "下载已暂停") }
     }
 
     private fun installUpdate() {

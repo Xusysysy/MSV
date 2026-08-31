@@ -50,12 +50,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -128,18 +124,12 @@ fun ThumbnailPanel(
             Spacer(Modifier.height(14.dp))
             bookmarks.forEach { bm ->
                 var bmMenuOpen by remember { mutableStateOf(false) }
-                // 黑色描边：描边层垫底 + 白色填充层叠加，任何颜色书签上文字都清晰
-                val edgeStroke = Stroke(
-                    width = with(LocalDensity.current) { 2.5.dp.toPx() },
-                    miter = 4f,
-                    join = StrokeJoin.Round
-                )
                 Box {
                     Row(
                         modifier = Modifier
                             .requiredWidthIn(min = 220.dp, max = 284.dp)
                             .background(
-                                Color(bm.color).copy(alpha = 0.75f),
+                                Color(bm.color),
                                 RoundedCornerShape(topStart = 21.dp, bottomStart = 21.dp, topEnd = 4.dp, bottomEnd = 4.dp)
                             )
                             .combinedClickable(
@@ -149,25 +139,14 @@ fun ThumbnailPanel(
                             .padding(start = 18.dp, end = 64.dp, top = 10.dp, bottom = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box {
-                            Text(
-                                bm.title,
-                                color = Color.Black,
-                                fontSize = 13.sp,
-                                maxLines = 1,
-                                softWrap = false,
-                                overflow = TextOverflow.Ellipsis,
-                                style = TextStyle(drawStyle = edgeStroke)
-                            )
-                            Text(
-                                bm.title,
-                                color = Color.White,
-                                fontSize = 13.sp,
-                                maxLines = 1,
-                                softWrap = false,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
+                        Text(
+                            bm.title,
+                            color = Color.Black,
+                            fontSize = 13.sp,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis
+                        )
                         DropdownMenu(
                             expanded = bmMenuOpen,
                             onDismissRequest = { bmMenuOpen = false },

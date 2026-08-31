@@ -246,6 +246,7 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                     onCheckUpdate = { viewModel.onEvent(ViewerEvent.CheckUpdate) },
                     onToggleVersionLog = { viewModel.onEvent(ViewerEvent.ToggleVersionLog) },
                     onDownloadUpdate = { viewModel.onEvent(ViewerEvent.DownloadUpdate) },
+                    onPauseDownload = { viewModel.onEvent(ViewerEvent.PauseDownload) },
                     onInstallUpdate = { viewModel.onEvent(ViewerEvent.InstallUpdate) },
                     onClose = { viewModel.onEvent(ViewerEvent.ToggleSettings) }
                 )
