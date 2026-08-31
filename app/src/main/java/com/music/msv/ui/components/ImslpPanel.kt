@@ -110,6 +110,8 @@ fun ImslpDialog(
     var busy by remember { mutableStateOf(false) }
     var statusText by remember { mutableStateOf("") }
     var downloadJob by remember { mutableStateOf<Job?>(null) }
+    // Verify 步的 WebView 引用：加载失败检测与"刷新页面"按钮使用
+    var webViewRef by remember { mutableStateOf<WebView?>(null) }
 
     fun goBack() {
         downloadJob?.cancel()
@@ -451,6 +453,9 @@ fun ImslpDialog(
                                     settings.cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
                                     CookieManager.getInstance().setAcceptCookie(true)
                                     CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                                    // 免责 cookie 必须进 WebView cookie 罐：缺它时门禁页会降级（验证组件不渲染）
+                                    CookieManager.getInstance().setCookie("https://imslp.org/", "imslpdisclaimeraccepted=yes; Domain=.imslp.org; Path=/")
+                                    CookieManager.getInstance().flush()
                                     webViewClient = WebViewClient()
                                     // 弹窗类验证组件可能在新建窗口打开：统一接管到本 WebView
                                     webChromeClient = object : android.webkit.WebChromeClient() {
@@ -489,12 +494,21 @@ fun ImslpDialog(
                                     }
                                     // 直接加载触发门禁的直链（挑战页带 Start Verification 按钮）
                                     loadUrl(repo.directUrl(s.pdf.filename))
-                                }
-                            },
+                                }                            },
                             modifier = Modifier.fillMaxSize()
                         )
                     }
                     Spacer(Modifier.height(8.dp))
+
+                    // 验证组件加载失败检测：mtcaptcha 为境外第三方服务，其脚本在部分网络不可达（浏览器同样受影响）
+                    LaunchedEffect(s.pdf.filename) {
+                        delay(12000)
+                        webViewRef?.evaluateJavascript("(document.body ? document.body.innerText : '')") { v ->
+                            if (v != null && v.contains("Loading", ignoreCase = true)) {
+                                statusText = "验证组件加载失败：mtcaptcha 服务在当前网络可能不可用，建议切换网络后点\"刷新页面\"重试"
+                            }
+                        }
+                    }
 
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Box(
@@ -517,11 +531,23 @@ fun ImslpDialog(
                                 .clip(ButtonShape)
                                 .background(if (isDark) Color(0x0FFFFFFF) else Color(0x0A1A2230))
                                 .border(1.dp, accent, ButtonShape)
+                                .clickable { webViewRef?.reload() }
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("刷新页面", color = accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        Box(
+                            Modifier
+                                .weight(1f)
+                                .clip(ButtonShape)
+                                .background(if (isDark) Color(0x0FFFFFFF) else Color(0x0A1A2230))
+                                .border(1.dp, accent, ButtonShape)
                                 .clickable {
-                                    // 兜底：用系统浏览器打开文件页（浏览器环境验证+下载必定可用），下载后经"导入乐谱"导入
-                                    val page = "https://imslp.org/wiki/File:" +
-                                        java.net.URLEncoder.encode(s.pdf.filename.replace(" ", "_"), "UTF-8").replace("+", "%20")
-                                    context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(page)))
+                                    // 兜底：用系统浏览器直接打开下载直链（浏览器会走同样的验证/免责流程并直接下载 PDF）
+                                    context.startActivity(
+                                        android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(repo.directUrl(s.pdf.filename)))
+                                    )
                                 }
                                 .padding(vertical = 10.dp),
                             contentAlignment = Alignment.Center
