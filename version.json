@@ -1,7 +1,7 @@
 {
-    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.3.1/MSV-ScoreViewer-v2.3.1-release.apk",
-    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.3.1/MSV-ScoreViewer-v2.3.1-release.apk",
-    "versionCode":  34,
-    "versionName":  "2.3.1",
-    "notes":  "# MSV 乐谱查看器 v2.3.1\n\n## 修复\n\n- **IMSLP 人机验证成功后自动继续下载**：验证成功页是瞬时的（通过后页面会自动重载出新挑战，看起来像\"闪回\"）——现在每秒检测 WebView 页面状态，捕获到验证成功（Bot Check Passed / verify successfully）后 1.5 秒自动继续下载，无需再手动点击重试\n- 自动续传最多尝试 2 次（防止验证未生效时无限循环）；手动\"重试下载\"按钮始终可用\n\nversionCode=34, versionName=2.3.1\n"
+    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.3.2/MSV-ScoreViewer-v2.3.2-release.apk",
+    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.3.2/MSV-ScoreViewer-v2.3.2-release.apk",
+    "versionCode":  35,
+    "versionName":  "2.3.2",
+    "notes":  "# MSV 乐谱查看器 v2.3.2\n\n## 修复\n\n- **IMSLP 人机验证\"成功后没反应\"**：成功文案在 mtcaptcha 验证组件的 iframe 内且成功页瞬态，页面文本轮询读不到——改为**探测法**：每 3 秒用当前 WebView 会话 cookie 实测下载直链是否已放行（只读响应头与前几字节），放行即自动继续下载。探测结果是唯一真值，不再依赖页面文案\n\nversionCode=35, versionName=2.3.2\n"
 }
