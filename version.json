@@ -1,7 +1,7 @@
 {
-    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.3.4/MSV-ScoreViewer-v2.3.4-release.apk",
-    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.3.4/MSV-ScoreViewer-v2.3.4-release.apk",
-    "versionCode":  37,
-    "versionName":  "2.3.4",
-    "notes":  "# MSV 乐谱查看器 v2.3.4\n\n## 修复\n\n- **IMSLP 人机验证组件不渲染**：\n  - WebView 的 cookie 罐此前缺少免责确认 cookie（imslpdisclaimeraccepted），部分门禁页因此降级不渲染验证组件——现在加载前主动写入\n  - \"浏览器打开\"改为直接打开下载直链：浏览器中走完整验证/免责流程后直接下载 PDF\n- **验证组件加载失败提示**：mtcaptcha 为境外第三方服务，其组件脚本在部分网络不可达（浏览器同样受影响）——检测到组件卡在加载时会提示切换网络，并提供\"刷新页面\"按钮\n\nversionCode=37, versionName=2.3.4\n"
+    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.3.5/MSV-ScoreViewer-v2.3.5-release.apk",
+    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.3.5/MSV-ScoreViewer-v2.3.5-release.apk",
+    "versionCode":  38,
+    "versionName":  "2.3.5",
+    "notes":  "# MSV 乐谱查看器 v2.3.5\n\n## 修复\n\n- **点击 Start Verification 无反应**：IMSLP 门禁页内置反机器人蜜罐（两个隐藏输入框），输入法/自动填充一旦写入值，点击 Start 会被**静默中止**（验证组件不加载）——应用内现在每 400ms 自动清空蜜罐字段，确保验证组件正常弹出\n- 验证步骤停留 15 秒未通过时，显示 IMSLP 官方求助渠道提示\n- 说明：该蜜罐机制同样作用于系统浏览器（浏览器密码管理器自动填充也会触发），如浏览器中遇\"点击无反应\"可尝试无痕模式\n\nversionCode=38, versionName=2.3.5\n"
 }
