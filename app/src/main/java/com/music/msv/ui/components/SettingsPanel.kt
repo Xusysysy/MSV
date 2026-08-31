@@ -1,10 +1,12 @@
 package com.music.msv.ui.components
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,10 +31,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.music.msv.R
 import com.music.msv.data.model.UpdateInfo
 import com.music.msv.data.model.UpdateStatus
 import com.music.msv.ui.theme.ButtonShape
@@ -47,6 +52,20 @@ private val openSourceProjects = listOf(
     "MediaPipe Tasks Vision (面部识别)" to "Apache License 2.0",
     "pdfbox-android (PDF 读写)" to "Apache License 2.0"
 )
+
+private val supportStory = """
+    MSV 始于一个简单的念头：练琴的时候，翻谱实在太麻烦了。
+
+    从最初只能静态浏览 PDF，到点击与拖拽翻页、横屏双页对照、双指缩放；
+    再到免接触的面部识别翻页、书签标注、谱架管理、应用内自更新——
+    每一个版本都来自真实练琴场景里的反复打磨。
+
+    这是我第一次完整走完"想法 → 开发 → 发布 → 反馈 → 迭代"的循环：
+    几十个版本、上百次调试，也踩过手势冲突、渲染闪烁、面部识别镜像这些坑。
+    感谢每一位用户真诚的反馈，是你们让 MSV 从"能用"一点点变成"好用"。
+
+    如果它帮到了你，欢迎请作者喝一杯奶茶，是我继续更新下去的动力 :)
+""".trimIndent()
 
 @Composable
 fun SettingsPanel(
@@ -70,6 +89,7 @@ fun SettingsPanel(
 ) {
     val panelBg = if (isDark) Color(0xF00F121C) else Color(0xF2FFFFFF)
     var licenseOpen by remember { mutableStateOf(false) }
+    var supportOpen by remember { mutableStateOf(false) }
     val panelBorder = if (isDark) Color(0x1AFFFFFF) else Color(0x141A2230)
     val text = if (isDark) Color(0xFFF5F7FF) else Color(0xFF1B2230)
     val muted = if (isDark) Color(0xB8F5F7FF) else Color(0xD11B2230)
@@ -243,15 +263,26 @@ fun SettingsPanel(
         }
 
         Spacer(Modifier.weight(1f))
-        Text(
-            "开源许可",
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { licenseOpen = true },
-            textAlign = TextAlign.Center,
-            color = muted,
-            fontSize = 11.sp
-        )
+        Row(Modifier.fillMaxWidth()) {
+            Text(
+                "开源许可",
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { licenseOpen = true },
+                textAlign = TextAlign.Center,
+                color = muted,
+                fontSize = 11.sp
+            )
+            Text(
+                "支持开发者 ❤",
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { supportOpen = true },
+                textAlign = TextAlign.Center,
+                color = accent,
+                fontSize = 11.sp
+            )
+        }
         Spacer(Modifier.height(6.dp))
         Text(
             "© 2026 Xusysysy · MSV 乐谱查看器",
@@ -284,6 +315,39 @@ fun SettingsPanel(
             },
             confirmButton = {
                 TextButton(onClick = { licenseOpen = false }) { Text("关闭") }
+            }
+        )
+    }
+
+    if (supportOpen) {
+        AlertDialog(
+            onDismissRequest = { supportOpen = false },
+            title = { Text("支持开发者") },
+            text = {
+                Row(Modifier.heightIn(max = 420.dp)) {
+                    Image(
+                        painter = painterResource(R.drawable.support_qr),
+                        contentDescription = "微信收款码",
+                        contentScale = ContentScale.FillBounds,
+                        modifier = Modifier
+                            .width(150.dp)
+                            .align(Alignment.CenterVertically)
+                            .clip(RoundedCornerShape(12.dp))
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        Text("制作路程与感想", color = text, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(6.dp))
+                        Text(supportStory, color = muted, fontSize = 12.sp, lineHeight = 18.sp)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { supportOpen = false }) { Text("关闭") }
             }
         )
     }

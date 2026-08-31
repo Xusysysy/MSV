@@ -118,9 +118,11 @@ private fun PageWithPlaceholder(uri: Uri?, pageIndex: Int, isDark: Boolean, modi
             colorFilter = if (isDark) ColorFilter.colorMatrix(invertColorMatrix) else null,
             modifier = Modifier.fillMaxSize()
         )
+        // 初值取 uri 存在性：窗口滑动槽位复用（remember(pageIndex) 重置）时已渲染页直接可见，杜绝"真实页被占位图覆盖"；
+        // 槽内存活期间 null→uri 的首次渲染走 180ms 淡入（占位图→乐谱渐变过渡）
+        var shown by remember(pageIndex) { mutableStateOf(uri != null) }
+        LaunchedEffect(uri) { if (uri != null) shown = true }
         if (uri != null) {
-            var shown by remember(pageIndex) { mutableStateOf(false) }
-            LaunchedEffect(uri) { shown = true }
             AnimatedVisibility(
                 visible = shown,
                 enter = fadeIn(tween(180)),
@@ -514,7 +516,9 @@ fun Stage(
                                     val dx = change.position.x - lastX
                                     val dy = change.position.y - lastY
                                     lastX = change.position.x; lastY = change.position.y
-                                    if (abs(dx) > 0.5f || abs(dy) > 0.5f) moved = true
+                                    // 相对按下点的位移判定 moved：0.5px 级触摸抖动不误判，保证缩放模式双击可触发
+                                    moved = abs(change.position.x - downX) > 24.dp.toPx() ||
+                                        abs(change.position.y - downY) > 24.dp.toPx()
                                     scope.launch {
                                         val maxX = (renderZoom.value - 1f) * stageWidth / 2f
                                         val maxY = (renderZoom.value - 1f) * stageHeight / 2f

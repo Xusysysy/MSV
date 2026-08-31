@@ -288,7 +288,7 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 11c. ui/components/SettingsPanel.kt (L1-L247)
+### 11c. ui/components/SettingsPanel.kt (L1-L368)
 
 | Element | Type | Lines |
 |---|---|---|
