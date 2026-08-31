@@ -678,7 +678,7 @@ Single-screen app — no Navigation component. State-based content switching via
 | — ComposerWorks 步 | 该作曲家作品列表 | L308-L332 |
 | — Detail 步 | 曲名/作曲家/介绍卡片 + 版本列表（去前缀展示名 + 下载按钮） | L334-L404 |
 | — Downloading 步 | 文件名 + LinearProgressIndicator + 百分比 | L406-L418 |
-| — Verify 步（反爬人机验证） | 说明 + AndroidView WebView 加载 File 页（JS 开启）+ "我已完成验证，重试下载"（携带 CookieManager 会话 cookie） | L420-L454 |
+| — Verify 步（反爬人机验证） | 说明 + AndroidView WebView **加载直链挑战页 + UA 与下载请求一致（USER_AGENT）+ JS/DOM 存储/第三方 Cookie/混合内容/弹窗接管全开（原生 mtcaptcha 组件）** + "我已完成验证，重试下载"（携带 CookieManager 会话 cookie） | L419-L478 |
 
 | Element | Type | Lines |
 |---|---|---|
