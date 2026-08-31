@@ -8,7 +8,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
@@ -23,10 +22,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
@@ -38,12 +39,13 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import kotlin.coroutines.coroutineContext
+import kotlin.math.abs
+import kotlin.math.hypot
+import kotlin.math.roundToInt
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlin.math.abs
-import kotlin.math.roundToInt
 
 /** 单页渲染：升级换缓存时旧 URI 垫底显示（Coil 内存缓存命中），新图解码完成后覆盖，零空窗防闪烁。
  *  状态以 pageIndex 键控：窗口滑动导致槽位换页时状态重置，杜绝"前一页"垫底串位闪现；同页升级（URI 变化）仍保留垫底防闪烁 */
@@ -96,12 +98,15 @@ fun Stage(
     zoom: Float,
     panOffsetX: Float,
     panOffsetY: Float,
+    zoomMode: Boolean,
     isSpreadMode: Boolean,
     pendingFlip: Int? = null,
     onCenterTap: () -> Unit,
     onDoubleTap: () -> Unit,
     onZoomChange: (Float) -> Unit,
     onPanChange: (Float, Float) -> Unit,
+    onZoomModeEnter: () -> Unit = {},
+    onZoomModeExit: () -> Unit = {},
     onNextPage: () -> Unit,
     onPrevPage: () -> Unit,
     onFlipDone: () -> Unit = {},
@@ -114,7 +119,6 @@ fun Stage(
     val context = LocalContext.current
     var stageWidth by remember { mutableStateOf(0) }
     var stageHeight by remember { mutableStateOf(0) }
-    var currentZoom by remember { mutableFloatStateOf(zoom) }
     val transition = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
     var flipJob by remember { mutableStateOf<Job?>(null) }
@@ -123,8 +127,17 @@ fun Stage(
     // 触发翻页前的页码：动画期间以它锚定滑出页，避免 currentPage 更新滞后 1-2 帧时定位错乱（前一页闪现）
     var lastPage by remember { mutableStateOf(0) }
     var dragOffset by remember { mutableFloatStateOf(0f) }
+    // 缩放模式双击检测：上次点按时间/位置
+    var lastTapTime by remember { mutableStateOf(0L) }
+    var lastTapX by remember { mutableStateOf(0f) }
+    var lastTapY by remember { mutableStateOf(0f) }
 
-    val isZoomed = zoom > 1.01f || abs(panOffsetX) > 1f || abs(panOffsetY) > 1f
+    // 缩放模式渲染源：graphicsLayer 缩放/平移（送检 VM 状态镜像）
+    val renderZoom = remember { Animatable(1f) }
+    val renderPanX = remember { Animatable(0f) }
+    val renderPanY = remember { Animatable(0f) }
+    var pinching by remember { mutableStateOf(false) }
+
     val pw = if (pageWidth > 0) pageWidth.toFloat() else stageWidth.toFloat()
 
     val displaySize = if (pageWidth > 0 && pageHeight > 0 && stageWidth > 0 && stageHeight > 0) {
@@ -151,7 +164,6 @@ fun Stage(
         onSpreadModeChanged(autoSpreadMode)
     }
 
-    val currentIsZoomed by rememberUpdatedState(isZoomed)
     val currentPageIndex by rememberUpdatedState(currentPage)
     val currentPageCount by rememberUpdatedState(pageCount)
     val currentPw by rememberUpdatedState(pw)
@@ -162,12 +174,27 @@ fun Stage(
     val currentFlipUnit by rememberUpdatedState(flipUnit)
     val touchSlop = LocalViewConfiguration.current.touchSlop
     val currentPendingFlip by rememberUpdatedState(pendingFlip)
+    val currentZoomMode by rememberUpdatedState(zoomMode)
+    val currentOnZoomModeEnter by rememberUpdatedState(onZoomModeEnter)
+    val currentOnZoomModeExit by rememberUpdatedState(onZoomModeExit)
+
+    // VM 缩放/平移状态 → 渲染层同步（非捏合期间；reset/切文档时归位）
+    LaunchedEffect(zoom) {
+        if (!pinching) renderZoom.snapTo(zoom)
+    }
+    LaunchedEffect(panOffsetX, panOffsetY) {
+        if (!pinching) {
+            renderPanX.snapTo(panOffsetX)
+            renderPanY.snapTo(panOffsetY)
+        }
+    }
 
     LaunchedEffect(pageWidth, pageHeight) {
         transition.snapTo(0f)
     }
 
     fun doFlip(dir: Int, fromOffset: Float, easing: Boolean) {
+        if (currentZoomMode) return // 缩放模式禁用任何翻页
         if (currentFlipUnit <= 0f) return
         val step = if (currentIsSpread) 2 else 1
         if (currentPageIndex + dir * step !in 0 until currentPageCount) return
@@ -218,6 +245,7 @@ fun Stage(
 
     LaunchedEffect(currentPendingFlip) {
         val dir = currentPendingFlip ?: return@LaunchedEffect
+        if (currentZoomMode) return@LaunchedEffect // 缩放模式禁用翻页
         if (currentFlipUnit <= 0f) return@LaunchedEffect
         val step = if (currentIsSpread) 2 else 1
         if (currentPendingFlip != null) {
@@ -243,15 +271,163 @@ fun Stage(
             .pointerInput(Unit) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
-                    if (currentIsZoomed || currentPw <= 0f) return@awaitEachGesture
-                    val downX = down.position.x
-                    var lastX = downX
+                    var pinchStartSpan = 1f
+                    var pinchStartZoom = 1f
+                    var pinchStartCx = 0f
+                    var pinchStartCy = 0f
+                    var pinchLastCx = 0f
+                    var pinchLastCy = 0f
+                    var moved = false
                     var isDrag = false
                     var activeDir = 0
                     var reversed = false
+                    val downX = down.position.x
+                    val downY = down.position.y
+                    var lastX = downX
+                    var lastY = downY
+
                     while (true) {
                         val event = awaitPointerEvent()
-                        val change = event.changes.firstOrNull() ?: continue
+                        val pressedList = event.changes.filter { it.pressed }
+                        if (pressedList.isEmpty()) {
+                            // 全部抬起
+                            if (pinching) {
+                                pinching = false
+                                if (renderZoom.value > 1.01f) {
+                                    // 松手保留放大：确保缩放模式已进入
+                                    if (!currentZoomMode) onZoomModeEnter()
+                                } else {
+                                    // 捏回原比例：动画恢复并退出缩放模式
+                                    scope.launch {
+                                        renderZoom.animateTo(1f, tween(220))
+                                        renderPanX.animateTo(0f, tween(220))
+                                        renderPanY.animateTo(0f, tween(220))
+                                        onZoomModeExit()
+                                    }
+                                }
+                            } else if (!isDrag && !moved) {
+                                if (!currentZoomMode) {
+                                    // 原点按三区逻辑
+                                    val sw = stageWidth
+                                    if (sw > 0) {
+                                        val third = sw / 3f
+                                        when {
+                                            downX < third -> {
+                                                val step = if (currentIsSpread) 2 else 1
+                                                if (currentPageIndex > 0) {
+                                                    onPreloadAround(currentPageIndex - step)
+                                                    doFlip(-1, 0f, easing = true)
+                                                } else doBounce(-1)
+                                            }
+                                            downX > sw - third -> {
+                                                val step = if (currentIsSpread) 2 else 1
+                                                if (currentPageIndex < currentPageCount - 1) {
+                                                    onPreloadAround(currentPageIndex + step)
+                                                    doFlip(1, 0f, easing = true)
+                                                } else doBounce(1)
+                                            }
+                                            else -> onCenterTap()
+                                        }
+                                    }
+                                } else {
+                                    // 缩放模式单击：双击检测（两次快速点按恢复）
+                                    val now = System.currentTimeMillis()
+                                    if (now - lastTapTime < 300 && abs(downX - lastTapX) < 48.dp.toPx() && abs(downY - lastTapY) < 48.dp.toPx()) {
+                                        lastTapTime = 0L
+                                        scope.launch {
+                                            renderZoom.animateTo(1f, tween(220))
+                                            renderPanX.animateTo(0f, tween(220))
+                                            renderPanY.animateTo(0f, tween(220))
+                                            onZoomModeExit()
+                                        }
+                                    }
+                                }
+                            } else if (isDrag && !currentZoomMode) {
+                                // 拖拽翻页收尾（原逻辑）
+                                val dir = activeDir
+                                val step = if (currentIsSpread) 2 else 1
+                                val atBoundary = currentPageIndex + dir * step !in 0 until currentPageCount
+                                if (atBoundary || reversed) {
+                                    flipJob = scope.launch {
+                                        transition.animateTo(0f, spring(dampingRatio = 0.75f, stiffness = 400f))
+                                    }
+                                } else {
+                                    doFlip(dir, dragOffset, easing = false)
+                                }
+                            }
+                            break
+                        }
+                        // 双指 → 捏合缩放（优先于一切单指逻辑）；检测到双指一瞬间进入缩放模式并隐藏悬浮组件
+                        if (pressedList.size >= 2) {
+                            val a = pressedList[0].position
+                            val b = pressedList[1].position
+                            val span = hypot(a.x - b.x, a.y - b.y)
+                            val cx = (a.x + b.x) / 2f
+                            val cy = (a.y + b.y) / 2f
+                            if (!pinching) {
+                                pinching = true
+                                // 检测到双指：一瞬间进入缩放模式（隐藏悬浮组件/禁用翻页）
+                                if (!currentZoomMode) onZoomModeEnter()
+                                flipJob?.cancel()
+                                flipDir = 0
+                                scope.launch { transition.snapTo(0f) }
+                                pinchStartSpan = if (span > 0f) span else 1f
+                                pinchStartZoom = renderZoom.value
+                                pinchStartCx = cx; pinchStartCy = cy
+                                pinchLastCx = cx; pinchLastCy = cy
+                            } else {
+                                val newZoom = (pinchStartZoom * span / pinchStartSpan).coerceIn(1f, 8f)
+                                val dx = cx - pinchLastCx
+                                val dy = cy - pinchLastCy
+                                pinchLastCx = cx; pinchLastCy = cy
+                                scope.launch {
+                                    val maxX = (newZoom - 1f) * stageWidth / 2f
+                                    val maxY = (newZoom - 1f) * stageHeight / 2f
+                                    renderZoom.snapTo(newZoom)
+                                    renderPanX.snapTo((renderPanX.value + dx).coerceIn(-maxX, maxX))
+                                    renderPanY.snapTo((renderPanY.value + dy).coerceIn(-maxY, maxY))
+                                }
+                                onZoomChange(newZoom)
+                            }
+                            event.changes.forEach { it.consume() }
+                            continue
+                        }
+                        val change = pressedList[0]
+                        // 缩放模式：单指拖拽 = 平移；单击 = 双击检测（恢复）
+                        if (currentZoomMode || pinching) {
+                            if (!change.pressed) {
+                                if (!moved) {
+                                    val now = System.currentTimeMillis()
+                                    if (now - lastTapTime < 300 && abs(change.position.x - lastTapX) < 48.dp.toPx() && abs(change.position.y - lastTapY) < 48.dp.toPx()) {
+                                        lastTapTime = 0L
+                                        scope.launch {
+                                            renderZoom.animateTo(1f, tween(220))
+                                            renderPanX.animateTo(0f, tween(220))
+                                            renderPanY.animateTo(0f, tween(220))
+                                            onZoomModeExit()
+                                        }
+                                    } else {
+                                        lastTapTime = now
+                                        lastTapX = change.position.x
+                                        lastTapY = change.position.y
+                                    }
+                                }
+                            } else {
+                                val dx = change.position.x - lastX
+                                val dy = change.position.y - lastY
+                                lastX = change.position.x; lastY = change.position.y
+                                if (abs(dx) > 0.5f || abs(dy) > 0.5f) moved = true
+                                scope.launch {
+                                    val maxX = (renderZoom.value - 1f) * stageWidth / 2f
+                                    val maxY = (renderZoom.value - 1f) * stageHeight / 2f
+                                    renderPanX.snapTo((renderPanX.value + dx).coerceIn(-maxX, maxX))
+                                    renderPanY.snapTo((renderPanY.value + dy).coerceIn(-maxY, maxY))
+                                }
+                            }
+                            event.changes.forEach { it.consume() }
+                            continue
+                        }
+                        // 正常模式单指：原点按三区/拖拽翻页逻辑
                         if (!change.pressed) {
                             if (!isDrag) {
                                 val sw = stageWidth
@@ -320,135 +496,139 @@ fun Stage(
                     }
                 }
             }
-            .pointerInput(isZoomed) {
-                if (isZoomed) {
-                    detectTransformGestures { _, pan, zoomChange, _ ->
-                        currentZoom = (currentZoom * zoomChange).coerceIn(0.5f, 8f)
-                        onZoomChange(currentZoom)
-                        onPanChange(pan.x, pan.y)
-                    }
-                }
-            }
     ) {
         val (dw, dh) = displaySize ?: Pair(stageWidth.toFloat(), stageHeight.toFloat())
         val t = transition.value
 
-        if (currentIsSpread) {
-            val spreadTotalW = dw * 2f
-            val spreadCenterX = if (stageWidth > 0) (stageWidth - spreadTotalW) / 2f else 0f
-            val centerY = if (stageHeight > 0) (stageHeight - dh) / 2f else 0f
-
-            if (spreadCenterX > 0f) {
-                Box(
-                    modifier = Modifier
-                        .offset { IntOffset(0, 0) }
-                        .size(
-                            with(LocalDensity.current) { spreadCenterX.toDp() },
-                            with(LocalDensity.current) { stageHeight.toFloat().toDp() }
-                        )
-                        .background(bg)
-                )
-            }
-
-            for (pageIndex in pagesToShow) {
-                val uri = pageUris[pageIndex] ?: continue
-                // 页码触发瞬间已推进：动画期间以 lastPage（翻页前页码）为基准计算偏移，保证新旧两对页滑动衔接
-                val refPage = if (flipDir != 0) lastPage else currentPage
-                val offsetInSpread = (pageIndex - refPage).toFloat() * dw
-                val pageOffsetX = spreadCenterX + offsetInSpread + t
-
-                Box(
-                    modifier = Modifier
-                        .offset {
-                            IntOffset(
-                                pageOffsetX.roundToInt(),
-                                centerY.roundToInt()
-                            )
-                        }
-                        .size(
-                            with(LocalDensity.current) { dw.toDp() },
-                            with(LocalDensity.current) { dh.toDp() }
-                        )
-                ) {
-                    ScorePageImage(uri = uri, pageIndex = pageIndex, isDark = isDark, modifier = Modifier
-                            .fillMaxSize())
+        // 页面内容容器：缩放模式经 graphicsLayer 整体缩放/平移（横屏双页为一个整体；
+        // 其余页仍在组合内但被放大移出屏幕外——不清缓存，只是不显示在屏幕上）
+        Box(
+            Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    scaleX = renderZoom.value
+                    scaleY = renderZoom.value
+                    translationX = renderPanX.value
+                    translationY = renderPanY.value
                 }
-            }
+        ) {
+            if (currentIsSpread) {
+                val spreadTotalW = dw * 2f
+                val spreadCenterX = if (stageWidth > 0) (stageWidth - spreadTotalW) / 2f else 0f
+                val centerY = if (stageHeight > 0) (stageHeight - dh) / 2f else 0f
 
-            val maskW = (dw * 2f).coerceAtMost(spreadCenterX.coerceAtLeast(0f))
-            if (maskW > 0f) {
-                with(LocalDensity.current) {
+                if (spreadCenterX > 0f) {
                     Box(
                         modifier = Modifier
-                            .offset { IntOffset(0, centerY.roundToInt()) }
-                            .size(maskW.toDp(), dh.toDp())
-                            .background(
-                                Brush.horizontalGradient(
-                                    0f to bg,
-                                    1f to Color.Transparent
-                                )
+                            .offset { IntOffset(0, 0) }
+                            .size(
+                                with(LocalDensity.current) { spreadCenterX.toDp() },
+                                with(LocalDensity.current) { stageHeight.toFloat().toDp() }
                             )
+                            .background(bg)
                     )
+                }
+
+                for (pageIndex in pagesToShow) {
+                    val uri = pageUris[pageIndex] ?: continue
+                    // 页码触发瞬间已推进：动画期间以 lastPage（翻页前页码）为基准计算偏移，保证新旧两对页滑动衔接
+                    val refPage = if (flipDir != 0) lastPage else currentPage
+                    val offsetInSpread = (pageIndex - refPage).toFloat() * dw
+                    val pageOffsetX = spreadCenterX + offsetInSpread + t
+
                     Box(
                         modifier = Modifier
                             .offset {
                                 IntOffset(
-                                    (stageWidth - maskW).roundToInt(),
+                                    pageOffsetX.roundToInt(),
                                     centerY.roundToInt()
                                 )
                             }
-                            .size(maskW.toDp(), dh.toDp())
-                            .background(
-                                Brush.horizontalGradient(
-                                    0f to Color.Transparent,
-                                    1f to bg
+                            .size(
+                                with(LocalDensity.current) { dw.toDp() },
+                                with(LocalDensity.current) { dh.toDp() }
+                            )
+                    ) {
+                        ScorePageImage(uri = uri, pageIndex = pageIndex, isDark = isDark, modifier = Modifier
+                                .fillMaxSize())
+                    }
+                }
+
+                val maskW = (dw * 2f).coerceAtMost(spreadCenterX.coerceAtLeast(0f))
+                if (maskW > 0f) {
+                    with(LocalDensity.current) {
+                        Box(
+                            modifier = Modifier
+                                .offset { IntOffset(0, centerY.roundToInt()) }
+                                .size(maskW.toDp(), dh.toDp())
+                                .background(
+                                    Brush.horizontalGradient(
+                                        0f to bg,
+                                        1f to Color.Transparent
+                                    )
                                 )
-                            )
-                    )
-                }
-            }
-        } else {
-            val centerX = if (stageWidth > 0) (stageWidth - dw) / 2f else 0f
-            val centerY = if (stageHeight > 0) (stageHeight - dh) / 2f else 0f
-
-            for (pageIndex in pagesToShow) {
-                val uri = pageUris[pageIndex] ?: continue
-                // 页码在翻页触发瞬间已推进到目标页；动画期以 lastPage（翻页前页码）锚定滑出页，
-                // 避免 currentPage 更新滞后 1-2 帧时"前一页"闪现在当前页位置：
-                // 前向动画：lastPage（旧当前页）叠在 0 处随 t 滑出，新当前页静止在 0 底下
-                // 后向动画：lastPage 静止在 0 处被覆盖，新当前页从 -dw 随 t 滑入
-                // 拖拽期（flipDir==0）：当前页/前页跟手；其余后续页停靠屏幕外防透闪
-                val base = when {
-                    pageIndex == currentPage -> 0f
-                    flipDir != 0 && pageIndex == lastPage -> 0f
-                    flipDir == 0 && t < 0 && pageIndex == currentPage + 1 -> 0f
-                    flipDir == 1 && t < 0 && pageIndex == lastPage + 1 -> 0f
-                    pageIndex > currentPage -> stageWidth.toFloat()
-                    else -> -(currentPage - pageIndex).toFloat() * dw
-                }
-                val pageOffsetX = when {
-                    flipDir == 1 && t < 0 && pageIndex == lastPage -> t
-                    flipDir == -1 && t > 0 && pageIndex == currentPage && pageIndex != lastPage -> -dw + t
-                    flipDir == 0 && t < 0 && pageIndex == currentPage -> base + t
-                    flipDir == 0 && t > 0 && pageIndex == currentPage - 1 -> base + t
-                    else -> base
-                }
-
-                Box(
-                    modifier = Modifier
-                        .offset {
-                            IntOffset(
-                                (pageOffsetX + centerX).roundToInt(),
-                                centerY.roundToInt()
-                            )
-                        }
-                        .size(
-                            with(LocalDensity.current) { dw.toDp() },
-                            with(LocalDensity.current) { dh.toDp() }
                         )
-                ) {
-                    ScorePageImage(uri = uri, pageIndex = pageIndex, isDark = isDark, modifier = Modifier
-                            .fillMaxSize())
+                        Box(
+                            modifier = Modifier
+                                .offset {
+                                    IntOffset(
+                                        (stageWidth - maskW).roundToInt(),
+                                        centerY.roundToInt()
+                                    )
+                                }
+                                .size(maskW.toDp(), dh.toDp())
+                                .background(
+                                    Brush.horizontalGradient(
+                                        0f to Color.Transparent,
+                                        1f to bg
+                                    )
+                                )
+                        )
+                    }
+                }
+            } else {
+                val centerX = if (stageWidth > 0) (stageWidth - dw) / 2f else 0f
+                val centerY = if (stageHeight > 0) (stageHeight - dh) / 2f else 0f
+
+                for (pageIndex in pagesToShow) {
+                    val uri = pageUris[pageIndex] ?: continue
+                    // 页码在翻页触发瞬间已推进到目标页；动画期以 lastPage（翻页前页码）锚定滑出页，
+                    // 避免 currentPage 更新滞后 1-2 帧时"前一页"闪现在当前页位置：
+                    // 前向动画：lastPage（旧当前页）叠在 0 处随 t 滑出，新当前页静止在 0 底下
+                    // 后向动画：lastPage 静止在 0 处被覆盖，新当前页从 -dw 随 t 滑入
+                    // 拖拽期（flipDir==0）：当前页/前页跟手；其余后续页停靠屏幕外防透闪
+                    val base = when {
+                        pageIndex == currentPage -> 0f
+                        flipDir != 0 && pageIndex == lastPage -> 0f
+                        flipDir == 0 && t < 0 && pageIndex == currentPage + 1 -> 0f
+                        flipDir == 1 && t < 0 && pageIndex == lastPage + 1 -> 0f
+                        pageIndex > currentPage -> stageWidth.toFloat()
+                        else -> -(currentPage - pageIndex).toFloat() * dw
+                    }
+                    val pageOffsetX = when {
+                        flipDir == 1 && t < 0 && pageIndex == lastPage -> t
+                        flipDir == -1 && t > 0 && pageIndex == currentPage && pageIndex != lastPage -> -dw + t
+                        flipDir == 0 && t < 0 && pageIndex == currentPage -> base + t
+                        flipDir == 0 && t > 0 && pageIndex == currentPage - 1 -> base + t
+                        else -> base
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .offset {
+                                IntOffset(
+                                    (pageOffsetX + centerX).roundToInt(),
+                                    centerY.roundToInt()
+                                )
+                            }
+                            .size(
+                                with(LocalDensity.current) { dw.toDp() },
+                                with(LocalDensity.current) { dh.toDp() }
+                            )
+                    ) {
+                        ScorePageImage(uri = uri, pageIndex = pageIndex, isDark = isDark, modifier = Modifier
+                                .fillMaxSize())
+                    }
                 }
             }
         }
