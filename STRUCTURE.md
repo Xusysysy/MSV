@@ -250,7 +250,7 @@ Single-screen app — no Navigation component. State-based content switching via
 | Parameters (13): | isDark, pageCount, currentPage, isPdfMode, bookmarks, getThumbnailUri, onPageSelected, onBookmarkClick, onAddBookmark, onDeleteBookmark, onEditBookmark, onClose, modifier | L71-L83 |
 | Local colors + states | panelBg…muted/text/danger/menuContainer + addPage/addTitle/addColor/editBm/bmMenuId | L84-L92 |
 | Box root（书签栏在下层 0-284，缩略图面板在上层 CenterEnd 220-520） | composable | L94-L315 |
-| — Bookmark rail（width 284 = 可见 220 + 面板下 64，End 对齐 → 右端统一延伸至面板之下，verticalScroll 可滚动，无额外背景，spacedBy 6 间隙，底部 Spacer 保证滚到底完整） | 仅 isPdfMode 且书签非空时显示 | L96-L137 |
+| — Bookmark rail（width 284 = 可见 220 + 面板下 64，End 对齐 → 右端统一延伸至面板之下，verticalScroll 可滚动，无额外背景，spacedBy 6 间隙，底部 Spacer 保证滚到底完整） | 仅 isPdfMode 且书签非空时显示；**书签按页码升序渲染（sortedBy page）** | L96-L137 |
 | — — BookmarkStrip ×N | 半透明（color alpha **0.75**）左半圆书签条：click→跳转页码, long-press→菜单（**编辑**/删除红字），文字 13sp 单行（**黑描边层 matchParentSize 与白填充层像素级对齐**），requiredWidthIn(min 220/max 284) 宽度随名长 | L109-L135 |
 | — Thumbnails Column (300dp, **align CenterEnd** 面板层) | composable | L139-L315 |
 | — — Close button Box | L142-L159 |
@@ -375,7 +375,7 @@ Single-screen app — no Navigation component. State-based content switching via
 | `renameShelfFile(oldUri, newName)` | private fun — renames file, refreshes shelf, reopens at same page | L637-L657 |
 | `openShelfFile(uri)` | private fun — closes shelf, restores page via pageMap[name] | L659-L674 |
 | `readPdfBookmarks(uri)` | private fun — pdfbox 读取 PDF 原生 Document Outline → List<PageBookmark>（颜色编码 "#RRGGBB|标题"） | L676-L697 |
-| `writePdfBookmarks()` | private fun — 关渲染器 → pdfbox 重写 Document Outline → 保存 → 重开渲染器 → preloadAround | L699-L726 |
+| `writePdfBookmarks()` | private fun — 关渲染器 → pdfbox 重写 Document Outline（**按页码升序写入**）→ 保存 → 重开渲染器 → preloadAround | L699-L726 |
 | `addBookmark(page, title, color)` | private fun — 追加书签（标题 ≤50 字）→ writePdfBookmarks | L728-L734 |
 | `deleteBookmark(id)` | private fun — 移除书签 → writePdfBookmarks | L736-L739 |
 | `renameBookmark(id, title)` | private fun — 重命名书签 → writePdfBookmarks | L741-L744 |

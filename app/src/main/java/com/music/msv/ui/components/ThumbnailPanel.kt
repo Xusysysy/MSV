@@ -122,7 +122,8 @@ fun ThumbnailPanel(
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Spacer(Modifier.height(14.dp))
-            bookmarks.forEach { bm ->
+            // 按页码升序渲染（与创建顺序无关）
+            bookmarks.sortedBy { it.page }.forEach { bm ->
                 var bmMenuOpen by remember { mutableStateOf(false) }
                 Box {
                     Row(

@@ -707,7 +707,8 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 pdfRenderer.close()
                 PDDocument.load(java.io.File(uri.path!!)).use { doc ->
                     val outline = PDDocumentOutline()
-                    bookmarks.forEach { b ->
+                    // 写回也按页码升序：重新打开乐谱后书签顺序稳定
+                    bookmarks.sortedBy { it.page }.forEach { b ->
                         val item = PDOutlineItem()
                         item.title = "#%06X|%s".format(b.color and 0xFFFFFF, b.title.take(50))
                         val dest = PDPageFitWidthDestination()
