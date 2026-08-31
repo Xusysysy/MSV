@@ -357,7 +357,7 @@ Single-screen app — no Navigation component. State-based content switching via
 | `onFlipHappened(center)` | private fun — **无条件 preloadAround 按当前页重算渲染**（修复跳转不加载回归）；记录翻页时间戳；快速模式重置 1s settle | L313-L322 |
 | `isFastFlipping()` | private fun — 2s 窗口内翻页 ≥4 次判定快速连续翻动 | L325-L329 |
 | `renderPageToCacheComputeSize(pageIndex, ratio)` | private fun — tracked by singleRenderJob，渲染后标记 scale=1f | L331-L350 |
-| `preloadAround(center, forceFullRes=false)` | public fun — 快速翻动模式：**当前页同步优先渲染**，窗口内其余缺失页并行 0.6x Q85（跳过升级保证速度）；正常模式：center/next Q95、±1 Q90 缺失**或 pageScales≠1f** 时全尺寸渲染升级（replacePage：Coil 预热后换 URI），2-3 页 Q85@0.6x、≥4 页 Q80@0.4x 仅缺失时渲染；淘汰同步清理 pageScales | L352-L464 |
+| `preloadAround(center, forceFullRes=false)` | public fun — 快速翻动模式：**当前页同步优先渲染**，窗口内其余缺失页并行 0.6x Q85（跳过升级保证速度）；正常模式：**中心页 0.35x Q70 快速预览先行 → 全尺寸 Q95 替换（replacePage：Coil 预热后换 URI）**，next Q95、±1 Q90 缺失**或 pageScales≠1f** 时全尺寸渲染升级，2-3 页 Q85@0.6x、≥4 页 Q80@0.4x 仅缺失时渲染；淘汰同步清理 pageScales | L352-L464 |
 | `docCacheKey` | private val getter — pdfUri path hash (cache file namespacing) | L466-L467 |
 | `renderPage(pageIndex, pageW, pageH, zoom, quality=95)` | private fun — JPEG into cacheDir，文件名含 `{pageW}x{pageH}`（尺寸变化→URI 变化→Coil 缓存失效） | L469-L480 |
 | `updateViewportSize(width, height)` | private fun | L482-L494 |

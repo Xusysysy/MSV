@@ -392,6 +392,25 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             } else {
                 // 缺失 或 已存在但非全分辨率（此前按 0.6x/0.4x 预加载的压缩页）都需全尺寸渲染
                 fun needsFull(i: Int) = !oldUris.containsKey(i) || pageScales[i] != 1f
+                // 跳转/翻页快速预览：中心页先渲染 0.35x 低分辨率立即显示，再渲染全分辨率替换（ScorePageImage 垫底无缝切换）
+                if (needsFull(center)) {
+                    val fastW = (pageW * 0.35f).toInt().coerceAtLeast(1)
+                    val fastH = (pageH * 0.35f).toInt().coerceAtLeast(1)
+                    renderPage(center, fastW, fastH, zoom, 70)?.let { fastUri ->
+                        pageScales[center] = 0.35f
+                        _uiState.update { it.copy(pageUris = it.pageUris + (center to fastUri)) }
+                    }
+                    renderPage(center, pageW, pageH, zoom, 95)?.let { fullUri ->
+                        pageScales[center] = 1f
+                        _uiState.update { st ->
+                            val old = st.pageUris[center]
+                            if (old != null && old != fullUri) {
+                                try { java.io.File(old.path!!).delete() } catch (_: Exception) {}
+                            }
+                            st.copy(pageUris = st.pageUris + (center to fullUri))
+                        }
+                    }
+                }
                 suspend fun replacePage(index: Int, uri: Uri, oldUri: Uri?) {
                     if (oldUri != null && oldUri != uri) {
                         try { java.io.File(oldUri.path!!).delete() } catch (_: Exception) {}
