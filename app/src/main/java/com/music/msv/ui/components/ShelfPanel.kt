@@ -71,6 +71,7 @@ fun ShelfPanel(
     shelfSortBy: ShelfSort,
     onFileSelected: (Uri) -> Unit,
     onImportClick: () -> Unit,
+    onImslpClick: () -> Unit,
     onClose: () -> Unit,
     onRename: (Uri, String) -> Unit,
     onSortSelected: (ShelfSort) -> Unit,
@@ -138,12 +139,30 @@ fun ShelfPanel(
                     .background(accent)
                     .border(1.dp, accent, ButtonShape)
                     .clickable { onImportClick() }
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                    .padding(horizontal = 6.dp, vertical = 10.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    "+ 导入乐谱",
+                    "导入乐谱",
                     color = if (isDark) Color(0xFF0F1220) else Color.White,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            // IMSLP 在线导入入口（次级样式：itemBg 底 + accent 边框）
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(ButtonShape)
+                    .background(if (isDark) Color(0x0FFFFFFF) else Color(0x0A1A2230))
+                    .border(1.dp, accent, ButtonShape)
+                    .clickable { onImslpClick() }
+                    .padding(horizontal = 6.dp, vertical = 10.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "IMSLP 导入",
+                    color = accent,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold
                 )

@@ -643,6 +643,43 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ### 24. release/publish.ps1 — OTA 双平台发布脚本 (L1-L157)
 
+### 25. data/model/ImslpModels.kt (L1-L22)
+
+| Element | Type | Lines |
+|---|---|---|
+| `ImslpSearchResult` | data class — title/pageid/isComposer/snippet | L3-L7 |
+| `ImslpPdfFile` | data class — filename | L9-L11 |
+| `ImslpWorkDetail` | data class — title/composer/info(介绍字段)/pdfs | L13-L18 |
+
+### 26. data/repository/ImslpRepository.kt (L1-L258)
+
+| Element | Type | Lines |
+|---|---|---|
+| `ImslpRepository` | class — IMSLP 搜索/详情/下载（HttpURLConnection 对齐 UpdateRepository 风格；UA+免责 cookie） | L28-L258 |
+| companion | BASE/API/TAG/超时/UA/NON_WORK_PREFIXES | L30-L41 |
+| `DownloadResult` | sealed class — Success(file)/BotCheck/Error(msg) | L44-L48 |
+| `httpGetString(url)` | private fun — GET + 日志 | L50-L67 |
+| `search(query)` | suspend — srnamespace=0 全文 + Category 命名空间作曲家分类（两组结果） | L70-L109 |
+| `composerWorks(composer)` | suspend — categorymembers 该作曲家作品列表 | L112-L133 |
+| `workDetail(title)` | suspend — wikitext 三正则提取 PDF（去重保序）+ 介绍模板字段（调性/年份/乐章/首演/题献） | L136-L199 |
+| `downloadPdf(filename, dest, extraCookies, onProgress)` | suspend — md5 直链流式下载；200 非 PDF 且含 Bot Check → BotCheck；进度回调 + ensureActive 取消 | L202-L251 |
+| `verifyCookies()` | fun — 读 WebView CookieManager 的 imslp.org 会话 cookie | L254-L258 |
+
+### 27. ui/components/ImslpPanel.kt (L1-L454)
+
+| Element | Type | Lines |
+|---|---|---|
+| `ImslpStep` | private sealed interface — Search/Results/ComposerWorks/Detail/Downloading/Verify 弹窗步骤状态机 | L61-L68 |
+| `pdfDisplayName(filename)` | private fun — 去 PMLP 编号前缀展示 | L70-L72 |
+| `ImslpDialog(isDark, onDismiss, onImported)` | @Composable Dialog（fillMaxWidth(0.94)×fillMaxHeight(0.88)） | L75-L454 |
+| — 状态/回调 | step/lastResults/query/busy/statusText/downloadJob + doSearch/openComposer/openDetail/launchDownload(cookies)/goBack | L85-L175 |
+| — Search 步 | 搜索框（ImeAction.Search）+ 搜索按钮 + 说明文案 | L214-L247 |
+| — Results 步 | 👤作曲家组 + 📄作品组 LazyColumn（点作曲家→composerWorks，点作品→workDetail） | L249-L306 |
+| — ComposerWorks 步 | 该作曲家作品列表 | L308-L332 |
+| — Detail 步 | 曲名/作曲家/介绍卡片 + 版本列表（去前缀展示名 + 下载按钮） | L334-L404 |
+| — Downloading 步 | 文件名 + LinearProgressIndicator + 百分比 | L406-L418 |
+| — Verify 步（反爬人机验证） | 说明 + AndroidView WebView 加载 File 页（JS 开启）+ "我已完成验证，重试下载"（携带 CookieManager 会话 cookie） | L420-L454 |
+
 | Element | Type | Lines |
 |---|---|---|
 | Header + param | -NoteFile / -SkipBuild / -NoUpload / -SkipTag；TLS1.2 强制；**必须保持 UTF-8 BOM 编码** | L1-L11 |

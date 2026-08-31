@@ -67,6 +67,9 @@ class FileRepository(private val context: Context) {
         return if (file.exists()) Uri.fromFile(file) else null
     }
 
+    /** IMSLP 下载落盘目标：docs/ 下按文件名直建（下载完成后走 openShelfFile 打开） */
+    fun docsDirFile(fileName: String): JFile = JFile(docsDir, fileName)
+
     fun listLocalFiles(): List<JFile> {
         return docsDir.listFiles()?.filter { it.isFile }?.sortedByDescending { it.lastModified() }
             ?: emptyList()

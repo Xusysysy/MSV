@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.sp
 import com.music.msv.data.model.Mode
 import com.music.msv.data.model.ViewerEvent
 import com.music.msv.ui.components.EmptyView
+import com.music.msv.ui.components.ImslpDialog
 import com.music.msv.ui.components.LoadingOverlay
 import com.music.msv.ui.components.BottomFooter
 import com.music.msv.ui.components.SettingsPanel
@@ -79,6 +80,7 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
     var showPageDialog by remember { mutableStateOf(false) }
     var pageInput by remember { mutableStateOf("") }
     var showResetDialog by remember { mutableStateOf(false) }
+    var showImslpDialog by remember { mutableStateOf(false) }
 
     val isDark = state.isDarkTheme
     val appBg = if (isDark) Color(0xFF0F1220) else Color(0xFFDFE6F5)
@@ -286,6 +288,7 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                     shelfSortBy = state.shelfSortBy,
                     onFileSelected = { uri -> viewModel.onEvent(ViewerEvent.OpenShelfFile(uri)) },
                     onImportClick = openFilePicker,
+                    onImslpClick = { showImslpDialog = true },
                     onClose = { viewModel.onEvent(ViewerEvent.ToggleShelf) },
                     onRename = { uri, name -> viewModel.onEvent(ViewerEvent.RenameShelfFile(uri, name)) },
                     onSortSelected = { viewModel.onEvent(ViewerEvent.SetShelfSort(it)) },
@@ -412,6 +415,17 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                 },
                 dismissButton = {
                     TextButton(onClick = { viewModel.onEvent(ViewerEvent.DismissDownloadFailDialog) }) { Text("知道了") }
+                }
+            )
+        }
+
+        if (showImslpDialog) {
+            ImslpDialog(
+                isDark = isDark,
+                onDismiss = { showImslpDialog = false },
+                onImported = { uri ->
+                    showImslpDialog = false
+                    viewModel.onEvent(ViewerEvent.OpenShelfFile(uri))
                 }
             )
         }
