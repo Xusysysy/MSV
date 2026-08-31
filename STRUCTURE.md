@@ -137,7 +137,7 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 6. ui/screen/ViewerScreen.kt (L1-L340)
+### 6. ui/screen/ViewerScreen.kt (L1-L392)
 
 | Element | Type | Lines |
 |---|---|---|
@@ -168,26 +168,26 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 7. ui/components/Stage.kt (L1-L457)
+### 7. ui/components/Stage.kt (L1-L623)
 
 | Element | Type | Lines |
 |---|---|---|
 | Package + imports | — | L1-L46 |
 | `ScorePageImage` | private @Composable — 单页渲染图层化：旧 URI 垫底 + 新 URI 前层，升级换缓存零空窗防闪烁；**状态 remember(pageIndex) 键控（槽位换页重置，杜绝前一页垫底串位闪现）** | L48-L87 |
 | `invertColorMatrix` | private val ColorMatrix — dark-theme page inversion | L89-L96 |
-| `Stage` | @Composable fun | L98-L456 |
-| Parameters (22): | isDark, pageUris, currentPage, pageCount, pageWidth, pageHeight, zoom, panOffsetX, panOffsetY, isSpreadMode, pendingFlip(default=null), onCenterTap, onDoubleTap, onZoomChange, onPanChange, onNextPage, onPrevPage, onFlipDone(default={}), onViewportSizeChanged, onSpreadModeChanged, onPreloadAround(default={}), modifier(default=Modifier) | L99-L122 |
-| states（bg/context/stageWidth/Height/zoom/transition/scope/flipJob/flipDir/lastPage/dragOffset） | L123-L139 |
-| derived vals（isZoomed/pw/displaySize/autoSpreadMode/两个 LaunchedEffect/currentIsZoomed 组） | L141-L169 |
-| `doFlip(dir, fromOffset, easing)` | local fun — 触发瞬间记录 lastPage 并推进页码，动画只负责视觉；finally 带 `flipJob === selfJob` 守卫（被接替的旧动画不复位 snapTo/flipDir，防快速往返闪回旧页） | L171-L207 |
-| `doBounce(dir)` | local fun — boundary bounce animation（不改 flipDir/lastPage） | L209-L219 |
-| LaunchedEffect(currentPendingFlip) | face-triggered pending flip → doFlip | L221-L227 |
-| `pagesToShow` | derived val — visible page window (±5 single, ±6 spread), sorted descending | L229-L233 |
-| Root Box | composable (gestures + rendering) | L234-L456 |
-| — tap/drag awaitEachGesture pointerInput | 1/3 tap zones (flip/bounce/center tap), drag follow with boundary reversal | L238-L305 |
-| — transform pointerInput (isZoomed guard) | pinch zoom + pan | L307-L313 |
-| — Spread branch | gap fill Box、pages loop（L365 refPage：动画期 = lastPage 保证两对页滑动衔接）、gradient edge masks；页面用 ScorePageImage 图层渲染 | L315-L384 |
-| — Single branch | pages loop；base when（L423-L429）/pageOffsetX when（L431-L435）：动画期以 lastPage 锚定滑出页（消除 currentPage 滞后窗口的前一页闪现）、拖拽期当前页/前页跟手、后续页停靠 stageWidth 防透闪 | L386-L456 |
+| `Stage` | @Composable fun | L98-L622 |
+| Parameters (24): | isDark, pageUris, currentPage, pageCount, pageWidth, pageHeight, zoom, panOffsetX, panOffsetY, **zoomMode**, isSpreadMode, pendingFlip(default=null), onCenterTap, onDoubleTap, onZoomChange, onPanChange, **onZoomModeEnter/Exit(default={})**, onNextPage, onPrevPage, onFlipDone(default={}), onViewportSizeChanged, onSpreadModeChanged, onPreloadAround(default={}), modifier(default=Modifier) | L99-L124 |
+| states（bg/context/stageWidth/Height/transition/scope/flipJob/flipDir/lastPage/dragOffset/**lastTapTime/X/Y**/**renderZoom/renderPanX/renderPanY/pinching**） | L125-L139 |
+| derived vals（pw/displaySize/autoSpreadMode/LE(autoSpread)/current* 组含 currentZoomMode/Enter/Exit） | L141-L179 |
+| `doFlip(dir, fromOffset, easing)` | local fun — **zoomMode 时禁用**；触发瞬间记录 lastPage 并推进页码，动画只负责视觉；finally 带 `flipJob === selfJob` 守卫（被接替的旧动画不复位 snapTo/flipDir，防快速往返闪回旧页） | L196-L232 |
+| `doBounce(dir)` | local fun — boundary bounce animation（不改 flipDir/lastPage） | L235-L245 |
+| LaunchedEffect(currentPendingFlip) | face-triggered pending flip → doFlip（zoomMode 时禁用） | L247-L253 |
+| `pagesToShow` | derived val — visible page window (±5 single, ±6 spread), sorted descending | L255-L259 |
+| Root Box | composable (gestures + rendering) | L261-L621 |
+| — tap/drag/pinch awaitEachGesture pointerInput | 正常模式：1/3 点按三区/拖拽翻页；**双指捏合：进入缩放（>1.05 触发 onZoomModeEnter），span 比例缩放 + 质心平移，捏回 ≤1.01 恢复**；缩放模式：单指平移（钳制）、双击恢复；全部 change 消费 | L266-L497 |
+| — 内容 graphicsLayer 容器 | scaleX/Y = renderZoom，translation = renderPan（缩放模式整体缩放/平移，横屏双页为一个整体） | L502-L511 |
+| — Spread branch | gap fill Box、pages loop（L534 refPage：动画期 = lastPage 保证两对页滑动衔接）、gradient edge masks；页面用 ScorePageImage 图层渲染 | L512-L388→L512-L587 |
+| — Single branch | pages loop；base when（L599-L605）/pageOffsetX when（L607-L613）：动画期以 lastPage 锚定滑出页（消除 currentPage 滞后窗口的前一页闪现）、拖拽期当前页/前页跟手、后续页停靠 stageWidth 防透闪 | L589-L620 |
 
 ---
 
@@ -403,7 +403,7 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 14. data/model/ViewerState.kt (L1-L113)
+### 14. data/model/ViewerState.kt (L1-L117)
 
 | Element | Type | Lines |
 |---|---|---|

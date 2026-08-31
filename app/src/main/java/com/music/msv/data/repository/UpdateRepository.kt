@@ -58,7 +58,8 @@ class UpdateRepository(private val context: Context) {
         val versionName: String,
         val versionCode: Long,
         val apkUrl: String,
-        val source: String
+        val source: String,
+        val notes: String
     )
 
     /** 读取根目录 version.json 静态清单（raw 静态文件不走 API 配额）：Gitee raw 优先，GitHub raw 兜底 */
@@ -72,6 +73,7 @@ class UpdateRepository(private val context: Context) {
             val code = json.optLong("versionCode")
             val giteeUrl = json.optString("apkUrlGitee")
             val githubUrl = json.optString("apkUrlGitHub")
+            val notes = json.optString("notes")
             if (name.isEmpty() || code <= 0L) return null
             val url = if (giteeUrl.isNotEmpty()) giteeUrl else githubUrl
             if (url.isEmpty()) return null
@@ -79,7 +81,8 @@ class UpdateRepository(private val context: Context) {
                 versionName = name,
                 versionCode = code,
                 apkUrl = url,
-                source = if (giteeUrl.isNotEmpty()) "Gitee" else "GitHub"
+                source = if (giteeUrl.isNotEmpty()) "Gitee" else "GitHub",
+                notes = notes
             )
         } catch (_: Exception) {
             null

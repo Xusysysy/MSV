@@ -74,6 +74,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     private var singleRenderJob: Job? = null
     private var downloadJob: Job? = null
+    private var preZoomShowUI = true
 
     init {
         FaceLog.d("MSV_VM", "ViewerViewModel init")
@@ -181,6 +182,8 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             is ViewerEvent.AddBookmark -> addBookmark(event.page, event.title, event.color)
             is ViewerEvent.DeleteBookmark -> deleteBookmark(event.id)
             is ViewerEvent.RenameBookmark -> renameBookmark(event.id, event.title, event.color)
+            ViewerEvent.EnterZoomMode -> enterZoomMode()
+            ViewerEvent.ExitZoomMode -> exitZoomMode()
         }
     }
 
@@ -241,6 +244,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                         zoom = 1f,
                         panOffsetX = 0f,
                         panOffsetY = 0f,
+                        zoomMode = false,
                         pageUris = emptyMap(),
                         pageWidth = 0,
                         pageHeight = 0
@@ -275,6 +279,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 zoom = 1f,
                 panOffsetX = 0f,
                 panOffsetY = 0f,
+                zoomMode = false,
                 pageUris = uris.mapIndexed { i, u -> i to u }.toMap(),
                 pageWidth = 0,
                 pageHeight = 0
@@ -746,6 +751,20 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         writePdfBookmarks()
     }
 
+    /** 进入缩放模式：捕获进入前的顶栏状态并收起顶栏/底栏，禁用翻页 */
+    private fun enterZoomMode() {
+        if (_uiState.value.zoomMode) return
+        preZoomShowUI = _uiState.value.showUI
+        _uiState.update { it.copy(zoomMode = true, showUI = false, pendingFlip = null) }
+    }
+
+    /** 退出缩放模式：恢复进入前的顶栏状态，缩放/平移归位 */
+    private fun exitZoomMode() {
+        _uiState.update {
+            it.copy(zoomMode = false, zoom = 1f, panOffsetX = 0f, panOffsetY = 0f, showUI = preZoomShowUI)
+        }
+    }
+
     private fun toggleTheme() {
         _uiState.update { it.copy(isDarkTheme = !it.isDarkTheme) }
     }
@@ -798,8 +817,8 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 if (newer) {
                     val candidate = UpdateInfo(
                         tag = manifest.versionName,
-                        notes = "",
-                        fullNotes = "",
+                        notes = manifest.notes.take(1200),
+                        fullNotes = manifest.notes,
                         apkUrl = manifest.apkUrl,
                         source = "清单(${manifest.source})"
                     )

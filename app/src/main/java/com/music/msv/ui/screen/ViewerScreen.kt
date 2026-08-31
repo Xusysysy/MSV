@@ -16,10 +16,16 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -38,6 +44,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.music.msv.data.model.Mode
 import com.music.msv.data.model.ViewerEvent
 import com.music.msv.ui.components.EmptyView
@@ -117,6 +124,7 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                             zoom = state.zoom,
                             panOffsetX = state.panOffsetX,
                             panOffsetY = state.panOffsetY,
+                            zoomMode = state.zoomMode,
                             isSpreadMode = state.isSpreadMode,
                             pendingFlip = state.pendingFlip,
                             onCenterTap = { viewModel.onEvent(ViewerEvent.ToggleUI) },
@@ -338,7 +346,26 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                 AlertDialog(
                     onDismissRequest = { viewModel.onEvent(ViewerEvent.DismissUpdateDialog) },
                     title = { Text("发现新版本 v${info.tag}") },
-                    text = { Text("${info.notes}\n\n来源：${info.source}") },
+                    text = {
+                        Column(
+                            modifier = Modifier
+                                .heightIn(max = 380.dp)
+                                .verticalScroll(rememberScrollState())
+                        ) {
+                            Text(
+                                if (info.notes.isBlank()) "暂无更新日志" else info.notes,
+                                color = if (isDark) Color(0xFFF5F7FF) else Color(0xFF1B2230),
+                                fontSize = 13.sp,
+                                lineHeight = 18.sp
+                            )
+                            Spacer(Modifier.height(10.dp))
+                            Text(
+                                "来源：${info.source}",
+                                color = if (isDark) Color(0xFF8CC8FF) else Color(0xFF2F6AD9),
+                                fontSize = 12.sp
+                            )
+                        }
+                    },
                     confirmButton = {
                         TextButton(onClick = {
                             viewModel.onEvent(ViewerEvent.DownloadUpdate)

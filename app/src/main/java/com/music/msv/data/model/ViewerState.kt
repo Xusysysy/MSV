@@ -40,7 +40,8 @@ data class ViewerState(
     val versionNotes: String = "",
     val versionNotesLoading: Boolean = false,
     val downloadProgress: Int = 0,
-    val bookmarks: List<PageBookmark> = emptyList()
+    val bookmarks: List<PageBookmark> = emptyList(),
+    val zoomMode: Boolean = false
 )
 
 enum class ShelfSort { NAME, DATE }
@@ -85,6 +86,8 @@ sealed class ViewerEvent {
     data class AddBookmark(val page: Int, val title: String, val color: Int) : ViewerEvent()
     data class DeleteBookmark(val id: String) : ViewerEvent()
     data class RenameBookmark(val id: String, val title: String, val color: Int) : ViewerEvent()
+    data object EnterZoomMode : ViewerEvent()
+    data object ExitZoomMode : ViewerEvent()
 }
 
 data class ShelfFile(

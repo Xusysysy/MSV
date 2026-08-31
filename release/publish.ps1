@@ -30,18 +30,6 @@ $tag = $verName   # tag 与 versionName 必须一致（OTA 版本比较的前提
 $apkName = "MSV-ScoreViewer-v$verName-release.apk"
 Write-Host "[publish] 版本: v$verName (versionCode=$verCode) tag=$tag"
 
-# ── 1.5 同步根目录 version.json（应用走 raw 静态清单检测，须提交推送才能被读取）──
-$verJson = @{
-    versionName  = $verName
-    versionCode  = $verCode
-    apkUrlGitee  = "https://gitee.com/$Owner/$Repo/releases/download/$tag/$apkName"
-    apkUrlGitHub = "https://github.com/$GhRepo/releases/download/$tag/$apkName"
-} | ConvertTo-Json
-[IO.File]::WriteAllText("$PSScriptRoot\..\version.json", $verJson, (New-Object System.Text.UTF8Encoding($false)))
-git add version.json
-git commit -m "chore: sync version.json to v$verName" | Out-Null
-if ($LASTEXITCODE -eq 0) { git push origin | Out-Null; git push gitee | Out-Null }
-
 # ── 2. 发布说明 ──
 if (-not $NoteFile) { $NoteFile = "release\releasenote$verCode.md" }
 $body = $tag
@@ -50,6 +38,19 @@ if (Test-Path $NoteFile) {
     $body = [IO.File]::ReadAllText($NoteFile, [Text.Encoding]::UTF8)
 }
 else { Write-Warning "[publish] 未找到发布说明 $NoteFile，body 将仅含版本号" }
+
+# ── 2.5 同步根目录 version.json（应用走 raw 静态清单检测，含 notes 更新日志；须提交推送才能被读取）──
+$verJson = @{
+    versionName  = $verName
+    versionCode  = $verCode
+    apkUrlGitee  = "https://gitee.com/$Owner/$Repo/releases/download/$tag/$apkName"
+    apkUrlGitHub = "https://github.com/$GhRepo/releases/download/$tag/$apkName"
+    notes        = $body
+} | ConvertTo-Json
+[IO.File]::WriteAllText("$PSScriptRoot\..\version.json", $verJson, (New-Object System.Text.UTF8Encoding($false)))
+git add version.json
+git commit -m "chore: sync version.json to v$verName" | Out-Null
+if ($LASTEXITCODE -eq 0) { git push origin | Out-Null; git push gitee | Out-Null }
 
 # ── 3. 构建 ──
 if (-not $SkipBuild) {
