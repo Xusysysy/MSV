@@ -1,7 +1,7 @@
 {
-    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.2.7/MSV-ScoreViewer-v2.2.7-release.apk",
-    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.2.7/MSV-ScoreViewer-v2.2.7-release.apk",
-    "versionCode":  30,
-    "versionName":  "2.2.7",
-    "notes":  "# MSV 乐谱查看器 v2.2.7\n\n## 新增\n\n- **IMSLP 乐谱库（应用内搜索/下载/导入）**：谱架新增\"IMSLP 导入\"入口\n  - 搜索作品与作曲家（IMSLP MediaWiki API），结果分组清晰\n  - 进入作曲家页可浏览其全部作品；进入作品页显示调性/创作年份/乐章数等介绍与全部可下载版本\n  - 不同版本一键下载（带进度），完成后自动导入谱架并打开\n  - IMSLP 人机验证（Bot Check）触发时，弹窗内嵌网页由**用户本人**完成验证后自动续传下载——应用不做任何绕过\n\n## 说明\n\n- 仅面向公有领域乐谱的个人使用便利，非商业用途\n\nversionCode=30, versionName=2.2.7\n"
+    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.2.8/MSV-ScoreViewer-v2.2.8-release.apk",
+    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.2.8/MSV-ScoreViewer-v2.2.8-release.apk",
+    "versionCode":  31,
+    "versionName":  "2.2.8",
+    "notes":  "# MSV 乐谱查看器 v2.2.8\n\n## 修复\n\n- **IMSLP 下载误报\"响应非 PDF\"**：\n  - 200 响应的人机验证页此前从 errorStream 读取（恒为空）导致检测失效——现从正确流读取内容，Bot Check 可被正确识别并弹出验证引导\n  - PDF 判定改为**魔数校验**（响应前缀 `%PDF-`），兼容服务端以 octet-stream 等非标准 Content-Type 返回的真实乐谱文件\n\nversionCode=31, versionName=2.2.8\n"
 }
