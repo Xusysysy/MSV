@@ -163,7 +163,7 @@ Single-screen app — no Navigation component. State-based content switching via
 | — — ShelfPanel (AnimatedVisibility, slide+left) | composable | L251-L267 |
 | — Page jump AlertDialog | composable | L270-L298 |
 | — Reset/Reload AlertDialog | composable | L300-L318 |
-| — Update AlertDialog ("发现新版本": 立即更新/以后再说) | composable | L320-L338 |
+| — Update AlertDialog ("发现新版本": 日志默认折叠可展开滚动/立即更新/以后再说) | composable | L344-L397 |
 | — FaceRecognitionOverlay wiring (visible/onDismiss/onToggle/manager) | composable | L340-L347 |
 
 ---
@@ -184,7 +184,7 @@ Single-screen app — no Navigation component. State-based content switching via
 | LaunchedEffect(currentPendingFlip) | face-triggered pending flip → doFlip（zoomMode 时禁用） | L247-L253 |
 | `pagesToShow` | derived val — visible page window (±5 single, ±6 spread), sorted descending | L255-L259 |
 | Root Box | composable (gestures + rendering) | L261-L621 |
-| — tap/drag/pinch awaitEachGesture pointerInput | 正常模式：1/3 点按三区/拖拽翻页；**双指捏合：检测到双指瞬间进入缩放模式（onZoomModeEnter 隐藏悬浮组件），span 比例缩放 + 质心平移，松手保留放大（renderZoom>1.01 确保缩放模式），捏回 ≤1.01 动画恢复并退出**；缩放模式：单指平移（钳制）、双击恢复；全部 change 消费 | L266-L497 |
+| — tap/drag/pinch awaitEachGesture pointerInput | 正常模式：1/3 点按三区/拖拽翻页；**双指捏合：检测到双指瞬间进入缩放模式（onZoomModeEnter 隐藏悬浮组件），span 比例缩放 + 质心平移，松手保留放大（renderZoom>1.01 确保缩放模式），捏回 ≤1.01 动画恢复并退出**；缩放模式：单指平移（钳制）、双击恢复；全部 change 消费；中央双击（正常模式）进入缩放+2x、（缩放模式）<2x→2x/≥2x 恢复退出；捏合转单指重锚定防跳变 | L266-L520 |
 | — 内容 graphicsLayer 容器 | scaleX/Y = renderZoom，translation = renderPan（缩放模式整体缩放/平移，横屏双页为一个整体） | L502-L511 |
 | — Spread branch | gap fill Box、pages loop（L534 refPage：动画期 = lastPage 保证两对页滑动衔接）、gradient edge masks；页面用 ScorePageImage 图层渲染 | L512-L388→L512-L587 |
 | — Single branch | pages loop；base when（L599-L605）/pageOffsetX when（L607-L613）：动画期以 lastPage 锚定滑出页（消除 currentPage 滞后窗口的前一页闪现）、拖拽期当前页/前页跟手、后续页停靠 stageWidth 防透闪 | L589-L620 |

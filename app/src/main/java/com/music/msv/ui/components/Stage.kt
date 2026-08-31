@@ -278,6 +278,7 @@ fun Stage(
                     var pinchLastCx = 0f
                     var pinchLastCy = 0f
                     var moved = false
+                    var wasPinching = false
                     var isDrag = false
                     var activeDir = 0
                     var reversed = false
@@ -326,19 +327,49 @@ fun Stage(
                                                     doFlip(1, 0f, easing = true)
                                                 } else doBounce(1)
                                             }
-                                            else -> onCenterTap()
+                                            else -> {
+                                                // 中央双击：进入缩放模式并步进放大到 2x（先撤销首次点按的 UI 切换）
+                                                val now = System.currentTimeMillis()
+                                                if (now - lastTapTime < 300 && abs(downX - lastTapX) < 48.dp.toPx() && abs(downY - lastTapY) < 48.dp.toPx()) {
+                                                    lastTapTime = 0L
+                                                    onCenterTap()
+                                                    onZoomModeEnter()
+                                                    scope.launch {
+                                                        renderZoom.animateTo(2f, tween(220))
+                                                        val maxX = (renderZoom.value - 1f) * stageWidth / 2f
+                                                        val maxY = (renderZoom.value - 1f) * stageHeight / 2f
+                                                        renderPanX.snapTo(renderPanX.value.coerceIn(-maxX, maxX))
+                                                        renderPanY.snapTo(renderPanY.value.coerceIn(-maxY, maxY))
+                                                    }
+                                                } else {
+                                                    onCenterTap()
+                                                    lastTapTime = now
+                                                    lastTapX = downX
+                                                    lastTapY = downY
+                                                }
+                                            }
                                         }
                                     }
                                 } else {
-                                    // 缩放模式单击：双击检测（两次快速点按恢复）
+                                    // 缩放模式单击：双击检测（<2x 步进放大到 2x，≥2x 恢复退出）
                                     val now = System.currentTimeMillis()
                                     if (now - lastTapTime < 300 && abs(downX - lastTapX) < 48.dp.toPx() && abs(downY - lastTapY) < 48.dp.toPx()) {
                                         lastTapTime = 0L
-                                        scope.launch {
-                                            renderZoom.animateTo(1f, tween(220))
-                                            renderPanX.animateTo(0f, tween(220))
-                                            renderPanY.animateTo(0f, tween(220))
-                                            onZoomModeExit()
+                                        if (renderZoom.value < 2f) {
+                                            scope.launch {
+                                                renderZoom.animateTo(2f, tween(220))
+                                                val maxX = (renderZoom.value - 1f) * stageWidth / 2f
+                                                val maxY = (renderZoom.value - 1f) * stageHeight / 2f
+                                                renderPanX.snapTo(renderPanX.value.coerceIn(-maxX, maxX))
+                                                renderPanY.snapTo(renderPanY.value.coerceIn(-maxY, maxY))
+                                            }
+                                        } else {
+                                            scope.launch {
+                                                renderZoom.animateTo(1f, tween(220))
+                                                renderPanX.animateTo(0f, tween(220))
+                                                renderPanY.animateTo(0f, tween(220))
+                                                onZoomModeExit()
+                                            }
                                         }
                                     }
                                 }
@@ -366,6 +397,7 @@ fun Stage(
                             val cy = (a.y + b.y) / 2f
                             if (!pinching) {
                                 pinching = true
+                                wasPinching = true
                                 // 检测到双指：一瞬间进入缩放模式（隐藏悬浮组件/禁用翻页）
                                 if (!currentZoomMode) onZoomModeEnter()
                                 flipJob?.cancel()
@@ -376,6 +408,7 @@ fun Stage(
                                 pinchStartCx = cx; pinchStartCy = cy
                                 pinchLastCx = cx; pinchLastCy = cy
                             } else {
+                                wasPinching = true
                                 val newZoom = (pinchStartZoom * span / pinchStartSpan).coerceIn(1f, 8f)
                                 val dx = cx - pinchLastCx
                                 val dy = cy - pinchLastCy
@@ -400,11 +433,23 @@ fun Stage(
                                     val now = System.currentTimeMillis()
                                     if (now - lastTapTime < 300 && abs(change.position.x - lastTapX) < 48.dp.toPx() && abs(change.position.y - lastTapY) < 48.dp.toPx()) {
                                         lastTapTime = 0L
-                                        scope.launch {
-                                            renderZoom.animateTo(1f, tween(220))
-                                            renderPanX.animateTo(0f, tween(220))
-                                            renderPanY.animateTo(0f, tween(220))
-                                            onZoomModeExit()
+                                        if (renderZoom.value < 2f) {
+                                            // 双击步进放大到 2x（固定比例）
+                                            scope.launch {
+                                                renderZoom.animateTo(2f, tween(220))
+                                                val maxX = (renderZoom.value - 1f) * stageWidth / 2f
+                                                val maxY = (renderZoom.value - 1f) * stageHeight / 2f
+                                                renderPanX.snapTo(renderPanX.value.coerceIn(-maxX, maxX))
+                                                renderPanY.snapTo(renderPanY.value.coerceIn(-maxY, maxY))
+                                            }
+                                        } else {
+                                            // 已 ≥2x：双击恢复并退出缩放模式
+                                            scope.launch {
+                                                renderZoom.animateTo(1f, tween(220))
+                                                renderPanX.animateTo(0f, tween(220))
+                                                renderPanY.animateTo(0f, tween(220))
+                                                onZoomModeExit()
+                                            }
                                         }
                                     } else {
                                         lastTapTime = now
@@ -413,15 +458,22 @@ fun Stage(
                                     }
                                 }
                             } else {
-                                val dx = change.position.x - lastX
-                                val dy = change.position.y - lastY
-                                lastX = change.position.x; lastY = change.position.y
-                                if (abs(dx) > 0.5f || abs(dy) > 0.5f) moved = true
-                                scope.launch {
-                                    val maxX = (renderZoom.value - 1f) * stageWidth / 2f
-                                    val maxY = (renderZoom.value - 1f) * stageHeight / 2f
-                                    renderPanX.snapTo((renderPanX.value + dx).coerceIn(-maxX, maxX))
-                                    renderPanY.snapTo((renderPanY.value + dy).coerceIn(-maxY, maxY))
+                                if (wasPinching) {
+                                    // 捏合结束转单指：重锚定平移基准，消除跳变（保持与松手前对齐）
+                                    wasPinching = false
+                                    lastX = change.position.x
+                                    lastY = change.position.y
+                                } else {
+                                    val dx = change.position.x - lastX
+                                    val dy = change.position.y - lastY
+                                    lastX = change.position.x; lastY = change.position.y
+                                    if (abs(dx) > 0.5f || abs(dy) > 0.5f) moved = true
+                                    scope.launch {
+                                        val maxX = (renderZoom.value - 1f) * stageWidth / 2f
+                                        val maxY = (renderZoom.value - 1f) * stageHeight / 2f
+                                        renderPanX.snapTo((renderPanX.value + dx).coerceIn(-maxX, maxX))
+                                        renderPanY.snapTo((renderPanY.value + dy).coerceIn(-maxY, maxY))
+                                    }
                                 }
                             }
                             event.changes.forEach { it.consume() }
@@ -448,7 +500,27 @@ fun Stage(
                                                 doFlip(1, 0f, easing = true)
                                             } else doBounce(1)
                                         }
-                                        else -> onCenterTap()
+                                        else -> {
+                                            // 中央双击：进入缩放模式并步进放大到 2x（先撤销首次点按的 UI 切换）
+                                            val now = System.currentTimeMillis()
+                                            if (now - lastTapTime < 300 && abs(change.position.x - lastTapX) < 48.dp.toPx() && abs(change.position.y - lastTapY) < 48.dp.toPx()) {
+                                                lastTapTime = 0L
+                                                onCenterTap()
+                                                onZoomModeEnter()
+                                                scope.launch {
+                                                    renderZoom.animateTo(2f, tween(220))
+                                                    val maxX = (renderZoom.value - 1f) * stageWidth / 2f
+                                                    val maxY = (renderZoom.value - 1f) * stageHeight / 2f
+                                                    renderPanX.snapTo(renderPanX.value.coerceIn(-maxX, maxX))
+                                                    renderPanY.snapTo(renderPanY.value.coerceIn(-maxY, maxY))
+                                                }
+                                            } else {
+                                                onCenterTap()
+                                                lastTapTime = now
+                                                lastTapX = change.position.x
+                                                lastTapY = change.position.y
+                                            }
+                                        }
                                     }
                                 }
                             } else {

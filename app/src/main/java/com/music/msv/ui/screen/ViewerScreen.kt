@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -131,6 +132,8 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                             onDoubleTap = { viewModel.onEvent(ViewerEvent.ResetZoom) },
                             onZoomChange = { viewModel.onEvent(ViewerEvent.SetZoom(it)) },
                             onPanChange = { dx, dy -> viewModel.onEvent(ViewerEvent.PanBy(dx, dy)) },
+                            onZoomModeEnter = { viewModel.onEvent(ViewerEvent.EnterZoomMode) },
+                            onZoomModeExit = { viewModel.onEvent(ViewerEvent.ExitZoomMode) },
                             onNextPage = { viewModel.onEvent(ViewerEvent.NextPage) },
                             onPrevPage = { viewModel.onEvent(ViewerEvent.PrevPage) },
                             onFlipDone = { viewModel.onEvent(ViewerEvent.FlipDone) },
@@ -343,21 +346,35 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
 
         if (state.showUpdateDialog) {
             state.updateInfo?.let { info ->
+                var logExpanded by remember { mutableStateOf(false) }
                 AlertDialog(
                     onDismissRequest = { viewModel.onEvent(ViewerEvent.DismissUpdateDialog) },
                     title = { Text("发现新版本 v${info.tag}") },
                     text = {
-                        Column(
-                            modifier = Modifier
-                                .heightIn(max = 380.dp)
-                                .verticalScroll(rememberScrollState())
-                        ) {
+                        Column {
                             Text(
-                                if (info.notes.isBlank()) "暂无更新日志" else info.notes,
-                                color = if (isDark) Color(0xFFF5F7FF) else Color(0xFF1B2230),
+                                if (logExpanded) "更新日志 ▾" else "更新日志 ▸",
+                                color = if (isDark) Color(0xFF8CC8FF) else Color(0xFF2F6AD9),
                                 fontSize = 13.sp,
-                                lineHeight = 18.sp
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { logExpanded = !logExpanded }
                             )
+                            if (logExpanded) {
+                                Spacer(Modifier.height(8.dp))
+                                Column(
+                                    modifier = Modifier
+                                        .heightIn(max = 300.dp)
+                                        .verticalScroll(rememberScrollState())
+                                ) {
+                                    Text(
+                                        if (info.notes.isBlank()) "暂无更新日志" else info.notes,
+                                        color = if (isDark) Color(0xFFF5F7FF) else Color(0xFF1B2230),
+                                        fontSize = 13.sp,
+                                        lineHeight = 18.sp
+                                    )
+                                }
+                            }
                             Spacer(Modifier.height(10.dp))
                             Text(
                                 "来源：${info.source}",
