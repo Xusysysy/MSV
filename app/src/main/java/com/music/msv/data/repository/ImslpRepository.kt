@@ -213,18 +213,38 @@ class ImslpRepository {
                 return@withContext DownloadResult.Error("HTTP $code")
             }
             val ctype = conn.contentType ?: ""
-            if (!ctype.contains("pdf", ignoreCase = true)) {
-                val body = conn.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
-                conn.disconnect()
-                return@withContext if (body.contains("Bot Check")) DownloadResult.BotCheck
-                else DownloadResult.Error("响应非 PDF（$ctype）")
-            }
             val total = conn.contentLengthLong
             conn.inputStream.use { input ->
+                // 魔数校验：读前 5 字节判断是否 %PDF-（Content-Type 可能是 octet-stream 等非标准值）
+                val head = ByteArray(5)
+                var off = 0
+                while (off < 5) {
+                    val n = input.read(head, off, 5 - off)
+                    if (n == -1) break
+                    off += n
+                }
+                val isPdfMagic = off == 5 && String(head, 0, 5, Charsets.US_ASCII) == "%PDF-"
+                if (!isPdfMagic) {
+                    // 非 PDF（门禁页/错误页）：继续读取有限内容判断 Bot Check（200 时响应体在 inputStream 而非 errorStream）
+                    val body = buildString {
+                        val buf = ByteArray(4096)
+                        var total = 0
+                        while (total < 20000) {
+                            val n = input.read(buf)
+                            if (n == -1) break
+                            append(String(buf, 0, n, Charsets.UTF_8))
+                            total += n
+                        }
+                    }
+                    conn.disconnect()
+                    return@withContext if (body.contains("Bot Check")) DownloadResult.BotCheck
+                    else DownloadResult.Error("响应非 PDF（$ctype）")
+                }
                 dest.outputStream().use { out ->
-                    val buf = ByteArray(8192)
-                    var done = 0L
+                    out.write(head, 0, off) // 先写入已读的魔数
+                    var done = off.toLong()
                     var lastPct = -1
+                    val buf = ByteArray(8192)
                     while (true) {
                         ensureActive() // 协作式取消
                         val n = input.read(buf)
