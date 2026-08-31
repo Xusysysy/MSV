@@ -1,7 +1,7 @@
 {
-    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.2.8/MSV-ScoreViewer-v2.2.8-release.apk",
-    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.2.8/MSV-ScoreViewer-v2.2.8-release.apk",
-    "versionCode":  31,
-    "versionName":  "2.2.8",
-    "notes":  "# MSV 乐谱查看器 v2.2.8\n\n## 修复\n\n- **IMSLP 下载误报\"响应非 PDF\"**：\n  - 200 响应的人机验证页此前从 errorStream 读取（恒为空）导致检测失效——现从正确流读取内容，Bot Check 可被正确识别并弹出验证引导\n  - PDF 判定改为**魔数校验**（响应前缀 `%PDF-`），兼容服务端以 octet-stream 等非标准 Content-Type 返回的真实乐谱文件\n\nversionCode=31, versionName=2.2.8\n"
+    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.2.9/MSV-ScoreViewer-v2.2.9-release.apk",
+    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.2.9/MSV-ScoreViewer-v2.2.9-release.apk",
+    "versionCode":  32,
+    "versionName":  "2.2.9",
+    "notes":  "# MSV 乐谱查看器 v2.2.9\n\n## 改进\n\n- **IMSLP 搜索结果两列网格**：作品结果改为两列卡片布局，每张卡片展示更完整的信息（标题 + 多行内容摘要）\n- **搜索数量放开**：作品搜索上限提升至 API 最大值 50 条，作曲家分类候选 20 条，作曲家作品列表最多 500 条\n- **人机验证自动弹出**：下载时遇到任何 IMSLP 门禁页（不限于 Bot Check）都直接切出内嵌网页验证步骤，用户完成检查后一键重试，不再出现\"响应非 PDF\"报错\n\nversionCode=32, versionName=2.2.9\n"
 }
