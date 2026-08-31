@@ -1,7 +1,7 @@
 {
-    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.2.3/MSV-ScoreViewer-v2.2.3-release.apk",
-    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.2.3/MSV-ScoreViewer-v2.2.3-release.apk",
-    "versionCode":  26,
-    "versionName":  "2.2.3",
-    "notes":  "# MSV 乐谱查看器 v2.2.3\n\n## 修复\n\n- **任意放大状态双击恢复正常模式**：之前仅 ≥2x 双击才恢复（\u003c2x 会继续放大）——现在任何放大状态（\u003e1x）双击都恢复到 1x 并退出缩放模式；仅 1x 时双击才步进放大到 2x\n\n## 新增\n\n- **未渲染页占位图**：页面尚未渲染完成时显示内置占位图（乐谱未加载/加载中），不再露出背景\n  - 启动时解码一次并常驻内存（全局单实例，任意页数复用，防缓存爆炸）\n  - 占位图→乐谱：真实页面渲染完成后 180ms 短暂渐变过渡，无跳变\n  - 深色主题下占位图随页面一起反色\n\n## 技术变更\n\n- 新增 res/drawable-nodpi/page_placeholder.jpg + PagePlaceholderCache 单例（VM init 预热）+ PageWithPlaceholder（占位底层+淡入）\n- Stage 双击阈值：\u003c2f → \u003e1.01f（恢复判定）\n- versionCode=26, versionName=2.2.3\n"
+    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.2.4/MSV-ScoreViewer-v2.2.4-release.apk",
+    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.2.4/MSV-ScoreViewer-v2.2.4-release.apk",
+    "versionCode":  27,
+    "versionName":  "2.2.4",
+    "notes":  "# MSV 乐谱查看器 v2.2.4\n\n## 修复\n\n- **真乐谱偶发被占位图覆盖**：翻页窗口滑动时页面槽位状态重置导致已加载的真实页淡出回占位图——现在已渲染页在槽位复用时直接可见（淡入仅发生在\"未渲染→渲染完成\"的首次过渡）\n- **缩放模式双击恢复失效**：触摸传感器 0.5px 级抖动被误判为拖动，吞掉了双击判定——改为相对按下点位移超过 24dp 才算拖动，双击恢复正常\n\n## 新增\n\n- **支持开发者**：设置页底部\"开源许可\"右侧新增\"支持开发者 ❤\"入口，弹窗左侧展示微信收款码、右侧是制作路程与感想\n\nversionCode=27, versionName=2.2.4\n"
 }
