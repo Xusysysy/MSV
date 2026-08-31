@@ -1,4 +1,4 @@
-# MSV OTA 双平台发布脚本（PowerShell 5.1+）
+﻿# MSV OTA 双平台发布脚本（PowerShell 5.1+）
 # 用法: powershell -ExecutionPolicy Bypass -File release\publish.ps1 [-SkipBuild] [-NoUpload] [-SkipTag] [-NoteFile <path>]
 # 流程: 解析版本 → assembleRelease → 复制 APK → tag(=versionName) 推送双远程
 #       → GitHub gh release → Gitee REST API（token: $env:MSV_GITEE_TOKEN）
