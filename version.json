@@ -1,7 +1,7 @@
 {
-    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.3.0/MSV-ScoreViewer-v2.3.0-release.apk",
-    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.3.0/MSV-ScoreViewer-v2.3.0-release.apk",
-    "versionCode":  33,
-    "versionName":  "2.3.0",
-    "notes":  "# MSV 乐谱查看器 v2.3.0\n\n## 改进\n\n- **IMSLP 人机验证环境与真实浏览器统一**：\n  - 内嵌网页的浏览器标识（User-Agent）与下载请求完全一致——验证放行凭证绑定 UA+IP，两端一致后验证才能生效\n  - 验证页直接加载触发门禁的下载直链（原生\"Start Verification\"按钮与验证组件原样呈现）\n  - WebView 能力全开：第三方 Cookie、DOM 存储、混合内容、弹窗接管（新窗口统一在当前页打开）\n- **作曲家作品列表改为两列网格**（与搜索结果一致）\n\nversionCode=33, versionName=2.3.0\n"
+    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.3.1/MSV-ScoreViewer-v2.3.1-release.apk",
+    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.3.1/MSV-ScoreViewer-v2.3.1-release.apk",
+    "versionCode":  34,
+    "versionName":  "2.3.1",
+    "notes":  "# MSV 乐谱查看器 v2.3.1\n\n## 修复\n\n- **IMSLP 人机验证成功后自动继续下载**：验证成功页是瞬时的（通过后页面会自动重载出新挑战，看起来像\"闪回\"）——现在每秒检测 WebView 页面状态，捕获到验证成功（Bot Check Passed / verify successfully）后 1.5 秒自动继续下载，无需再手动点击重试\n- 自动续传最多尝试 2 次（防止验证未生效时无限循环）；手动\"重试下载\"按钮始终可用\n\nversionCode=34, versionName=2.3.1\n"
 }
