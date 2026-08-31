@@ -456,7 +456,17 @@ fun ImslpDialog(
                                     // 免责 cookie 必须进 WebView cookie 罐：缺它时门禁页会降级（验证组件不渲染）
                                     CookieManager.getInstance().setCookie("https://imslp.org/", "imslpdisclaimeraccepted=yes; Domain=.imslp.org; Path=/")
                                     CookieManager.getInstance().flush()
-                                    webViewClient = WebViewClient()
+                                    webViewClient = object : WebViewClient() {
+                                        override fun onPageFinished(view: WebView, url: String) {
+                                            super.onPageFinished(view, url)
+                                            // 蜜罐守卫：门禁页 _sc() 发现隐藏 email/url 输入框有值（输入法/自动填充写入）
+                                            // 会静默中止验证组件加载——每 400ms 清空一次确保点击 Start 时为空
+                                            view.evaluateJavascript(
+                                                "(function(){ setInterval(function(){ document.querySelectorAll('.pld').forEach(function(i){ i.value=''; }); }, 400); })();",
+                                                null
+                                            )
+                                        }
+                                    }
                                     // 弹窗类验证组件可能在新建窗口打开：统一接管到本 WebView
                                     webChromeClient = object : android.webkit.WebChromeClient() {
                                         override fun onCreateWindow(
@@ -501,6 +511,12 @@ fun ImslpDialog(
                     Spacer(Modifier.height(8.dp))
 
                     // 验证组件加载失败检测：mtcaptcha 为境外第三方服务，其脚本在部分网络不可达（浏览器同样受影响）
+                    LaunchedEffect(s.pdf.filename) {
+                        delay(15000)
+                        if (!busy) {
+                            statusText = "若始终无法通过验证，请稍后重试（可能为 IMSLP 侧问题，可邮件联系 eguo@imslp.org）"
+                        }
+                    }
                     LaunchedEffect(s.pdf.filename) {
                         delay(12000)
                         webViewRef?.evaluateJavascript("(document.body ? document.body.innerText : '')") { v ->
