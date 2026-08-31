@@ -143,7 +143,8 @@ $env:JAVA_HOME = "D:\software\AndroidStudio\jbr"; .\gradlew.bat assembleDebug
    脚本自动：`assembleRelease` → 复制 APK 到 `release/` → 打 tag(=versionName) + 推送双远程 → GitHub `gh release create/upload --clobber` → Gitee REST API 创建 release + 上传附件。
 4. Gitee 上传依赖环境变量 `MSV_GITEE_TOKEN`（已配置在用户级，永不写入仓库）。缺失时脚本会打印手动上传指引并跳过 Gitee。
 5. 干跑参数：`-SkipBuild`（复用已构建 APK）、`-NoUpload`（只打 tag 不发 release）、`-SkipTag`（tag 已打过后断点续传上传步骤）。
-6. 发布后验证：两平台 release 页面可见新版本 + APK 附件；旧版本包冷启动应弹更新窗。
+6. **Gitee 仓库附件总配额 1GB**：上传报"文件大小已超出仓库附件配额"时，清理**过渡版本** Release 的 APK 附件（Gitee 网页编辑删除；本地 `release/` 留有全部副本可重传），保留最近 2-3 个版本与最新稳定版
+7. 发布后验证：两平台 release 页面可见新版本 + APK 附件；旧版本包冷启动应弹更新窗。
 
 注意事项：
 - release APK 使用 debug 签名（build.gradle.kts）——换签名密钥会导致用户无法覆盖安装，OTA 断链。
