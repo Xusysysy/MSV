@@ -171,7 +171,7 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 7. ui/components/Stage.kt (L1-L774)
+### 7. ui/components/Stage.kt (L1-L790)
 
 | Element | Type | Lines |
 |---|---|---|
@@ -188,7 +188,7 @@ Single-screen app — no Navigation component. State-based content switching via
 | `pagesToShow` | derived val — visible page window (±5 single, ±6 spread), sorted descending | L255-L259 |
 | Root Box | composable (gestures + rendering) | L261-L621 |
 | — VM 缩放/平移同步 LaunchedEffect | zoom/pan 变化 → snapTo（**`!renderZoom.isRunning` 时才覆盖——退出缩放的动画过渡不被吞掉**） | L229-L240 |
-| — tap/drag/pinch awaitEachGesture pointerInput | 正常模式：1/3 点按三区/拖拽翻页；**双击窗口 400ms**；**双击手指微动超 touchSlop 的兜底：路径最大净位移 maxNetDisp<24dp 时仍按单击处理（修复双击失效）**；**双指捏合：...捏回 ≤1.02 动画恢复并退出（松手时）/捏合过程中 newZoom≤1.02 自动动画退出（pinchExited 防本次手势重入）**；缩放模式：单指平移（钳制）、双击恢复（**修复：缩放模式单击现在会记录 lastTapTime，双击第二击才能判定**）；全部 change 消费；捏合转单指重锚定防跳变 | L319-L635 |
+| — tap/drag/pinch awaitEachGesture pointerInput | 正常模式：1/3 点按三区/拖拽翻页；**双击窗口 400ms**；**双击手指微动超 touchSlop 的兜底：路径最大净位移 maxNetDisp<24dp 时仍按单击处理（修复双击失效）**；**双指捏合：...捏回 ≤1.02 动画恢复并退出（松手时）/捏合过程中 newZoom≤1.02 自动动画退出（pinchExited 防本次手势重入）**；**缩放以双指起始中点为焦点（局部 curZoom/curPanX/Y 同步追踪做焦点补偿，消除异步 snapTo 滞后误差）**；缩放模式：单指平移（钳制）、双击恢复（**恢复动画 zoom/pan 并行一步到位**）；全部 change 消费；捏合转单指重锚定防跳变 | L319-L650 |
 | — 内容 graphicsLayer 容器 | scaleX/Y = renderZoom，translation = renderPan（缩放模式整体缩放/平移，横屏双页为一个整体） | L502-L511 |
 | — Spread branch | gap fill Box、pages loop（L534 refPage：动画期 = lastPage 保证两对页滑动衔接）、gradient edge masks；页面用 PageWithPlaceholder（占位图+淡入）渲染 | L512-L388→L512-L587 |
 | — Single branch | pages loop；base when（L599-L605）/pageOffsetX when（L607-L613）：动画期以 lastPage 锚定滑出页（消除 currentPage 滞后窗口的前一页闪现）、拖拽期当前页/前页跟手、后续页停靠 stageWidth 防透闪；PageWithPlaceholder（占位图+淡入）渲染 | L589-L620 |
@@ -267,7 +267,7 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 11b. ui/components/ShelfPanel.kt (L1-L303)
+### 11b. ui/components/ShelfPanel.kt (L1-L354)
 
 | Element | Type | Lines |
 |---|---|---|
@@ -282,9 +282,9 @@ Single-screen app — no Navigation component. State-based content switching via
 | — — Import button ("+ 导入乐谱") | L127-L147 |
 | — — Sort trigger (↓/A) + DropdownMenu（按日期排序/按名称排序，当前项 accent+✓） | L149-L175 |
 | — Empty state Text ("暂无导入的乐谱") | L177-L187 |
-| — LazyVerticalGrid (2 cols, 渲染 sortedFiles) | L188-L240 |
-| — — itemsIndexed → Column（combinedClickable: click→打开, longClick→menuTarget） | L181-L239 |
-| — — — Thumbnail (AsyncImage or 🎼 fallback) | L196-L214 |
+| — **LazyVerticalStaggeredGrid (双列瀑布流，渲染 sortedFiles)**：卡片高度按缩略图真实比例（thumbAspect）+ 文件名行数自适应，自然错开无留空 | L227-L320 |
+| — — 卡片 Column（combinedClickable: click→打开, longClick→menuTarget） | L233-L318 |
+| — — — Thumbnail（AsyncImage or 🎼 fallback；**aspectRatio(thumbAspect)、有缩略图时背景透明（无灰底）**） | L248-L273 |
 | — — — File name Text | L215-L222 |
 | — — — DropdownMenu 长按菜单：重命名 / 删除（danger 红字，需确认） | L223-L236 |
 | Delete AlertDialog（二次确认："确定删除…此操作不可恢复"） | L241-L262 |
@@ -329,7 +329,7 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 13. viewmodel/ViewerViewModel.kt (L1-L1118)
+### 13. viewmodel/ViewerViewModel.kt (L1-L1187)
 
 | Element | Type | Lines |
 |---|---|---|
@@ -380,8 +380,10 @@ Single-screen app — no Navigation component. State-based content switching via
 | `setShelfSort(sort)` | private fun — 显式设置排序方式并重载谱架 | L533-L538 |
 | `deleteShelfFile(uri)` | private fun — 删除文件 + 清理页面/缩略图缓存 + 删除当前打开谱子时回到空闲态 + 重载谱架 | L540-L569 |
 | `setSpreadMode(spread)` | private fun — on enable, aligns current page to even index | L571-L578 |
-| `loadShelfFiles()` | private fun — sorts by shelfSortBy, maps to ShelfFile, generates PDF thumbnails per file | L580-L609 |
-| `generatePdfThumbnail(fileUri)` | private fun — renders page 0 at 200px PNG, caches by path hash | L611-L635 |
+| `loadShelfFiles()` | private fun — sorts by shelfSortBy, maps to ShelfFile（**图片文件即解码边界带 thumbAspect**）, generates PDF thumbnails per file（**回填 thumbnailUri+thumbAspect**） | L632-L667 |
+| `imageAspect(uri)` | private fun — 图片宽/高比（inJustDecodeBounds，不加载位图） | L669-L676 |
+| `generatePdfThumbnail(fileUri)` | private fun — renders page 0 at 200px PNG, caches by path hash, **返回 Pair<Uri, Float?>（含宽/高比）** | L677-L706 |
+| `pngAspect(file)` | private fun — 缓存 PNG 宽/高比（inJustDecodeBounds） | L707-L716 |
 | `renameShelfFile(oldUri, newName)` | private fun — renames file, refreshes shelf, reopens at same page | L637-L657 |
 | `openShelfFile(uri)` | private fun — closes shelf, restores page via pageMap[name] | L659-L674 |
 | `readPdfBookmarks(uri)` | private fun — pdfbox 读取 PDF 原生 Document Outline → List<PageBookmark>（颜色编码 "#RRGGBB|标题"） | L676-L697 |
@@ -458,7 +460,7 @@ Single-screen app — no Navigation component. State-based content switching via
 | — `AddBookmark(page, title, color)` | data class | L84 |
 | — `DeleteBookmark(id)` | data class | L85 |
 | — `RenameBookmark(id, title)` | data class | L86 |
-| `ShelfFile` | data class (4 fields) | L89-L94 |
+| `ShelfFile` | data class (5 fields) — name, uri, thumbnailUri, lastModified, **thumbAspect（缩略图宽/高比，瀑布流自适应）** | L95-L101 |
 | Fields: | name(String), uri(Uri), thumbnailUri(Uri?), lastModified(Long) | L90-L93 |
 | `UpdateInfo` | data class (5 fields) — tag, notes(摘要), fullNotes(完整更新日志), apkUrl, source | L96-L102 |
 | Fields: | tag(L97), notes(L98), fullNotes(L99), apkUrl(L100), source(L101) | L97-L101 |
@@ -681,12 +683,13 @@ Single-screen app — no Navigation component. State-based content switching via
 | `downloadUrl(url, ua, dest, onProgress)` | suspend — withContext(IO) 委托 downloadLoop（独立函数规避 K2 lambda 推断问题） | L172-L180 |
 | `downloadLoop(url, ua, dest, onProgress)` | private suspend — **流式下载 + %PDF- 魔数校验**；非 PDF→分类跟进（重复 URL 按 2s 轮询至 16s 预算，覆盖站点匿名等待间隔）；进度回调 + 协作式取消（内层 lambda 用捕获的 Job.ensureActive） | L182-L274 |
 
-### 27. ui/components/ImslpPanel.kt (L1-L829)
+### 27. ui/components/ImslpPanel.kt (L1-L880)
 
 | Element | Type | Lines |
 |---|---|---|
 | `ImslpStep` | sealed interface — Search/Results(works,composers)/**Browse(url)** 步骤状态机 | L76-L80 |
 | `pdfDisplayName(filename)` | private fun — 去 PMLP 编号前缀展示 | L83-L84 |
+| `ImslpSearchField(...)` | private @Composable — **胶囊搜索框（BasicTextField 自绘 42dp，文字垂直居中；替代 OutlinedTextField 矮高度时文字被压出一半的问题）** | L91-L137 |
 | `ImslpDialogState` | **class（ViewerViewModel 持有，冷启动重置）** — showDialog/step/lastResults/query/busy/statusText/downloadJob/webViewRef + 下载与门禁状态（downloadingUrl/downloadProgress/gateWait/gatePassed/gateFileUrl/gateRetry）+ pageProgress + **currentBrowseUrl（onPageFinished 实时记录，重开恢复最后浏览页）** + **resultsFromBrowse（Results 返回去向）** + **searchHistory（持久化历史）** + **disclaimerAccepted/showDisclaimer（IMSLP 首次免责声明）** | L88-L121 |
 | `IMSLP_PAGE_JS` | private const — onPageFinished 注入脚本：**.pld 蜜罐清空 + #sm_dl_wait data-id 立即导航（跳过等待）并隐藏倒计时弹窗 + View 预览兜底（捕获点击 View → 2s 未渲染官方组件时用 www.peachnote.com 图片接口自绘可翻页预览，官方组件渲染后自动移除）** | L112-L206 |
 | `IMSLP_AD_HOSTS` | private val — **广告/统计第三方域名清单**（gtag/Clarity/广告网络等），shouldInterceptRequest 拦截提速 | L208-L219 |

@@ -18,9 +18,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
@@ -224,14 +224,15 @@ fun ShelfPanel(
                 Text("暂无导入的乐谱", color = muted, fontSize = 14.sp)
             }
         } else {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
+            // 瀑布流：卡片高度按缩略图真实比例 + 文件名行数自适应，自然错开无留空
+            LazyVerticalStaggeredGrid(
+                columns = StaggeredGridCells.Fixed(2),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalItemSpacing = 8.dp,
                 modifier = Modifier.fillMaxSize()
             ) {
-                itemsIndexed(sortedFiles) { _, sf ->
+                items(sortedFiles, key = { it.uri.toString() }) { sf ->
                     Column(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
@@ -246,12 +247,13 @@ fun ShelfPanel(
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         val context = LocalContext.current
+                        // 图片区透明背景：缩略图按真实比例铺满（白底页面无灰边）；无缩略图时保留占位底色
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .aspectRatio(0.75f)
+                                .aspectRatio(sf.thumbAspect ?: 0.75f)
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(if (isDark) Color(0x2E000000) else Color(0x141A2230)),
+                                .background(if (sf.thumbnailUri != null) Color.Transparent else if (isDark) Color(0x2E000000) else Color(0x141A2230)),
                             contentAlignment = Alignment.Center
                         ) {
                             if (sf.thumbnailUri != null) {

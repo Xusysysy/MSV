@@ -96,7 +96,8 @@ data class ShelfFile(
     val name: String,
     val uri: Uri,
     val thumbnailUri: Uri? = null,
-    val lastModified: Long = 0
+    val lastModified: Long = 0,
+    val thumbAspect: Float? = null // 缩略图宽/高比：谱架瀑布流卡片高度按真实比例自适应
 )
 
 data class UpdateInfo(

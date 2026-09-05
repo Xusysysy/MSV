@@ -21,6 +21,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -60,6 +61,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -92,6 +94,53 @@ sealed interface ImslpStep {
 /** 展示名：去掉 PMLP 编号前缀 */
 private fun pdfDisplayName(filename: String): String =
     filename.replace(Regex("^PMLP\\d+[-_]?"), "").replace('_', ' ')
+
+/**
+ * IMSLP 胶囊搜索框：BasicTextField 自绘（42dp 高 + 全胶囊圆角，文字垂直居中）。
+ * OutlinedTextField 固定矮高度时内部 label/padding 会把文字压出一半，故自绘。
+ */
+@Composable
+private fun ImslpSearchField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    onSearch: () -> Unit,
+    fontSize: Int,
+    text: Color,
+    muted: Color,
+    bg: Color,
+    borderColor: Color,
+    accent: Color,
+    modifier: Modifier = Modifier
+) {
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        singleLine = true,
+        textStyle = LocalTextStyle.current.copy(fontSize = fontSize.sp, color = text),
+        cursorBrush = SolidColor(accent),
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        keyboardActions = KeyboardActions(onSearch = { onSearch() }),
+        modifier = modifier
+            .height(42.dp)
+            .clip(RoundedCornerShape(21.dp))
+            .background(bg)
+            .border(1.dp, borderColor, RoundedCornerShape(21.dp)),
+        decorationBox = { inner ->
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 14.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                if (value.isEmpty()) {
+                    Text(placeholder, fontSize = fontSize.sp, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                inner()
+            }
+        }
+    )
+}
 
 /**
  * IMSLP 弹窗状态 holder：由 ViewerViewModel 持有（存活至应用进程结束 = 冷启动才重置）。
@@ -223,7 +272,7 @@ private const val IMSLP_PAGE_JS = """(function(){
                 loadPage(1);
             })(entries[k]);
         }
-    }, 500);
+    }, 800);
 })();"""
 
 /**
@@ -447,16 +496,18 @@ fun ImslpDialog(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        OutlinedTextField(
+                        ImslpSearchField(
                             value = state.query,
                             onValueChange = { state.query = it },
-                            placeholder = { Text("搜索作品或作曲家…", fontSize = 13.sp, color = muted) },
-                            singleLine = true,
-                            shape = RoundedCornerShape(20.dp),
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                            keyboardActions = KeyboardActions(onSearch = { doSearch(state.query) }),
-                            textStyle = LocalTextStyle.current.copy(fontSize = 13.sp, color = text),
-                            modifier = Modifier.weight(1f).height(50.dp)
+                            placeholder = "搜索作品或作曲家…",
+                            onSearch = { doSearch(state.query) },
+                            fontSize = 13,
+                            text = text,
+                            muted = muted,
+                            bg = itemBg,
+                            borderColor = itemBorder,
+                            accent = accent,
+                            modifier = Modifier.weight(1f)
                         )
                         Box(
                             Modifier
@@ -597,19 +648,21 @@ fun ImslpDialog(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            OutlinedTextField(
+                            ImslpSearchField(
                                 value = browseQuery,
                                 onValueChange = { browseQuery = it },
-                                placeholder = { Text("在 IMSLP 搜索…", fontSize = 12.sp, color = muted) },
-                                singleLine = true,
-                                shape = RoundedCornerShape(20.dp),
-                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                                keyboardActions = KeyboardActions(onSearch = {
+                                placeholder = "在 IMSLP 搜索…",
+                                onSearch = {
                                     browseSearchExpanded = false
                                     doSearch(browseQuery, fromBrowse = true)
-                                }),
-                                textStyle = LocalTextStyle.current.copy(fontSize = 12.sp, color = text),
-                                modifier = Modifier.weight(1f).height(50.dp).focusRequester(focusRequester)
+                                },
+                                fontSize = 12,
+                                text = text,
+                                muted = muted,
+                                bg = itemBg,
+                                borderColor = itemBorder,
+                                accent = accent,
+                                modifier = Modifier.weight(1f).focusRequester(focusRequester)
                             )
                             Box(
                                 Modifier
@@ -769,7 +822,7 @@ fun ImslpDialog(
                             Box(
                                 Modifier
                                     .fillMaxSize()
-                                    .background(if (isDark) Color(0xF00F121C) else Color(0xF2FFFFFF)),
+                                    .background(if (isDark) Color(0x990F121C) else Color(0x99FFFFFF)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {

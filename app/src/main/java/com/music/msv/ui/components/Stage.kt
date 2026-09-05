@@ -332,6 +332,10 @@ fun Stage(
                     var reversed = false
                     var pinchExited = false
                     var maxNetDisp = 0f
+                    // 捏合期局部追踪（同步更新，避免 renderPan 异步 snapTo 滞后造成焦点补偿累积误差）
+                    var curZoom = 1f
+                    var curPanX = 0f
+                    var curPanY = 0f
                     val downX = down.position.x
                     val downY = down.position.y
                     var lastX = downX
@@ -348,11 +352,11 @@ fun Stage(
                                     // 松手保留放大：确保缩放模式已进入
                                     if (!currentZoomMode) onZoomModeEnter()
                                 } else {
-                                    // 捏回原比例：动画恢复并退出缩放模式
+                                    // 捏回原比例：动画恢复并退出缩放模式（zoom/pan 并行，一步到位）
                                     scope.launch {
-                                        renderZoom.animateTo(1f, tween(220))
-                                        renderPanX.animateTo(0f, tween(220))
-                                        renderPanY.animateTo(0f, tween(220))
+                                        launch { renderZoom.animateTo(1f, tween(220)) }
+                                        launch { renderPanX.animateTo(0f, tween(220)) }
+                                        launch { renderPanY.animateTo(0f, tween(220)) }
                                         onZoomModeExit()
                                     }
                                 }
@@ -411,11 +415,11 @@ fun Stage(
                                     if (now - lastTapTime < 400 && abs(downX - lastTapX) < 48.dp.toPx() && abs(downY - lastTapY) < 48.dp.toPx()) {
                                         lastTapTime = 0L
                                         if (renderZoom.value > 1.01f) {
-                                            // 任意放大状态双击：恢复并退出缩放模式
+                                            // 任意放大状态双击：恢复并退出缩放模式（zoom/pan 并行，一步到位）
                                             scope.launch {
-                                                renderZoom.animateTo(1f, tween(220))
-                                                renderPanX.animateTo(0f, tween(220))
-                                                renderPanY.animateTo(0f, tween(220))
+                                                launch { renderZoom.animateTo(1f, tween(220)) }
+                                                launch { renderPanX.animateTo(0f, tween(220)) }
+                                                launch { renderPanY.animateTo(0f, tween(220)) }
                                                 onZoomModeExit()
                                             }
                                         } else {
@@ -473,31 +477,42 @@ fun Stage(
                                 pinchStartZoom = renderZoom.value
                                 pinchStartCx = cx; pinchStartCy = cy
                                 pinchLastCx = cx; pinchLastCy = cy
+                                curZoom = renderZoom.value
+                                curPanX = renderPanX.value
+                                curPanY = renderPanY.value
                             } else {
                                 wasPinching = true
                                 val newZoom = (pinchStartZoom * span / pinchStartSpan).coerceIn(1f, 8f)
                                 val dx = cx - pinchLastCx
                                 val dy = cy - pinchLastCy
                                 pinchLastCx = cx; pinchLastCy = cy
-                                if (currentZoomMode && renderZoom.value > 1.05f && newZoom <= 1.02f) {
+                                if (currentZoomMode && curZoom > 1.05f && newZoom <= 1.02f) {
                                     // 双指捏回接近原比例：动画归位并自动退出缩放模式（无需松手）
                                     pinching = false
                                     pinchExited = true
+                                    curZoom = 1f; curPanX = 0f; curPanY = 0f
                                     scope.launch {
-                                        renderZoom.animateTo(1f, tween(220))
-                                        renderPanX.animateTo(0f, tween(220))
-                                        renderPanY.animateTo(0f, tween(220))
+                                        launch { renderZoom.animateTo(1f, tween(220)) }
+                                        launch { renderPanX.animateTo(0f, tween(220)) }
+                                        launch { renderPanY.animateTo(0f, tween(220)) }
                                         onZoomModeExit()
                                     }
                                     event.changes.forEach { it.consume() }
                                     continue
                                 }
+                                // 焦点补偿：以双指起始中点为缩放中心（内容在起始中点处保持不动），叠加质心平移
+                                val k = if (curZoom > 0f) 1f - newZoom / curZoom else 0f
+                                curPanX += (pinchStartCx - curPanX - stageWidth / 2f) * k + dx
+                                curPanY += (pinchStartCy - curPanY - stageHeight / 2f) * k + dy
+                                curZoom = newZoom
+                                val maxX = (newZoom - 1f) * stageWidth / 2f
+                                val maxY = (newZoom - 1f) * stageHeight / 2f
+                                curPanX = curPanX.coerceIn(-maxX, maxX)
+                                curPanY = curPanY.coerceIn(-maxY, maxY)
                                 scope.launch {
-                                    val maxX = (newZoom - 1f) * stageWidth / 2f
-                                    val maxY = (newZoom - 1f) * stageHeight / 2f
-                                    renderZoom.snapTo(newZoom)
-                                    renderPanX.snapTo((renderPanX.value + dx).coerceIn(-maxX, maxX))
-                                    renderPanY.snapTo((renderPanY.value + dy).coerceIn(-maxY, maxY))
+                                    renderZoom.snapTo(curZoom)
+                                    renderPanX.snapTo(curPanX)
+                                    renderPanY.snapTo(curPanY)
                                 }
                                 onZoomChange(newZoom)
                             }

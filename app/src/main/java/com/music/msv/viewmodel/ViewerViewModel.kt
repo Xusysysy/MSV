@@ -638,21 +638,25 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                     ShelfSort.DATE -> list.sortedByDescending { it.lastModified() }
                 }
             }.map { file ->
+                val isImage = fileRepo.isImage(file.name)
+                val uri = Uri.fromFile(file)
                 ShelfFile(
                     name = file.name,
-                    uri = Uri.fromFile(file),
-                    thumbnailUri = if (fileRepo.isImage(file.name)) Uri.fromFile(file) else null,
-                    lastModified = file.lastModified()
+                    uri = uri,
+                    thumbnailUri = if (isImage) uri else null,
+                    lastModified = file.lastModified(),
+                    thumbAspect = if (isImage) imageAspect(uri) else null
                 )
             }
             _uiState.update { it.copy(shelfFiles = files) }
             for (sf in files) {
                 if (sf.thumbnailUri != null) continue
-                val thumb = generatePdfThumbnail(sf.uri)
-                if (thumb != null) {
+                val result = generatePdfThumbnail(sf.uri)
+                if (result != null) {
+                    val (thumb, aspect) = result
                     _uiState.update { state ->
                         val updated = state.shelfFiles.map { f ->
-                            if (f.uri == sf.uri) f.copy(thumbnailUri = thumb) else f
+                            if (f.uri == sf.uri) f.copy(thumbnailUri = thumb, thumbAspect = aspect) else f
                         }
                         state.copy(shelfFiles = updated)
                     }
@@ -661,13 +665,24 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    private fun generatePdfThumbnail(fileUri: Uri): Uri? {
+    /** 图片宽/高比（仅解码边界，不加载位图）——谱架卡片高度自适应 */
+    private fun imageAspect(uri: Uri): Float? = try {
+        val opts = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        getApplication<Application>().contentResolver.openInputStream(uri)?.use {
+            android.graphics.BitmapFactory.decodeStream(it, null, opts)
+        }
+        if (opts.outWidth > 0 && opts.outHeight > 0) opts.outWidth / opts.outHeight.toFloat() else null
+    } catch (_: Exception) { null }
+
+    private fun generatePdfThumbnail(fileUri: Uri): Pair<Uri, Float?>? {
         return try {
             val app = getApplication<Application>()
             val filePath = fileUri.path ?: fileUri.toString()
             val cacheKey = "shelf_thumb_${filePath.hashCode()}_${fileUri.lastPathSegment?.hashCode() ?: 0}"
             val cachedFile = java.io.File(app.cacheDir, "$cacheKey.png")
-            if (cachedFile.exists() && cachedFile.length() > 0) return Uri.fromFile(cachedFile)
+            if (cachedFile.exists() && cachedFile.length() > 0) {
+                return Pair(Uri.fromFile(cachedFile), pngAspect(cachedFile))
+            }
             val fd = app.contentResolver.openFileDescriptor(fileUri, "r") ?: return null
             val renderer = android.graphics.pdf.PdfRenderer(fd)
             if (renderer.pageCount == 0) { renderer.close(); return null }
@@ -682,10 +697,18 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             page.close()
             renderer.close()
             cachedFile.outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 80, it) }
+            val aspect = w / h.toFloat()
             bmp.recycle()
-            Uri.fromFile(cachedFile)
+            Pair(Uri.fromFile(cachedFile), aspect)
         } catch (_: Exception) { null }
     }
+
+    /** 缓存缩略图 PNG 的宽/高比（仅解码边界） */
+    private fun pngAspect(file: java.io.File): Float? = try {
+        val opts = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        android.graphics.BitmapFactory.decodeFile(file.absolutePath, opts)
+        if (opts.outWidth > 0 && opts.outHeight > 0) opts.outWidth / opts.outHeight.toFloat() else null
+    } catch (_: Exception) { null }
 
     private fun renameShelfFile(oldUri: Uri, newName: String) {
         viewModelScope.launch(Dispatchers.IO) {
