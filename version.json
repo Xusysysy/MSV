@@ -1,7 +1,7 @@
 {
-    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.3.5/MSV-ScoreViewer-v2.3.5-release.apk",
-    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.3.5/MSV-ScoreViewer-v2.3.5-release.apk",
-    "versionCode":  38,
-    "versionName":  "2.3.5",
-    "notes":  "# MSV 乐谱查看器 v2.3.5\n\n## 修复\n\n- **点击 Start Verification 无反应**：IMSLP 门禁页内置反机器人蜜罐（两个隐藏输入框），输入法/自动填充一旦写入值，点击 Start 会被**静默中止**（验证组件不加载）——应用内现在每 400ms 自动清空蜜罐字段，确保验证组件正常弹出\n- 验证步骤停留 15 秒未通过时，显示 IMSLP 官方求助渠道提示\n- 说明：该蜜罐机制同样作用于系统浏览器（浏览器密码管理器自动填充也会触发），如浏览器中遇\"点击无反应\"可尝试无痕模式\n\nversionCode=38, versionName=2.3.5\n"
+    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.3.6/MSV-ScoreViewer-v2.3.6-release.apk",
+    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.3.6/MSV-ScoreViewer-v2.3.6-release.apk",
+    "versionCode":  39,
+    "versionName":  "2.3.6",
+    "notes":  "# MSV 乐谱查看器 v2.3.6\n\n## 重构：IMSLP 下载链路全面改为官方页浏览\n\n- **搜索保留应用内**：作曲家与作品的搜索仍由应用直连 MediaWiki API 完成\n- **点击结果直达官方页**：点击作曲家/作品后，内嵌 WebView 直接打开 IMSLP 官方页面浏览（真实浏览器上下文，人机验证通过率最大化）\n- **应用内下载**：在官方页点击乐谱 PDF 链接时自动转为应用内下载（进度条实时显示），完成后自动导入谱架并打开\n- **跳过免责声明页**：预置已同意 cookie，不再弹出免责确认\n- **跳过 12 秒等待**：等待页的真实下载地址直接从页面中解析并立即下载，无需倒计时\n- **人工验证自动衔接**：若命中 Bot Check 门禁，验证页在 WebView 内呈现，完成 \"Start Verification\" 后自动继续下载\n- 移除旧的 API 详情解析与独立验证步骤（曲目信息以官方页面展示为准）\n\nversionCode=39, versionName=2.3.6\n"
 }
