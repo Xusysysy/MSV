@@ -1,7 +1,7 @@
 {
-    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.4.0/MSV-ScoreViewer-v2.4.0-release.apk",
-    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.4.0/MSV-ScoreViewer-v2.4.0-release.apk",
-    "versionCode":  43,
-    "versionName":  "2.4.0",
-    "notes":  "# MSV 乐谱查看器 v2.4.0\n\n## 修复\n\n- **主页面双击缩放失效**（历史问题）：三处根因一并修复——①双击时手指轻微移动超过触摸阈值会被误判为拖拽（现增加路径位移兜底，微动仍按双击处理）；②缩放模式下单击未记录首击时间，导致双击第二击永远判定不到（双击缩小/退出缩放模式失效的直接原因）；③双击判定窗口从 300ms 放宽到 400ms，慢速双击也能触发\n- **面部识别预览绿紫色块/残影**：修复 YUV 色度索引与组装格式不匹配导致的绿紫色调错乱；预览位图改为每帧更新，消除运动拖影感\n\n## 优化\n\n- **双指缩小自动退出缩放模式**：捏合缩小到接近原比例时无需松手，自动以动画过渡归位并退出缩放模式；退出缩放模式的恢复动画不再被状态同步打断（此前会瞬间跳变无动画）\n\n## 新增\n\n- **IMSLP 首次使用免责声明**：第一次打开 IMSLP 搜索时弹窗强调版权法规（乐谱公有领域状态因国家/地区而异、需自行确认、遵守当地版权法与 IMSLP 条款），同意后永久生效\n- **开源与内容许可更新**：设置面板的开源许可清单新增 IMSLP（内容遵循 CC BY-SA 4.0）与 Peachnote（预览接口）条目，并附 IMSLP 内容使用说明\n\nversionCode=43, versionName=2.4.0\n"
+    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.4.1/MSV-ScoreViewer-v2.4.1-release.apk",
+    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.4.1/MSV-ScoreViewer-v2.4.1-release.apk",
+    "versionCode":  44,
+    "versionName":  "2.4.1",
+    "notes":  "# MSV 乐谱查看器 v2.4.1\n\n## 修复\n\n- **搜索框文字偏下被裁一半**：搜索框改为自绘胶囊输入框（42dp 高、文字垂直居中），搜索页与浏览页统一\n- **双指缩放以双指起始中点为中心**：捏合放大时内容围绕两指起始位置展开（此前围绕屏幕中心），并修复连续捏合时的焦点漂移\n- **双击缩小一步回到正常状态**：双击恢复时缩放与平移动画并行执行，不再出现\"先回正、再居中\"的两段过程（边缘放大后尤其明显）\n- **官方网页加载感知**：加载中的白色遮挡层改为半透明（页面内容渐进可见，转圈提示保留），注入脚本轮询降频，减少对页面加载的干扰\n\n## 优化\n\n- **谱架瀑布流**：双列自然排列——卡片高度按乐谱首页真实比例与文件名行数自适应，长短高低自然错开，不再固定格子留空；缩略图去掉灰色背景，白底页面干净显示\n\nversionCode=44, versionName=2.4.1\n"
 }
