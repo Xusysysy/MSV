@@ -1,8 +1,11 @@
 package com.music.msv.ui.components
 
 import android.annotation.SuppressLint
+import android.content.Intent
 import android.net.Uri
 import android.webkit.CookieManager
+import android.webkit.WebResourceRequest
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.background
@@ -19,12 +22,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -52,9 +53,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.music.msv.data.model.ImslpPdfFile
 import com.music.msv.data.model.ImslpSearchResult
-import com.music.msv.data.model.ImslpWorkDetail
 import com.music.msv.data.repository.FileRepository
 import com.music.msv.data.repository.ImslpRepository
 import com.music.msv.ui.theme.ButtonShape
@@ -62,15 +61,14 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.net.URLDecoder
+import java.net.URLEncoder
 
-/** 弹窗内步骤状态机：搜索 → 结果 → 作品详情 → 下载中 → 人机验证 */
+/** 步骤状态机：搜索 → 结果 → 官方页浏览（浏览中内嵌应用内下载与人工验证） */
 private sealed interface ImslpStep {
     data object Search : ImslpStep
     data class Results(val works: List<ImslpSearchResult>, val composers: List<ImslpSearchResult>) : ImslpStep
-    data class ComposerWorks(val composer: String, val works: List<ImslpSearchResult>) : ImslpStep
-    data class Detail(val detail: ImslpWorkDetail) : ImslpStep
-    data class Downloading(val detail: ImslpWorkDetail, val name: String, val progress: Int) : ImslpStep
-    data class Verify(val detail: ImslpWorkDetail, val pdf: ImslpPdfFile, val dest: java.io.File) : ImslpStep
+    data class Browse(val url: String) : ImslpStep
 }
 
 /** 展示名：去掉 PMLP 编号前缀 */
@@ -78,9 +76,31 @@ private fun pdfDisplayName(filename: String): String =
     filename.replace(Regex("^PMLP\\d+[-_]?"), "").replace('_', ' ')
 
 /**
+ * IMSLP 页面注入脚本（onPageFinished 执行，幂等）：
+ * ① 蜜罐守卫：门禁页隐藏 .pld 输入框被输入法/自动填充写入会中止 mtcaptcha 加载——持续清空；
+ * ② 等待跳过：等待页 #sm_dl_wait 的 data-id 即真实下载地址（倒计时纯前端），读出立即导航，
+ *    导航被 shouldOverrideUrlLoading 拦截为应用内下载，12~15 秒等待完全跳过。
+ */
+private const val IMSLP_PAGE_JS = """(function(){
+    if (window.__msvInjected) return;
+    window.__msvInjected = 1;
+    setInterval(function(){
+        document.querySelectorAll('.pld').forEach(function(i){ i.value=''; });
+        if (!window.__msvWaitSkip) {
+            var w = document.getElementById('sm_dl_wait');
+            if (w && w.dataset && w.dataset.id) {
+                window.__msvWaitSkip = 1;
+                window.location = w.dataset.id;
+            }
+        }
+    }, 500);
+})();"""
+
+/**
  * IMSLP 乐谱搜索/下载弹窗。
- * 下载命中站点人机验证（Bot Check）时，在弹窗内嵌 WebView 由用户亲自完成验证，
- * 随后携带其会话 cookie 重试下载；验证通过后自动导入谱架并打开。
+ * 搜索在应用内完成（MediaWiki API）；点击作曲家/作品后内嵌 WebView 打开 IMSLP 官方页面
+ * （真实浏览器上下文，人机验证通过率最高）。在官方页点击乐谱 PDF 链接时拦截为应用内下载
+ * （自动跳过免责声明与 12 秒等待页）；命中 Bot Check 门禁时在 WebView 内由用户完成验证后自动重试。
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -110,20 +130,37 @@ fun ImslpDialog(
     var busy by remember { mutableStateOf(false) }
     var statusText by remember { mutableStateOf("") }
     var downloadJob by remember { mutableStateOf<Job?>(null) }
-    // Verify 步的 WebView 引用：加载失败检测与"刷新页面"按钮使用
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
+    // 应用内下载状态：downloadingUrl 非空 = 下载进行中；gateWait = 门禁页已加载待用户验证
+    var downloadingUrl by remember { mutableStateOf<String?>(null) }
+    var downloadProgress by remember { mutableStateOf(0) }
+    var gateWait by remember { mutableStateOf(false) }
+    var gatePassed by remember { mutableStateOf(false) }
+    var gateFileUrl by remember { mutableStateOf<String?>(null) }
+    var gateRetry by remember { mutableStateOf(0) }
+
+    fun urlEncode(s: String): String = URLEncoder.encode(s, "UTF-8").replace("+", "%20")
 
     fun goBack() {
         downloadJob?.cancel()
-        busy = false
+        if (downloadingUrl != null || gateWait) {
+            downloadingUrl = null
+            gateWait = false
+            gatePassed = false
+        }
         statusText = ""
         step = when (val s = step) {
             is ImslpStep.Search -> ImslpStep.Search
             is ImslpStep.Results -> ImslpStep.Search
-            is ImslpStep.ComposerWorks -> lastResults ?: ImslpStep.Search
-            is ImslpStep.Detail -> lastResults ?: ImslpStep.Search
-            is ImslpStep.Downloading -> ImslpStep.Detail(s.detail)
-            is ImslpStep.Verify -> ImslpStep.Detail(s.detail)
+            is ImslpStep.Browse -> {
+                val wv = webViewRef
+                if (wv != null && wv.canGoBack()) {
+                    wv.goBack()
+                    s
+                } else {
+                    lastResults ?: ImslpStep.Search
+                }
+            }
         }
     }
 
@@ -141,55 +178,46 @@ fun ImslpDialog(
         }
     }
 
-    fun openComposer(composer: String) {
-        if (busy) return
-        busy = true
-        statusText = "加载作曲家作品…"
-        scope.launch {
-            val works = repo.composerWorks(composer)
-            busy = false
-            statusText = if (works.isEmpty()) "该作曲家分类下暂无作品条目" else ""
-            step = ImslpStep.ComposerWorks(composer, works)
-        }
-    }
-
-    fun openDetail(title: String) {
-        if (busy) return
-        busy = true
-        statusText = "加载作品页…"
-        scope.launch {
-            val d = repo.workDetail(title)
-            busy = false
-            when {
-                d == null -> statusText = "作品页加载失败，请重试"
-                d.pdfs.isEmpty() -> statusText = "该页面未找到可下载的 PDF"
-                else -> step = ImslpStep.Detail(d)
-            }
-        }
-    }
-
-    fun launchDownload(detail: ImslpWorkDetail, pdf: ImslpPdfFile, cookies: Map<String, String> = emptyMap()) {
-        if (busy) return
-        val dest = fileRepo.docsDirFile(pdf.filename)
-        busy = true
+    fun openComposer(c: ImslpSearchResult) {
         statusText = ""
+        step = ImslpStep.Browse("https://imslp.org/wiki/Category:" + urlEncode(c.title))
+    }
+
+    fun openWork(w: ImslpSearchResult) {
+        statusText = ""
+        step = ImslpStep.Browse("https://imslp.org/wiki/" + urlEncode(w.title))
+    }
+
+    /** 应用内下载官方页拦截到的 PDF 直链；isAutoRetry=true 为门禁验证通过后的自动重试（不重置重试计数） */
+    fun startInterceptedDownload(fileUrl: String, ua: String, isAutoRetry: Boolean = false) {
+        if (downloadingUrl != null) return
+        val name = runCatching { URLDecoder.decode(fileUrl.substringAfterLast('/'), "UTF-8") }
+            .getOrElse { fileUrl.substringAfterLast('/') }
+            .substringBefore('?').substringBefore('#')
+        if (!name.endsWith(".pdf", ignoreCase = true)) return
+        val dest = fileRepo.docsDirFile(name)
+        downloadingUrl = fileUrl
+        downloadProgress = 0
+        gateWait = false
+        gatePassed = false
+        if (!isAutoRetry) gateRetry = 0
+        statusText = "正在下载：${pdfDisplayName(name)}（返回可取消）"
         downloadJob = scope.launch {
-            when (val r = repo.downloadPdf(pdf.filename, dest, extraCookies = cookies) { pct ->
-                step = ImslpStep.Downloading(detail, pdf.filename, pct)
-            }) {
+            when (val r = repo.downloadUrl(fileUrl, ua, dest) { pct -> downloadProgress = pct }) {
                 is ImslpRepository.DownloadResult.Success -> {
-                    busy = false
+                    downloadingUrl = null
                     onImported(Uri.fromFile(dest))
                 }
                 is ImslpRepository.DownloadResult.BotCheck -> {
-                    busy = false
-                    statusText = "IMSLP 需要人工验证，请在下方完成检查后重试"
-                    step = ImslpStep.Verify(detail, pdf, dest)
+                    downloadingUrl = null
+                    gateFileUrl = fileUrl
+                    gateWait = true
+                    statusText = "IMSLP 需要人工验证，请在页面中完成 \"Start Verification\"，通过后将自动继续下载"
+                    webViewRef?.loadUrl(fileUrl) // 门禁页（mtcaptcha）在官方 WebView 上下文中渲染
                 }
                 is ImslpRepository.DownloadResult.Error -> {
-                    busy = false
+                    downloadingUrl = null
                     statusText = "下载失败：${r.message}"
-                    step = ImslpStep.Detail(detail)
                 }
             }
         }
@@ -265,7 +293,7 @@ fun ImslpDialog(
                     }
                     Spacer(Modifier.height(10.dp))
                     Text(
-                        "搜索 IMSLP 公有领域乐谱，支持曲名与作曲家；\n下载前可能需要在弹窗内完成 IMSLP 的人机验证。",
+                        "搜索 IMSLP 公有领域乐谱，支持曲名与作曲家；\n点击结果进入官方页面浏览，在页面中点击乐谱即可应用内下载（自动跳过免责声明与等待）。",
                         color = muted, fontSize = 11.sp, lineHeight = 16.sp
                     )
                 }
@@ -288,7 +316,7 @@ fun ImslpDialog(
                                     .clip(RoundedCornerShape(10.dp))
                                     .background(itemBg)
                                     .border(1.dp, itemBorder, RoundedCornerShape(10.dp))
-                                    .clickable { openComposer(c.title) }
+                                    .clickable { openComposer(c) }
                                     .padding(horizontal = 10.dp, vertical = 8.dp)
                             ) {
                                 Text(c.title, color = text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -305,7 +333,7 @@ fun ImslpDialog(
                                     .clip(RoundedCornerShape(10.dp))
                                     .background(itemBg)
                                     .border(1.dp, itemBorder, RoundedCornerShape(10.dp))
-                                    .clickable { openDetail(w.title) }
+                                    .clickable { openWork(w) }
                                     .padding(horizontal = 10.dp, vertical = 8.dp)
                             ) {
                                 Column {
@@ -324,111 +352,19 @@ fun ImslpDialog(
                     }
                 }
 
-                is ImslpStep.ComposerWorks -> {
-                    Text("${s.composer} 的作品 (${s.works.size})", color = text, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(6.dp))
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(2),
-                        modifier = Modifier.weight(1f),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(s.works, key = { it.pageid.toString() + it.title }) { w ->
-                            Box(
-                                Modifier
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(itemBg)
-                                    .border(1.dp, itemBorder, RoundedCornerShape(10.dp))
-                                    .clickable { openDetail(w.title) }
-                                    .padding(horizontal = 10.dp, vertical = 8.dp)
-                            ) {
-                                Text(w.title, color = text, fontSize = 12.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                            }
-                        }
-                    }
-                }
-
-                is ImslpStep.Detail -> {
-                    Text(s.detail.title, color = text, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                    if (s.detail.composer.isNotEmpty()) {
-                        Text(s.detail.composer, color = muted, fontSize = 12.sp)
-                    }
-                    if (s.detail.info.isNotEmpty()) {
+                is ImslpStep.Browse -> {
+                    // 应用内下载进度（保持官方页挂载：验证/重试不丢浏览上下文）
+                    if (downloadingUrl != null) {
+                        LinearProgressIndicator(
+                            progress = { downloadProgress / 100f },
+                            modifier = Modifier.fillMaxWidth(),
+                            color = accent
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text("${downloadProgress}% · 下载完成后自动导入谱架并打开", color = muted, fontSize = 11.sp)
                         Spacer(Modifier.height(6.dp))
-                        Column(
-                            Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(itemBg)
-                                .border(1.dp, itemBorder, RoundedCornerShape(10.dp))
-                                .padding(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(2.dp)
-                        ) {
-                            s.detail.info.forEach { (k, v) ->
-                                Row {
-                                    Text("$k：", color = muted, fontSize = 11.sp)
-                                    Text(v, color = text, fontSize = 11.sp, modifier = Modifier.weight(1f))
-                                }
-                            }
-                        }
                     }
-                    Spacer(Modifier.height(8.dp))
-                    Text("可下载版本 (${s.detail.pdfs.size})", color = accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(4.dp))
-                    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(s.detail.pdfs, key = { it.filename }) { pdf ->
-                            Row(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(itemBg)
-                                    .border(1.dp, itemBorder, RoundedCornerShape(10.dp))
-                                    .padding(horizontal = 10.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    pdfDisplayName(pdf.filename),
-                                    color = text, fontSize = 11.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Box(
-                                    Modifier
-                                        .clip(ButtonShape)
-                                        .background(accent)
-                                        .clickable { launchDownload(s.detail, pdf) }
-                                        .padding(horizontal = 12.dp, vertical = 6.dp)
-                                ) {
-                                    Text("下载", color = onAccent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                                }
-                            }
-                        }
-                    }
-                }
 
-                is ImslpStep.Downloading -> {
-                    Spacer(Modifier.height(8.dp))
-                    Text("正在下载：${pdfDisplayName(s.name)}", color = text, fontSize = 13.sp)
-                    Spacer(Modifier.height(10.dp))
-                    LinearProgressIndicator(
-                        progress = { s.progress / 100f },
-                        modifier = Modifier.fillMaxWidth(),
-                        color = accent
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text("${s.progress}%", color = muted, fontSize = 11.sp)
-                    Spacer(Modifier.height(10.dp))
-                    Text("下载完成后将自动导入谱架并打开", color = muted, fontSize = 11.sp)
-                }
-
-                is ImslpStep.Verify -> {
-                    Text("需要人工验证", color = text, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "IMSLP 对自动下载有人机验证保护。请在下方页面完成\"Start Verification\"验证（出现 Bot Check Passed 即成功），成功后将自动继续下载。",
-                        color = muted, fontSize = 11.sp, lineHeight = 15.sp
-                    )
-                    Spacer(Modifier.height(6.dp))
                     Box(
                         Modifier
                             .fillMaxWidth()
@@ -440,31 +376,54 @@ fun ImslpDialog(
                         AndroidView(
                             factory = { ctx ->
                                 WebView(ctx).apply {
-                                    // 环境与真实浏览器统一：UA 与下载请求一致（验证放行 cookie 绑定 UA+IP）、
-                                    // 原生验证组件（mtcaptcha）所需能力全部开启
-                                    settings.userAgentString = ImslpRepository.USER_AGENT
+                                    // 真实浏览器上下文（UA 不覆盖，用设备默认）：人机验证放行 cookie 绑定 UA+IP，
+                                    // 下载请求使用本 WebView 的同一 UA + CookieManager 会话 cookie
                                     settings.javaScriptEnabled = true
                                     settings.domStorageEnabled = true
                                     settings.databaseEnabled = true
                                     settings.allowContentAccess = true
                                     settings.loadsImagesAutomatically = true
                                     settings.mediaPlaybackRequiresUserGesture = false
-                                    settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                                    settings.cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
+                                    settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                                    settings.cacheMode = WebSettings.LOAD_DEFAULT
+                                    settings.setSupportZoom(true)
+                                    settings.builtInZoomControls = true
+                                    settings.displayZoomControls = false
+                                    settings.useWideViewPort = true
+                                    settings.loadWithOverviewMode = true
                                     CookieManager.getInstance().setAcceptCookie(true)
                                     CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-                                    // 免责 cookie 必须进 WebView cookie 罐：缺它时门禁页会降级（验证组件不渲染）
+                                    // 免责声明为 confirm() 弹窗 + 该 cookie 门：预置即静默跳过
                                     CookieManager.getInstance().setCookie("https://imslp.org/", "imslpdisclaimeraccepted=yes; Domain=.imslp.org; Path=/")
                                     CookieManager.getInstance().flush()
                                     webViewClient = object : WebViewClient() {
+                                        override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                                            val u = request.url
+                                            val scheme = u.scheme ?: return false
+                                            if (scheme != "http" && scheme != "https") return false
+                                            val host = u.host ?: return false
+                                            val imslp = host == "imslp.org" || host.endsWith(".imslp.org")
+                                            val p = u.path ?: ""
+                                            val isPdf = imslp && p.endsWith(".pdf", ignoreCase = true) &&
+                                                (p.startsWith("/images/") || p.startsWith("/wiki/Special:Redirect/file/"))
+                                            return when {
+                                                isPdf -> {
+                                                    // 官方页乐谱直链 → 应用内下载（UA 与 WebView 一致，cookie 走 CookieManager）
+                                                    startInterceptedDownload(u.toString(), view.settings.userAgentString)
+                                                    true
+                                                }
+                                                !imslp -> {
+                                                    // 外部站点跳系统浏览器，避免把用户带离官方页
+                                                    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, u)) }
+                                                    true
+                                                }
+                                                else -> false
+                                            }
+                                        }
+
                                         override fun onPageFinished(view: WebView, url: String) {
                                             super.onPageFinished(view, url)
-                                            // 蜜罐守卫：门禁页 _sc() 发现隐藏 email/url 输入框有值（输入法/自动填充写入）
-                                            // 会静默中止验证组件加载——每 400ms 清空一次确保点击 Start 时为空
-                                            view.evaluateJavascript(
-                                                "(function(){ setInterval(function(){ document.querySelectorAll('.pld').forEach(function(i){ i.value=''; }); }, 400); })();",
-                                                null
-                                            )
+                                            view.evaluateJavascript(IMSLP_PAGE_JS, null)
                                         }
                                     }
                                     // 弹窗类验证组件可能在新建窗口打开：统一接管到本 WebView
@@ -478,98 +437,52 @@ fun ImslpDialog(
                                             return true
                                         }
                                     }
-                                    // 核心放行通道：验证通过后 WebView 自身发起的 PDF 请求会触发下载回调——
-                                    // 此时下载可行性已由 WebView 上下文确认，用其最终 URL + 原生 UA + 会话 cookie 落盘
+                                    // 兜底：Content-Disposition 附件响应（shouldOverrideUrlLoading 未覆盖时触发）
                                     setDownloadListener { url, agent, _, _, _ ->
                                         android.util.Log.i("MSV_Imslp", "DownloadListener: $url")
-                                        statusText = "验证生效，已捕获下载地址…"
-                                        scope.launch {
-                                            when (val r = repo.downloadUrl(url, agent, fileRepo.docsDirFile(s.pdf.filename)) { pct ->
-                                                step = ImslpStep.Downloading(s.detail, s.pdf.filename, pct)
-                                            }) {
-                                                is ImslpRepository.DownloadResult.Success -> {
-                                                    busy = false
-                                                    onImported(Uri.fromFile(fileRepo.docsDirFile(s.pdf.filename)))
-                                                }
-                                                is ImslpRepository.DownloadResult.BotCheck -> {
-                                                    busy = false
-                                                    statusText = "验证未生效，请在上方页面重新完成验证"
-                                                }
-                                                is ImslpRepository.DownloadResult.Error -> {
-                                                    busy = false
-                                                    statusText = "下载失败：${r.message}"
-                                                }
-                                            }
-                                        }
+                                        startInterceptedDownload(url, agent)
                                     }
-                                    // 直接加载触发门禁的直链（挑战页带 Start Verification 按钮）
-                                    loadUrl(repo.directUrl(s.pdf.filename))
-                                }                            },
+                                    webViewRef = this
+                                    loadUrl(s.url)
+                                }
+                            },
+                            onRelease = { wv ->
+                                if (webViewRef === wv) webViewRef = null
+                                (wv.parent as? android.view.ViewGroup)?.removeAllViews()
+                                wv.stopLoading()
+                                wv.destroy()
+                            },
                             modifier = Modifier.fillMaxSize()
                         )
                     }
-                    Spacer(Modifier.height(8.dp))
 
-                    // 验证组件加载失败检测：mtcaptcha 为境外第三方服务，其脚本在部分网络不可达（浏览器同样受影响）
-                    LaunchedEffect(s.pdf.filename) {
-                        delay(15000)
-                        if (!busy) {
-                            statusText = "若始终无法通过验证，请稍后重试（可能为 IMSLP 侧问题，可邮件联系 eguo@imslp.org）"
-                        }
-                    }
-                    LaunchedEffect(s.pdf.filename) {
-                        delay(12000)
-                        webViewRef?.evaluateJavascript("(document.body ? document.body.innerText : '')") { v ->
-                            if (v != null && v.contains("Loading", ignoreCase = true)) {
-                                statusText = "验证组件加载失败：mtcaptcha 服务在当前网络可能不可用，建议切换网络后点\"刷新页面\"重试"
+                    // 门禁页轮询：用户完成 mtcaptcha 后页面出现 "Bot Check Passed" → 自动重试下载
+                    LaunchedEffect(Unit) {
+                        while (isActive) {
+                            delay(1200)
+                            if (!gateWait) continue
+                            val wv = webViewRef ?: continue
+                            wv.evaluateJavascript("(document.body?document.body.innerText:'')") { v ->
+                                if (v != null && (v.contains("Bot Check Passed", ignoreCase = true) || v.contains("passed the bot test", ignoreCase = true))) {
+                                    gatePassed = true
+                                }
                             }
                         }
                     }
-
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Box(
-                            Modifier
-                                .weight(1f)
-                                .clip(ButtonShape)
-                                .background(accent)
-                                .clickable {
-                                    val cookies = repo.verifyCookies()
-                                    launchDownload(s.detail, s.pdf, cookies)
-                                }
-                                .padding(vertical = 10.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("我已完成验证，重试下载", color = onAccent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    LaunchedEffect(gatePassed) {
+                        if (!gatePassed) return@LaunchedEffect
+                        gatePassed = false
+                        val url = gateFileUrl ?: return@LaunchedEffect
+                        gateWait = false
+                        gateRetry++
+                        if (gateRetry > 2) {
+                            statusText = "验证已通过但下载仍被拦截，请在官方页面稍后重试"
+                            gateFileUrl = null
+                            return@LaunchedEffect
                         }
-                        Box(
-                            Modifier
-                                .weight(1f)
-                                .clip(ButtonShape)
-                                .background(if (isDark) Color(0x0FFFFFFF) else Color(0x0A1A2230))
-                                .border(1.dp, accent, ButtonShape)
-                                .clickable { webViewRef?.reload() }
-                                .padding(vertical = 10.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("刷新页面", color = accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                        }
-                        Box(
-                            Modifier
-                                .weight(1f)
-                                .clip(ButtonShape)
-                                .background(if (isDark) Color(0x0FFFFFFF) else Color(0x0A1A2230))
-                                .border(1.dp, accent, ButtonShape)
-                                .clickable {
-                                    // 兜底：用系统浏览器直接打开下载直链（浏览器会走同样的验证/免责流程并直接下载 PDF）
-                                    context.startActivity(
-                                        android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(repo.directUrl(s.pdf.filename)))
-                                    )
-                                }
-                                .padding(vertical = 10.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("浏览器打开", color = accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                        }
+                        val ua = webViewRef?.settings?.userAgentString ?: ImslpRepository.USER_AGENT
+                        statusText = "验证已通过，正在继续下载…"
+                        startInterceptedDownload(url, ua, isAutoRetry = true)
                     }
                 }
             }

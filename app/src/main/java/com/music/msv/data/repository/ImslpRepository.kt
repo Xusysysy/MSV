@@ -2,10 +2,10 @@ package com.music.msv.data.repository
 
 import android.util.Log
 import android.webkit.CookieManager
-import com.music.msv.data.model.ImslpPdfFile
 import com.music.msv.data.model.ImslpSearchResult
-import com.music.msv.data.model.ImslpWorkDetail
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -13,15 +13,17 @@ import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
-import java.security.MessageDigest
+import kotlin.coroutines.coroutineContext
 
 /**
  * IMSLP（imslp.org）乐谱搜索与下载仓库。
- * 链路均经 imslp_test.py 实测验证：
- * ① 搜索：MediaWiki API list=search(srnamespace=0) + Category 命名空间分类搜索
- * ② 作品页：prop=revisions wikitext 三正则提取 PDF 文件名（|File Name N= / [[File:]] / {{#file:}}）
- * ③ 直链：MediaWiki 标准路径 /images/{md5[0]}/{md5[0:2]}/{文件名}，需免责 cookie；
- *    匿名下载会命中站点的人机验证（Bot Check/mtcaptcha）——由用户在 WebView 内亲自完成验证后携带其会话 cookie 重试，不程序化绕过
+ * 链路经 2026-09 实测验证：
+ * ① 搜索：MediaWiki API list=search（作品主命名空间 + Category 命名空间作曲家分类）
+ * ② 浏览/验证：作品与作曲家页在应用内 WebView 打开官方页面（真实浏览器上下文，人机验证通过率最高）
+ * ③ 下载：拦截官方页 .pdf 直链（/images/{md5[0]}/{md5[0:2]}/{文件名}），携带 WebView 会话 cookie
+ *    与其同一 UA 应用内下载；免责声明靠预置 imslpdisclaimeraccepted cookie 跳过（confirm 门）；
+ *    等待页为纯前端倒计时，真实下载地址在其 #sm_dl_wait 的 data-id 属性中，读出即下载，无需等待；
+ *    命中 Bot Check 门禁时由用户在 WebView 内亲自完成验证后携带其会话 cookie 重试，不程序化绕过
  */
 class ImslpRepository {
 
@@ -32,7 +34,10 @@ class ImslpRepository {
         private const val TIMEOUT_MS = 15000
         private const val READ_TIMEOUT_MS = 60000
 
-        /** 与 WebView 验证环境统一的 UA（人机验证的放行 cookie 通常绑定 UA+IP，两端必须一致） */
+        /** 等待页轮询总预算：覆盖站点强制的匿名下载间隔（实测提示 12~15 秒） */
+        private const val WAIT_BUDGET_MS = 16000L
+
+        /** 仅供 api.php 搜索使用；WebView/下载一律用 WebView 实际 UA（验证放行 cookie 绑定 UA+IP，两端必须一致） */
         const val USER_AGENT =
             "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
         private val UA = USER_AGENT
@@ -107,142 +112,129 @@ class ImslpRepository {
             Pair(works, composers)
         }
 
-    /** 作曲家分类下的作品列表（categorymembers 过滤非主域条目） */
-    suspend fun composerWorks(composer: String): List<ImslpSearchResult> = withContext(Dispatchers.IO) {
-        val out = mutableListOf<ImslpSearchResult>()
-        val json = httpGetString(
-            "$API?action=query&list=categorymembers&cmlimit=500&format=json&cmtitle=" +
-                URLEncoder.encode("Category:$composer", "UTF-8")
-        )
-        if (json != null) {
-            try {
-                val arr = JSONObject(json).optJSONObject("query")?.optJSONArray("categorymembers")
-                if (arr != null) for (i in 0 until arr.length()) {
-                    val o = arr.getJSONObject(i)
-                    val title = o.optString("title")
-                    if (isNonWork(title)) continue
-                    out.add(ImslpSearchResult(title, o.optLong("pageid"), false, ""))
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "composerWorks parse failed", e)
-            }
-        }
-        out
-    }
-
-    /** 作品页详情：介绍模板字段 + PDF 版本列表（去重保序，第一个通常为主乐谱） */
-    suspend fun workDetail(title: String): ImslpWorkDetail? = withContext(Dispatchers.IO) {
-        val json = httpGetString(
-            "$API?action=query&prop=revisions&rvprop=content&format=json&titles=" +
-                URLEncoder.encode(title, "UTF-8")
-        ) ?: return@withContext null
-        try {
-            val pages = JSONObject(json).optJSONObject("query")?.optJSONObject("pages")
-                ?: return@withContext null
-            var content = ""
-            for (key in pages.keys()) {
-                val o = pages.optJSONObject(key) ?: continue
-                content = o.optJSONArray("revisions")?.optJSONObject(0)?.optString("*") ?: ""
-                break
-            }
-            if (content.isEmpty()) return@withContext null
-
-            // 三正则提取 PDF（去重保序）
-            val pdfNames = LinkedHashSet<String>()
-            Regex("""\|File Name \d+=\s*([^|\n]+\.pdf)""", RegexOption.IGNORE_CASE)
-                .findAll(content).forEach { pdfNames.add(it.groupValues[1].trim()) }
-            Regex("""\[\[[Ff]ile:([^\]]+\.pdf)\]\]""")
-                .findAll(content).forEach { pdfNames.add(it.groupValues[1].trim()) }
-            Regex("""\{\{#file:([^}]+\.pdf)\}\}""", RegexOption.IGNORE_CASE)
-                .findAll(content).forEach { pdfNames.add(it.groupValues[1].trim()) }
-
-            // 介绍字段：去除 wiki 模板/链接标记后取值
-            fun clean(v: String): String = v
-                .replace(Regex("\\{\\{[^}]*\\}\\}"), "")
-                .replace(Regex("\\[\\[([^]|]*\\|)?([^]]*)\\]\\]"), "$2")
-                .replace(Regex("<[^>]+>"), "")
-                .trim()
-            fun field(vararg names: String): String? {
-                for (n in names) {
-                    val m = Regex("""^\|\s*$n\s*=\s*(.+)$""", setOf(RegexOption.MULTILINE, RegexOption.IGNORE_CASE))
-                        .find(content)
-                    val v = m?.groupValues?.get(1)?.let(::clean)
-                    if (!v.isNullOrEmpty() && v != "-") return v.take(120)
-                }
-                return null
-            }
-            val info = mutableListOf<Pair<String, String>>()
-            field("Key")?.let { info.add("调性" to it) }
-            field("Year/Date of Composition", "Year/Date of CompositionYear")?.let { info.add("创作年份" to it) }
-            field("Number of Movements")?.let { info.add("乐章数" to it) }
-            field("First Performance", "First Publication")?.let { info.add("首演/出版" to it) }
-            field("Dedication")?.let { info.add("题献" to it) }
-
-            val composer = Regex("""\(([^)]+)\)\s*$""").find(title)?.groupValues?.get(1) ?: ""
-            val workTitle = title.substringBeforeLast("(").trim()
-            ImslpWorkDetail(workTitle, composer, info, pdfNames.map { ImslpPdfFile(it) })
+    /** 组装 cookie 头：WebView 会话 cookie 全量携带（验证放行 cookie 绑定会话）；免责 cookie 缺失时补上 */
+    private fun cookieHeader(url: String): String {
+        val jar = try {
+            CookieManager.getInstance().getCookie(url)
         } catch (e: Exception) {
-            Log.e(TAG, "workDetail parse failed", e)
+            Log.e(TAG, "read cookies failed", e)
             null
+        } ?: ""
+        return if (jar.contains("imslpdisclaimeraccepted=")) jar
+        else if (jar.isEmpty()) "imslpdisclaimeraccepted=yes"
+        else "imslpdisclaimeraccepted=yes; $jar"
+    }
+
+    private fun openConn(url: String, userAgent: String): HttpURLConnection =
+        (URL(url).openConnection() as HttpURLConnection).apply {
+            connectTimeout = TIMEOUT_MS
+            readTimeout = READ_TIMEOUT_MS
+            setRequestProperty("User-Agent", userAgent)
+            setRequestProperty("Cookie", cookieHeader(url))
+            setRequestProperty("Referer", "$BASE/")
         }
+
+    /** 相对地址解析为绝对地址（data-id/meta refresh 目标可能是相对/协议相对形式） */
+    private fun resolveUrl(u: String): String = when {
+        u.startsWith("http") -> u
+        u.startsWith("//") -> "https:$u"
+        u.startsWith("/") -> "$BASE$u"
+        else -> u
     }
 
-    /** 直链：与 downloadPdf 共用（WebView 验证时加载同一 URL，门禁挑战与放行 cookie 绑定该地址） */
-    fun directUrl(filename: String): String {
-        val fname = filename.replace(" ", "_")
-        val md5 = MessageDigest.getInstance("MD5").digest(fname.toByteArray())
-            .joinToString("") { "%02x".format(it) }
-        return "$BASE/images/${md5[0]}/${md5.substring(0, 2)}/${URLEncoder.encode(fname, "UTF-8").replace("+", "%20")}"
+    /** 非 PDF HTML 响应分类：等待页取 data-id（真实下载地址，倒计时纯前端）；门禁页返回 null 交 WebView 人工验证 */
+    private fun nextUrlFromHtml(body: String): String? {
+        if (body.contains("Bot Check") || body.contains("Start Verification")) return null
+        // 等待页：#sm_dl_wait 的 data-id 即真实下载地址
+        Regex("""data-id=["']([^"']+)["']""").findAll(body)
+            .map { it.groupValues[1] }
+            .firstOrNull { it.contains(".pdf", ignoreCase = true) || it.startsWith("http") || it.startsWith("//") }
+            ?.let { return resolveUrl(it) }
+        // 兜底：meta refresh / location.href
+        Regex("""content=["']\d+\s*;\s*url=([^"']+)["']""", RegexOption.IGNORE_CASE).find(body)
+            ?.let { return resolveUrl(it.groupValues[1]) }
+        Regex("""location(?:\.href)?\s*=\s*["']([^"']+)["']""").find(body)
+            ?.let { return resolveUrl(it.groupValues[1]) }
+        return null
     }
 
-    /** 下载指定 PDF 到 dest：md5 直链 + 免责/验证 cookie；门禁页时返回 BotCheck 由 UI 引导用户验证 */
-    suspend fun downloadPdf(
-        filename: String,
-        dest: File,
-        extraCookies: Map<String, String> = emptyMap(),
-        onProgress: (Int) -> Unit
-    ): DownloadResult = withContext(Dispatchers.IO) {
-        downloadUrl(directUrl(filename), UA, dest, extraCookies, onProgress)
-    }
-
-    /** 下载任意 URL 到 dest（WebView DownloadListener 捕获的最终地址可带其原生 UA，验证上下文最一致） */
+    /** 下载 URL（官方页拦截到的 PDF 直链或等待页 data-id）到 dest；进度回调 + 协作式取消 */
     suspend fun downloadUrl(
         url: String,
         userAgent: String,
         dest: File,
-        extraCookies: Map<String, String> = emptyMap(),
         onProgress: (Int) -> Unit
     ): DownloadResult = withContext(Dispatchers.IO) {
+        downloadLoop(url, userAgent, dest, onProgress)
+    }
+
+    /** 下载循环主体（独立挂起函数 + 显式返回类型，规避 withContext lambda 多返回点的 K2 推断问题） */
+    private suspend fun downloadLoop(
+        url: String,
+        userAgent: String,
+        dest: File,
+        onProgress: (Int) -> Unit
+    ): DownloadResult {
+        var current = url
+        val seen = mutableSetOf<String>()
+        val deadline = System.currentTimeMillis() + WAIT_BUDGET_MS
+        var hops = 0
+        val job = coroutineContext[Job] // 供内层非挂起 lambda（流式落盘）做协作式取消检查
         try {
-            val cookieHeader = buildString {
-                append("imslpdisclaimeraccepted=yes")
-                extraCookies.forEach { (k, v) -> append("; $k=$v") }
-            }
-            val conn = (URL(url).openConnection() as HttpURLConnection).apply {
-                connectTimeout = TIMEOUT_MS
-                readTimeout = READ_TIMEOUT_MS
-                setRequestProperty("User-Agent", userAgent)
-                setRequestProperty("Cookie", cookieHeader)
-                setRequestProperty("Referer", "$BASE/")
-            }
-            val code = conn.responseCode
-            if (code != 200) {
-                conn.disconnect()
-                return@withContext DownloadResult.Error("HTTP $code")
-            }
-            val ctype = conn.contentType ?: ""
-            conn.inputStream.use { input ->
-                // 魔数校验：读前 5 字节判断是否 %PDF-（Content-Type 可能是 octet-stream 等非标准值）
-                val head = ByteArray(5)
-                var off = 0
-                while (off < 5) {
-                    val n = input.read(head, off, 5 - off)
-                    if (n == -1) break
-                    off += n
+            while (true) {
+                coroutineContext.ensureActive()
+                // 重复请求同一 URL（等待页循环）：按 2s 间隔轮询至总预算，期间站点的匿名等待间隔自然耗尽
+                if (!seen.add(current)) {
+                    if (System.currentTimeMillis() >= deadline) {
+                        return DownloadResult.Error("IMSLP 仍要求下载间隔，请稍后重试")
+                    }
+                    delay(2000)
                 }
-                val isPdfMagic = off == 5 && String(head, 0, 5, Charsets.US_ASCII) == "%PDF-"
-                if (!isPdfMagic) {
-                    // 非 PDF（人机验证门禁页等）：转入验证步骤，由用户在 WebView 内亲自完成检查
+                if (++hops > 8) return DownloadResult.BotCheck
+                val conn = openConn(current, userAgent)
+                val code = conn.responseCode
+                if (code != 200) {
+                    conn.disconnect()
+                    return DownloadResult.Error("HTTP $code")
+                }
+                val ctype = conn.contentType ?: ""
+                conn.inputStream.use { input ->
+                    // 魔数校验：读前 5 字节判断是否 %PDF-（Content-Type 可能是 octet-stream 等非标准值）
+                    val head = ByteArray(5)
+                    var off = 0
+                    while (off < 5) {
+                        val n = input.read(head, off, 5 - off)
+                        if (n == -1) break
+                        off += n
+                    }
+                    val isPdfMagic = off == 5 && String(head, 0, 5, Charsets.US_ASCII) == "%PDF-"
+                    if (isPdfMagic) {
+                        val total = conn.contentLengthLong
+                        dest.outputStream().use { out ->
+                            out.write(head, 0, off) // 先写入已读的魔数
+                            var done = off.toLong()
+                            var lastPct = -1
+                            val buf = ByteArray(8192)
+                            while (true) {
+                                job?.ensureActive() // 协作式取消
+                                val n = input.read(buf)
+                                if (n == -1) break
+                                out.write(buf, 0, n)
+                                done += n
+                                if (total > 0) {
+                                    val pct = (done * 100 / total).toInt().coerceIn(0, 100)
+                                    if (pct != lastPct) {
+                                        lastPct = pct
+                                        onProgress(pct)
+                                    }
+                                }
+                            }
+                        }
+                        conn.disconnect()
+                        return if (dest.exists() && dest.length() > 0) DownloadResult.Success(dest)
+                        else DownloadResult.Error("下载内容为空")
+                    }
+                    // 非 PDF（等待页/门禁页等 HTML）：读头部判定
                     val body = buildString {
                         val buf = ByteArray(4096)
                         var total = 0
@@ -254,55 +246,21 @@ class ImslpRepository {
                         }
                     }
                     conn.disconnect()
-                    if (body.contains("Bot Check")) {
-                        Log.i(TAG, "downloadUrl hit Bot Check gate for $url")
-                    } else {
-                        Log.i(TAG, "downloadUrl got non-PDF 200 ($ctype) for $url — routing to verification")
-                    }
-                    return@withContext DownloadResult.BotCheck
-                }
-                val total = conn.contentLengthLong
-                dest.outputStream().use { out ->
-                    out.write(head, 0, off) // 先写入已读的魔数
-                    var done = off.toLong()
-                    var lastPct = -1
-                    val buf = ByteArray(8192)
-                    while (true) {
-                        ensureActive() // 协作式取消
-                        val n = input.read(buf)
-                        if (n == -1) break
-                        out.write(buf, 0, n)
-                        done += n
-                        if (total > 0) {
-                            val pct = (done * 100 / total).toInt().coerceIn(0, 100)
-                            if (pct != lastPct) {
-                                lastPct = pct
-                                onProgress(pct)
-                            }
-                        }
-                    }
+                    val gated = body.contains("Bot Check") || body.contains("Start Verification")
+                    if (gated) Log.i(TAG, "downloadUrl hit Bot Check gate for $current")
+                    else Log.i(TAG, "downloadUrl got non-PDF 200 ($ctype) for $current")
+                    val next = nextUrlFromHtml(body)
+                    if (next == null) return DownloadResult.BotCheck
+                    current = next
                 }
             }
-            conn.disconnect()
-            if (dest.exists() && dest.length() > 0) DownloadResult.Success(dest)
-            else DownloadResult.Error("下载内容为空")
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
             Log.e(TAG, "downloadUrl failed: $url", e)
-            DownloadResult.Error(e.message ?: "网络异常")
+            return DownloadResult.Error(e.message ?: "网络异常")
         }
-    }
-
-    /** 读取 WebView 验证后的 IMSLP 会话 cookie（用户在人机验证通过后调用） */
-    fun verifyCookies(): Map<String, String> = try {
-        val raw = CookieManager.getInstance().getCookie("https://imslp.org/") ?: ""
-        raw.split(";").mapNotNull { p ->
-            val i = p.indexOf('=')
-            if (i > 0) p.substring(0, i).trim() to p.substring(i + 1).trim() else null
-        }.toMap()
-    } catch (e: Exception) {
-        Log.e(TAG, "verifyCookies failed", e)
-        emptyMap()
+        // 兜底返回（K2 不将 while(true)+try/catch 判定为必然非正常出口；实际不可达）
+        return DownloadResult.Error("下载中断")
     }
 }
