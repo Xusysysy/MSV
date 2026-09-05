@@ -226,12 +226,12 @@ fun Stage(
     val currentOnZoomModeEnter by rememberUpdatedState(onZoomModeEnter)
     val currentOnZoomModeExit by rememberUpdatedState(onZoomModeExit)
 
-    // VM 缩放/平移状态 → 渲染层同步（非捏合期间；reset/切文档时归位）
+    // VM 缩放/平移状态 → 渲染层同步（非捏合期间；退出缩放的动画进行中不覆盖，保证动画过渡；reset/切文档时归位）
     LaunchedEffect(zoom) {
-        if (!pinching) renderZoom.snapTo(zoom)
+        if (!pinching && !renderZoom.isRunning) renderZoom.snapTo(zoom)
     }
     LaunchedEffect(panOffsetX, panOffsetY) {
-        if (!pinching) {
+        if (!pinching && !renderPanX.isRunning && !renderPanY.isRunning) {
             renderPanX.snapTo(panOffsetX)
             renderPanY.snapTo(panOffsetY)
         }
@@ -330,6 +330,8 @@ fun Stage(
                     var isDrag = false
                     var activeDir = 0
                     var reversed = false
+                    var pinchExited = false
+                    var maxNetDisp = 0f
                     val downX = down.position.x
                     val downY = down.position.y
                     var lastX = downX
@@ -354,7 +356,12 @@ fun Stage(
                                         onZoomModeExit()
                                     }
                                 }
-                            } else if (!isDrag && !moved) {
+                            } else if ((!isDrag && !moved && !pinchExited) || (isDrag && maxNetDisp < 24.dp.toPx() && !reversed)) {
+                                if (isDrag) {
+                                    // 双击/点按的手指微动超过 touchSlop 被误判为拖拽（路径未超 24dp）：归位并按单击处理
+                                    isDrag = false
+                                    scope.launch { transition.snapTo(0f) }
+                                }
                                 if (!currentZoomMode) {
                                     // 原点按三区逻辑
                                     val sw = stageWidth
@@ -378,7 +385,7 @@ fun Stage(
                                             else -> {
                                                 // 中央双击：进入缩放模式并步进放大到 2x（先撤销首次点按的 UI 切换）
                                                 val now = System.currentTimeMillis()
-                                                if (now - lastTapTime < 300 && abs(downX - lastTapX) < 48.dp.toPx() && abs(downY - lastTapY) < 48.dp.toPx()) {
+                                                if (now - lastTapTime < 400 && abs(downX - lastTapX) < 48.dp.toPx() && abs(downY - lastTapY) < 48.dp.toPx()) {
                                                     lastTapTime = 0L
                                                     onCenterTap()
                                                     onZoomModeEnter()
@@ -401,7 +408,7 @@ fun Stage(
                                 } else {
                                     // 缩放模式单击：双击检测（任意放大状态恢复；仅 1x 时步进放大到 2x）
                                     val now = System.currentTimeMillis()
-                                    if (now - lastTapTime < 300 && abs(downX - lastTapX) < 48.dp.toPx() && abs(downY - lastTapY) < 48.dp.toPx()) {
+                                    if (now - lastTapTime < 400 && abs(downX - lastTapX) < 48.dp.toPx() && abs(downY - lastTapY) < 48.dp.toPx()) {
                                         lastTapTime = 0L
                                         if (renderZoom.value > 1.01f) {
                                             // 任意放大状态双击：恢复并退出缩放模式
@@ -420,6 +427,11 @@ fun Stage(
                                                 renderPanY.snapTo(renderPanY.value.coerceIn(-maxY, maxY))
                                             }
                                         }
+                                    } else {
+                                        // 记录首击：缺此记录时缩放模式双击的第二击永远判定不到（双击失效根因）
+                                        lastTapTime = now
+                                        lastTapX = downX
+                                        lastTapY = downY
                                     }
                                 }
                             } else if (isDrag && !currentZoomMode) {
@@ -436,6 +448,11 @@ fun Stage(
                                 }
                             }
                             break
+                        }
+                        // 双指捏回原比例已自动退出缩放模式：本次手势内不再触发缩放，等待全部抬起
+                        if (pinchExited) {
+                            event.changes.forEach { it.consume() }
+                            continue
                         }
                         // 双指 → 捏合缩放（优先于一切单指逻辑）；检测到双指一瞬间进入缩放模式并隐藏悬浮组件
                         if (pressedList.size >= 2) {
@@ -462,6 +479,19 @@ fun Stage(
                                 val dx = cx - pinchLastCx
                                 val dy = cy - pinchLastCy
                                 pinchLastCx = cx; pinchLastCy = cy
+                                if (currentZoomMode && renderZoom.value > 1.05f && newZoom <= 1.02f) {
+                                    // 双指捏回接近原比例：动画归位并自动退出缩放模式（无需松手）
+                                    pinching = false
+                                    pinchExited = true
+                                    scope.launch {
+                                        renderZoom.animateTo(1f, tween(220))
+                                        renderPanX.animateTo(0f, tween(220))
+                                        renderPanY.animateTo(0f, tween(220))
+                                        onZoomModeExit()
+                                    }
+                                    event.changes.forEach { it.consume() }
+                                    continue
+                                }
                                 scope.launch {
                                     val maxX = (newZoom - 1f) * stageWidth / 2f
                                     val maxY = (newZoom - 1f) * stageHeight / 2f
@@ -531,6 +561,9 @@ fun Stage(
                             continue
                         }
                         // 正常模式单指：原点按三区/拖拽翻页逻辑
+                        // 路径最大净位移：双击手指微动兜底判定（超 touchSlop 但未真正拖动时仍按单击）
+                        val netD = hypot(change.position.x - downX, change.position.y - downY)
+                        if (netD > maxNetDisp) maxNetDisp = netD
                         if (!change.pressed) {
                             if (!isDrag) {
                                 val sw = stageWidth

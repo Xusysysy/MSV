@@ -95,6 +95,9 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             sessionRepo.getImslpHistory().collect { imslpState.searchHistory = it }
         }
         viewModelScope.launch {
+            sessionRepo.getImslpDisclaimerAck().collect { imslpState.disclaimerAccepted = it }
+        }
+        viewModelScope.launch {
             FaceLog.d("MSV_VM", "开始加载面部偏好+监听stateFlow")
             faceRepo.load(faceManager)
             faceManager.stateFlow.collect { faceState ->
@@ -126,6 +129,11 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun clearImslpHistory() {
         viewModelScope.launch { sessionRepo.clearImslpHistory() }
+    }
+
+    /** 确认 IMSLP 免责声明（首次使用时同意后永久生效） */
+    fun ackImslpDisclaimer() {
+        viewModelScope.launch { sessionRepo.ackImslpDisclaimer() }
     }
 
     fun handleShareIntent(intent: Intent?) {

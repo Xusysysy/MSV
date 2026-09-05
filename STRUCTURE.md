@@ -171,7 +171,7 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 7. ui/components/Stage.kt (L1-L623)
+### 7. ui/components/Stage.kt (L1-L774)
 
 | Element | Type | Lines |
 |---|---|---|
@@ -180,14 +180,15 @@ Single-screen app — no Navigation component. State-based content switching via
 | `invertColorMatrix` | private val ColorMatrix — dark-theme page inversion | L89-L96 |
 | `Stage` | @Composable fun | L98-L622 |
 | Parameters (24): | isDark, pageUris, currentPage, pageCount, pageWidth, pageHeight, zoom, panOffsetX, panOffsetY, **zoomMode**, isSpreadMode, pendingFlip(default=null), onCenterTap, onDoubleTap, onZoomChange, onPanChange, **onZoomModeEnter/Exit(default={})**, onNextPage, onPrevPage, onFlipDone(default={}), onViewportSizeChanged, onSpreadModeChanged, onPreloadAround(default={}), modifier(default=Modifier) | L99-L124 |
-| states（bg/context/stageWidth/Height/transition/scope/flipJob/flipDir/lastPage/dragOffset/**lastTapTime/X/Y**/**renderZoom/renderPanX/renderPanY/pinching**） | L125-L139 |
+| states（bg/context/stageWidth/Height/transition/scope/flipJob/flipDir/lastPage/dragOffset/**lastTapTime/X/Y**/**renderZoom/renderPanX/renderPanY/pinching**/**pinchExited/maxNetDisp**） | L125-L141 |
 | derived vals（pw/displaySize/autoSpreadMode/LE(autoSpread)/current* 组含 currentZoomMode/Enter/Exit） | L141-L179 |
 | `doFlip(dir, fromOffset, easing)` | local fun — **zoomMode 时禁用**；触发瞬间记录 lastPage 并推进页码，动画只负责视觉；finally 带 `flipJob === selfJob` 守卫（被接替的旧动画不复位 snapTo/flipDir，防快速往返闪回旧页） | L196-L232 |
 | `doBounce(dir)` | local fun — boundary bounce animation（不改 flipDir/lastPage） | L235-L245 |
 | LaunchedEffect(currentPendingFlip) | face-triggered pending flip → doFlip（zoomMode 时禁用） | L247-L253 |
 | `pagesToShow` | derived val — visible page window (±5 single, ±6 spread), sorted descending | L255-L259 |
 | Root Box | composable (gestures + rendering) | L261-L621 |
-| — tap/drag/pinch awaitEachGesture pointerInput | 正常模式：1/3 点按三区/拖拽翻页；**双指捏合：检测到双指瞬间进入缩放模式（onZoomModeEnter 隐藏悬浮组件），span 比例缩放 + 质心平移，松手保留放大（renderZoom>1.01 确保缩放模式），捏回 ≤1.01 动画恢复并退出**；缩放模式：单指平移（钳制）、双击恢复；全部 change 消费；中央双击（正常模式）进入缩放+2x、（缩放模式）任意放大状态双击恢复、1x 步进放大 2x；捏合转单指重锚定防跳变 | L266-L520 |
+| — VM 缩放/平移同步 LaunchedEffect | zoom/pan 变化 → snapTo（**`!renderZoom.isRunning` 时才覆盖——退出缩放的动画过渡不被吞掉**） | L229-L240 |
+| — tap/drag/pinch awaitEachGesture pointerInput | 正常模式：1/3 点按三区/拖拽翻页；**双击窗口 400ms**；**双击手指微动超 touchSlop 的兜底：路径最大净位移 maxNetDisp<24dp 时仍按单击处理（修复双击失效）**；**双指捏合：...捏回 ≤1.02 动画恢复并退出（松手时）/捏合过程中 newZoom≤1.02 自动动画退出（pinchExited 防本次手势重入）**；缩放模式：单指平移（钳制）、双击恢复（**修复：缩放模式单击现在会记录 lastTapTime，双击第二击才能判定**）；全部 change 消费；捏合转单指重锚定防跳变 | L319-L635 |
 | — 内容 graphicsLayer 容器 | scaleX/Y = renderZoom，translation = renderPan（缩放模式整体缩放/平移，横屏双页为一个整体） | L502-L511 |
 | — Spread branch | gap fill Box、pages loop（L534 refPage：动画期 = lastPage 保证两对页滑动衔接）、gradient edge masks；页面用 PageWithPlaceholder（占位图+淡入）渲染 | L512-L388→L512-L587 |
 | — Single branch | pages loop；base when（L599-L605）/pageOffsetX when（L607-L613）：动画期以 lastPage 锚定滑出页（消除 currentPage 滞后窗口的前一页闪现）、拖拽期当前页/前页跟手、后续页停靠 stageWidth 防透闪；PageWithPlaceholder（占位图+淡入）渲染 | L589-L620 |
@@ -291,7 +292,7 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 11c. ui/components/SettingsPanel.kt (L1-L368)
+### 11c. ui/components/SettingsPanel.kt (L1-L377)
 
 | Element | Type | Lines |
 |---|---|---|
@@ -308,8 +309,10 @@ Single-screen app — no Navigation component. State-based content switching via
 | — — Check-update button（Checking/Downloading 时禁用，文案"检查中…"/"下载中…"） | L125-L148 |
 | — — `when(updateStatus)` 状态区 | Idle/Checking 空态 · UpToDate/Error 文案 · Downloading **应用内进度条+百分比** · Available 版本+notes+查看更新日志展开+立即更新按钮 · Downloaded 立即安装按钮 | L150-L195 |
 | — Footer Spacer(weight) + 版权行 "© 2026 Xusysysy · MSV 乐谱查看器" | L180-L183 |
-| `StatusText` | private @Composable | L186-L189 |
-| `OutlineButton` | private @Composable — accent 描边按钮 | L191-L204 |
+| `openSourceProjects` | private val — 开源组件许可清单（**含 IMSLP CC BY-SA 4.0 内容协议与 Peachnote 预览接口**） | L46-L58 |
+| — 开源许可 AlertDialog | 许可列表 + **"IMSLP 内容使用说明"法规段（公有领域因国而异/需自行确认/遵守当地版权法）** | L301-L330 |
+| `StatusText` | private @Composable | L364-L367 |
+| `OutlineButton` | private @Composable — accent 描边按钮 | L369-L377 |
 
 ---
 
@@ -351,8 +354,9 @@ Single-screen app — no Navigation component. State-based content switching via
 | `pageScales` | private val ConcurrentHashMap<Int, Float> — 每页渲染比例（1f 全分辨率 / 0.6f / 0.4f 压缩层），翻页升级判断依据 | L65-L66 |
 | `flipTimestamps` / `settleJob` | ArrayDeque<Long> 翻页时间戳 + 停止翻动后恢复正常分辨率的延时任务 | L68-L70 |
 | `singleRenderJob` / `downloadJob` | private var Job? — 当前页渲染任务 + 应用内更新包下载任务 | L72-L73 |
-| `init` block | 版本字段填充 + 注册下载接收器 + pageMap collector + **IMSLP 搜索历史收集** + face prefs load + faceState 同步 + onGesture→faceFlip + restoreSession() + 冷启动静默检查更新 | L83-L120 |
-| `addImslpHistory(q)` / `clearImslpHistory()` | public fun — IMSLP 搜索历史记录/清空（委托 SessionRepository，DataStore 持久化） | L123-L129 |
+| `init` block | 版本字段填充 + 注册下载接收器 + pageMap collector + **IMSLP 搜索历史收集** + **IMSLP 免责声明状态收集** + face prefs load + faceState 同步 + onGesture→faceFlip + restoreSession() + 冷启动静默检查更新 | L83-L126 |
+| `addImslpHistory(q)` / `clearImslpHistory()` | public fun — IMSLP 搜索历史记录/清空（委托 SessionRepository，DataStore 持久化） | L123-L133 |
+| `ackImslpDisclaimer()` | public fun — 确认 IMSLP 免责声明（持久化） | L135-L137 |
 | `handleShareIntent(intent)` | public fun | L117-L146 |
 | `onEvent(event)` | public fun (event dispatch, spread-aware page step, update/log events, shelf sort/delete, +Add/Delete/RenameBookmark) | L142-L183 |
 | `handleFilesSelected(uris)` | private fun — imports file, then calls loadShelfFiles() if shelf is visible | L189-L215 |
@@ -483,14 +487,14 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 16. data/repository/SessionRepository.kt (L1-L101)
+### 16. data/repository/SessionRepository.kt (L1-L112)
 
 | Element | Type | Lines |
 |---|---|---|
 | Package + imports | — | L1-L10 |
 | `Context.dataStore` | extension property ("session") | L12 |
 | `SessionRepository(context)` | class | L14-L101 |
-| Companion object — keys | KEY_MODE, KEY_CURRENT_PAGE, KEY_URIS, KEY_FILE_NAME, KEY_PAGE_MAP, **KEY_IMSLP_HISTORY + IMSLP_HISTORY_LIMIT(10)** | L16-L26 |
+| Companion object — keys | KEY_MODE, KEY_CURRENT_PAGE, KEY_URIS, KEY_FILE_NAME, KEY_PAGE_MAP, **KEY_IMSLP_HISTORY + IMSLP_HISTORY_LIMIT(10)**, **KEY_IMSLP_DISCLAIMER_ACK** | L16-L26 |
 | `SessionData` | nested data class (4 fields) | L28-L33 |
 | `sessionFlow: Flow<SessionData?>` | val | L35-L42 |
 | `saveSession(mode, currentPage, uris, fileName)` | suspend fun — also records fileName→currentPage into KEY_PAGE_MAP JSON | L44-L60 |
@@ -498,7 +502,9 @@ Single-screen app — no Navigation component. State-based content switching via
 | `getImslpHistory(): Flow<List<String>>` | fun — 解析 KEY_IMSLP_HISTORY JSON 数组（最近在前） | L71-L78 |
 | `addImslpHistory(query)` | suspend fun — 去重置顶、上限 10 条写回 | L80-L92 |
 | `clearImslpHistory()` | suspend fun — remove KEY_IMSLP_HISTORY | L94-L96 |
-| `clearSession()` | suspend fun | L98-L100 |
+| `getImslpDisclaimerAck(): Flow<Boolean>` | fun — IMSLP 免责声明是否已确认（默认 false=首次使用） | L101-L103 |
+| `ackImslpDisclaimer()` | suspend fun — 置 true（永久生效） | L105-L107 |
+| `clearSession()` | suspend fun | L109-L111 |
 
 ---
 
@@ -572,12 +578,12 @@ Single-screen app — no Navigation component. State-based content switching via
 | `landmarker` + smoothing/hysteresis fields | private | L47-L50 |
 | `init(): Boolean` | fun — loads face_landmarker.task, RunningMode.IMAGE, blendshapes on, 1 face | L52-L65 |
 | `updateState / currentState / isReady` | fun | L67-L69 |
-| `process(ip: ImageProxy)` | fun — decode → detect → blendshapes → gesture (800ms cooldown) → mainHandler callback；**每 3 帧导出送检位图副本为 previewImage** | L74-L101 |
+| `process(ip: ImageProxy)` | fun — decode → detect → blendshapes → gesture (800ms cooldown) → mainHandler callback；**每帧导出送检位图副本为 previewImage（消除 3 帧间隔的预览拖影）** | L77-L109 |
 | `processBlendshapes(cats): Gesture` | private fun — EMA smooth + hysteresis + left/right bias, updates scores + actionActive | L100-L117 |
 | `score / ema / hyst` | private fun — lookup, EMA smoothing, hysteresis state | L119-L127 |
 | `decode(ip): Bitmap` | private fun — **逐行拷贝 YUV 平面（兼容 rowStride 填充，修复竖屏花屏识别失败）**→NV21→ARGB_8888, rotation + optional mirror | L131-L164 |
 | `copyPlaneToNv21(...)` | private fun — 按 rowStride/pixelStride 逐行拷贝，无填充走整块快路径 | L166-L184 |
-| `convertYuvToBitmap(nv21, w, h, out)` | private fun — BT.601 YUV→RGB pixel loop | L161-L181 |
+| `convertYuvToBitmap(nv21, w, h, out)` | private fun — BT.601 YUV→RGB pixel loop；**chroma 按平面式索引（V 平面/U 平面分离，与 decode 组装格式配套）——修复按 NV21 交错索引读平面数据导致的绿紫色块** | L189-L215 |
 | `close()` | fun — closes landmarker, clears smoothing state | L182 |
 
 ---
@@ -675,13 +681,13 @@ Single-screen app — no Navigation component. State-based content switching via
 | `downloadUrl(url, ua, dest, onProgress)` | suspend — withContext(IO) 委托 downloadLoop（独立函数规避 K2 lambda 推断问题） | L172-L180 |
 | `downloadLoop(url, ua, dest, onProgress)` | private suspend — **流式下载 + %PDF- 魔数校验**；非 PDF→分类跟进（重复 URL 按 2s 轮询至 16s 预算，覆盖站点匿名等待间隔）；进度回调 + 协作式取消（内层 lambda 用捕获的 Job.ensureActive） | L182-L274 |
 
-### 27. ui/components/ImslpPanel.kt (L1-L785)
+### 27. ui/components/ImslpPanel.kt (L1-L829)
 
 | Element | Type | Lines |
 |---|---|---|
 | `ImslpStep` | sealed interface — Search/Results(works,composers)/**Browse(url)** 步骤状态机 | L76-L80 |
 | `pdfDisplayName(filename)` | private fun — 去 PMLP 编号前缀展示 | L83-L84 |
-| `ImslpDialogState` | **class（ViewerViewModel 持有，冷启动重置）** — showDialog/step/lastResults/query/busy/statusText/downloadJob/webViewRef + 下载与门禁状态（downloadingUrl/downloadProgress/gateWait/gatePassed/gateFileUrl/gateRetry）+ pageProgress + **currentBrowseUrl（onPageFinished 实时记录，重开恢复最后浏览页）** + **resultsFromBrowse（Results 返回去向）** + **searchHistory（持久化历史）** | L88-L109 |
+| `ImslpDialogState` | **class（ViewerViewModel 持有，冷启动重置）** — showDialog/step/lastResults/query/busy/statusText/downloadJob/webViewRef + 下载与门禁状态（downloadingUrl/downloadProgress/gateWait/gatePassed/gateFileUrl/gateRetry）+ pageProgress + **currentBrowseUrl（onPageFinished 实时记录，重开恢复最后浏览页）** + **resultsFromBrowse（Results 返回去向）** + **searchHistory（持久化历史）** + **disclaimerAccepted/showDisclaimer（IMSLP 首次免责声明）** | L88-L121 |
 | `IMSLP_PAGE_JS` | private const — onPageFinished 注入脚本：**.pld 蜜罐清空 + #sm_dl_wait data-id 立即导航（跳过等待）并隐藏倒计时弹窗 + View 预览兜底（捕获点击 View → 2s 未渲染官方组件时用 www.peachnote.com 图片接口自绘可翻页预览，官方组件渲染后自动移除）** | L112-L206 |
 | `IMSLP_AD_HOSTS` | private val — **广告/统计第三方域名清单**（gtag/Clarity/广告网络等），shouldInterceptRequest 拦截提速 | L208-L219 |
 | `ImslpDialog(state, isDark, onImported, onSearchCommit, onClearHistory)` | @Composable Dialog — **响应式尺寸**：宽 Search 0.70/其余 0.94 屏宽，高 Search 随历史+状态行动态(封顶 0.5 屏)/Results 按结果数分档(0.35/0.60/0.88)/Browse 恒 0.88 屏高，**animateDpAsState(tween 300) 过渡** | L225-L785 |
@@ -693,7 +699,8 @@ Single-screen app — no Navigation component. State-based content switching via
 | — Results 步 | 👤作曲家组 + 📄作品组 两列网格（点作曲家→官方 Category 页，点作品→官方作品页） | L489-L541 |
 | — Browse 步·搜索框+进度区 | **顶部搜索框默认收起为小胶囊（省空间），点击展开输入行（AnimatedVisibility 过渡 + 自动聚焦），提交后收起**；页面加载进度条（pageProgress 1~99）+ 下载进度条（**官方页保持挂载**） | L543-L636 |
 | — Browse 步·WebView | 官方页 AndroidView：**UA 不覆盖（设备默认）** + JS/DOM 存储/第三方 Cookie/混合内容/内置缩放 + **免责 cookie 预置**；onPageStarted 置 pageProgress=0；**shouldInterceptRequest 按 IMSLP_AD_HOSTS 拦截广告/统计资源**；shouldOverrideUrlLoading **拦截 /images/*.pdf 与 Special:Redirect/file/*.pdf → 应用内下载、外链跳系统浏览器**；**onPageFinished 记录 currentBrowseUrl + 注入 IMSLP_PAGE_JS**；onProgressChanged 更新加载进度；onCreateWindow 接管弹窗；DownloadListener 兜底；**onRelease 移除并 destroy()**；**factory loadUrl(currentBrowseUrl ?: s.url) 恢复浏览位置**；**pageProgress<100 时"加载中…"覆盖层** | L638-L752 |
-| — Browse 步·门禁轮询 | LaunchedEffect 每 1200ms 读 body innerText，检出 "Bot Check Passed" → **自动重试下载（≤2 次，UA 取自 WebView）** | L754-L785 |
+| — Browse 步·门禁轮询 | LaunchedEffect 每 1200ms 读 body innerText，检出 "Bot Check Passed" → **自动重试下载（≤2 次，UA 取自 WebView）** | L754-L794 |
+| — IMSLP 首次免责声明 | 弹窗打开且未确认 → AlertDialog 强调 IMSLP 版权法规（公有领域因国而异/遵守当地版权法/IMSLP 条款）；"我已阅读并同意"持久化，"暂不使用"关闭弹窗 | L383-L385 + L796-L828 |
 
 | Element | Type | Lines |
 |---|---|---|

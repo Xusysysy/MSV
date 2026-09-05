@@ -40,11 +40,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -120,6 +122,9 @@ class ImslpDialogState {
     var resultsFromBrowse by mutableStateOf(false)
     // 搜索历史（持久化于 DataStore，由 ViewModel 收集写入）
     var searchHistory by mutableStateOf<List<String>>(emptyList())
+    // IMSLP 免责声明：首次使用（未确认）时弹窗强调版权法规；默认 true 避免确认状态回读前的闪烁
+    var disclaimerAccepted by mutableStateOf(true)
+    var showDisclaimer by mutableStateOf(false)
 }
 
 /**
@@ -248,6 +253,7 @@ fun ImslpDialog(
     onImported: (Uri) -> Unit,
     onSearchCommit: (String) -> Unit = {},
     onClearHistory: () -> Unit = {},
+    onAckImslpDisclaimer: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -386,6 +392,11 @@ fun ImslpDialog(
                 }
             }
         }
+    }
+
+    // 首次使用（未确认免责声明）：弹窗打开即展示 IMSLP 版权法规说明，同意后永久生效
+    LaunchedEffect(state.showDialog, state.disclaimerAccepted) {
+        if (state.showDialog && !state.disclaimerAccepted) state.showDisclaimer = true
     }
 
     Dialog(onDismissRequest = { state.showDialog = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
@@ -801,5 +812,39 @@ fun ImslpDialog(
                 }
             }
         }
+    }
+
+    if (state.showDisclaimer && !state.disclaimerAccepted) {
+        AlertDialog(
+            onDismissRequest = {
+                state.showDisclaimer = false
+                state.showDialog = false // 未同意 = 暂不使用，关闭整个 IMSLP 弹窗
+            },
+            title = { Text("使用 IMSLP 前请阅读", fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    "本应用通过 IMSLP (imslp.org) 搜索与下载乐谱。请务必了解：\n\n" +
+                        "• IMSLP 上的乐谱在各国/地区的公有领域状态不同，是否可合法下载与使用需由你自行确认；\n" +
+                        "• 部分乐谱或其版本可能在你所在的国家/地区仍受版权保护；\n" +
+                        "• 使用本应用下载乐谱即表示你已阅读并同意 IMSLP 的使用条款与免责声明（IMSLP:Copyright、General disclaimer），并承诺遵守你所在国家/地区的版权法规；\n" +
+                        "• 本应用仅提供浏览与下载工具，不存储、不转售任何乐谱内容。",
+                    fontSize = 13.sp,
+                    lineHeight = 19.sp
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    state.disclaimerAccepted = true
+                    state.showDisclaimer = false
+                    onAckImslpDisclaimer()
+                }) { Text("我已阅读并同意") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    state.showDisclaimer = false
+                    state.showDialog = false
+                }) { Text("暂不使用") }
+            }
+        )
     }
 }

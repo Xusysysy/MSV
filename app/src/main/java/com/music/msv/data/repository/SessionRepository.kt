@@ -1,6 +1,7 @@
 package com.music.msv.data.repository
 
 import android.content.Context
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -21,6 +22,7 @@ class SessionRepository(private val context: Context) {
         private val KEY_FILE_NAME = stringPreferencesKey("file_name")
         private val KEY_PAGE_MAP = stringPreferencesKey("page_map")
         private val KEY_IMSLP_HISTORY = stringPreferencesKey("imslp_history")
+        private val KEY_IMSLP_DISCLAIMER_ACK = booleanPreferencesKey("imslp_disclaimer_ack")
 
         /** 搜索历史上限 */
         private const val IMSLP_HISTORY_LIMIT = 10
@@ -93,6 +95,15 @@ class SessionRepository(private val context: Context) {
 
     suspend fun clearImslpHistory() {
         context.dataStore.edit { it.remove(KEY_IMSLP_HISTORY) }
+    }
+
+    /** IMSLP 免责声明是否已确认（首次使用时展示，同意后永久生效） */
+    fun getImslpDisclaimerAck(): Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[KEY_IMSLP_DISCLAIMER_ACK] ?: false
+    }
+
+    suspend fun ackImslpDisclaimer() {
+        context.dataStore.edit { it[KEY_IMSLP_DISCLAIMER_ACK] = true }
     }
 
     suspend fun clearSession() {

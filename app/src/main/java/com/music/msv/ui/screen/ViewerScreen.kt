@@ -428,7 +428,8 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                     viewModel.onEvent(ViewerEvent.OpenShelfFile(uri))
                 },
                 onSearchCommit = { viewModel.addImslpHistory(it) },
-                onClearHistory = { viewModel.clearImslpHistory() }
+                onClearHistory = { viewModel.clearImslpHistory() },
+                onAckImslpDisclaimer = { viewModel.ackImslpDisclaimer() }
             )
         }
 

@@ -82,11 +82,10 @@ class FaceRecognitionManager(context: Context) {
             val bmp = decode(ip)
             if (frameCount <= 3) FaceLog.d(TAG, "process $frameCount: decode完成 ${bmp.width}x${bmp.height}")
             val bw = bmp.width; val bh = bmp.height
-            // 每 3 帧导出一份预览位图（送检画面即预览画面，WYSIWYG），旧位图交由 GC 回收
-            if (frameCount % 3 == 0) {
-                val preview = bmp.copy(Bitmap.Config.ARGB_8888, false)
-                _state.update { it.copy(previewImage = preview.asImageBitmap()) }
-            }
+            // 每帧导出预览位图（送检画面即预览画面，WYSIWYG），旧位图交由 GC 回收；
+            // 此前每 3 帧才更新一次导致预览有明显运动拖影（残影感）
+            val preview = bmp.copy(Bitmap.Config.ARGB_8888, false)
+            _state.update { it.copy(previewImage = preview.asImageBitmap()) }
             val result = l.detect(BitmapImageBuilder(bmp).build()); bmp.recycle()
             if (frameCount <= 3) FaceLog.d(TAG, "process $frameCount: detect完成")
             val rawLM = result.faceLandmarks(); val lm = if (rawLM.isNotEmpty()) rawLM[0] else null
@@ -193,14 +192,18 @@ class FaceRecognitionManager(context: Context) {
     }
 
     private fun convertYuvToBitmap(nv21: ByteArray, w: Int, h: Int, out: Bitmap) {
+        // chroma 区与 decode() 的组装格式配套：V 平面整块在前 + U 平面整块在后（各 w/2*h/2，行主序）。
+        // 不能按标准 NV21 的 VU 交错索引读——那会整体错位产生绿紫色块（历史 bug）
         val pixels = IntArray(w * h)
+        val cw = w shr 1
+        val vSize = cw * (h shr 1)
         var yp = 0; var uvp = w * h
         for (j in 0 until h) {
             for (i in 0 until w) {
                 val y = nv21[yp + j * w + i].toInt() and 0xFF
-                val uvIdx = uvp + (j shr 1) * w + (i and -2)
-                val u = nv21[uvIdx].toInt() and 0xFF
-                val v = nv21[uvIdx + 1].toInt() and 0xFF
+                val uvIdx = uvp + (j shr 1) * cw + (i shr 1)
+                val u = nv21[uvIdx + vSize].toInt() and 0xFF
+                val v = nv21[uvIdx].toInt() and 0xFF
                 val yVal = y - 16
                 val uVal = u - 128
                 val vVal = v - 128

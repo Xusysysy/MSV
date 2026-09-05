@@ -51,7 +51,9 @@ private val openSourceProjects = listOf(
     "DataStore Preferences" to "Apache License 2.0",
     "CameraX (相机)" to "Apache License 2.0",
     "MediaPipe Tasks Vision (面部识别)" to "Apache License 2.0",
-    "pdfbox-android (PDF 读写)" to "Apache License 2.0"
+    "pdfbox-android (PDF 读写)" to "Apache License 2.0",
+    "IMSLP / Petrucci Music Library (乐谱数据来源)" to "站点内容遵循 Creative Commons Attribution-ShareAlike 4.0 (CC BY-SA 4.0)；乐谱文件本身的版权状态因国家/地区而异，以文件页标注为准",
+    "Peachnote (乐谱预览接口)" to "公开 REST 接口，预览图像版权归原提供方所有"
 )
 
 private val supportStory = """
@@ -311,6 +313,12 @@ fun SettingsPanel(
                         Text(license, color = muted, fontSize = 11.sp)
                         Spacer(Modifier.height(10.dp))
                     }
+                    Text("IMSLP 内容使用说明", color = text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "本应用通过 IMSLP (imslp.org) 公开接口搜索与下载公有领域乐谱。IMSLP 上的乐谱在各国/地区的公有领域状态不同，是否可下载与使用需由你自行确认。使用本应用下载乐谱即表示你已阅读并同意 IMSLP 的使用条款（IMSLP:Copyright 与 General disclaimer），并承诺遵守你所在国家/地区的版权法规。本应用仅作为浏览与下载工具，不存储、不转售任何乐谱内容。",
+                        color = muted, fontSize = 11.sp
+                    )
+                    Spacer(Modifier.height(10.dp))
                     Text("以上开源项目为本应用所使用，感谢原作者与开源社区。", color = muted, fontSize = 11.sp)
                 }
             },
