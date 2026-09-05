@@ -10,9 +10,14 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -35,6 +40,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.OutlinedTextField
@@ -49,6 +55,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -256,16 +264,19 @@ fun ImslpDialog(
     val fileRepo = remember { FileRepository(context) }
     val scope = rememberCoroutineScope()
     var browseQuery by remember { mutableStateOf("") }
+    var browseSearchExpanded by remember { mutableStateOf(false) }
 
     // 响应式尺寸：搜索步小窗，结果步按结果数分档，浏览步保持 0.94×0.88（带过渡动画）
     val screenW = LocalConfiguration.current.screenWidthDp.dp
     val screenH = LocalConfiguration.current.screenHeightDp.dp
     val targetW = if (state.step is ImslpStep.Search) screenW * 0.70f else screenW * 0.94f
+    // 状态行（搜索中…/加载中…）动态计入小窗高度，避免出现时把内容推出弹窗外
+    val statusH = if (state.statusText.isNotEmpty()) 24.dp else 0.dp
     val targetH = when (val s = state.step) {
         is ImslpStep.Search -> {
             // 标题+返回+搜索框 ≈200dp，随历史条数增高，封顶 0.5 屏高
             val historyH = 30.dp * state.searchHistory.size
-            minOf(screenH * 0.5f, 200.dp + historyH)
+            minOf(screenH * 0.5f, 200.dp + statusH + historyH)
         }
         is ImslpStep.Results -> {
             val n = s.works.size + s.composers.size
@@ -296,9 +307,9 @@ fun ImslpDialog(
                 if (state.resultsFromBrowse) {
                     state.resultsFromBrowse = false
                     val url = state.currentBrowseUrl
-                    if (url != null) ImslpStep.Browse(url) else state.lastResults ?: ImslpStep.Search
+                    if (url != null) ImslpStep.Browse(url) else ImslpStep.Search
                 } else {
-                    state.lastResults ?: ImslpStep.Search
+                    ImslpStep.Search
                 }
             }
             is ImslpStep.Browse -> {
@@ -430,10 +441,11 @@ fun ImslpDialog(
                             onValueChange = { state.query = it },
                             placeholder = { Text("搜索作品或作曲家…", fontSize = 13.sp, color = muted) },
                             singleLine = true,
+                            shape = RoundedCornerShape(20.dp),
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                             keyboardActions = KeyboardActions(onSearch = { doSearch(state.query) }),
                             textStyle = LocalTextStyle.current.copy(fontSize = 13.sp, color = text),
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f).height(50.dp)
                         )
                         Box(
                             Modifier
@@ -543,31 +555,67 @@ fun ImslpDialog(
                 }
 
                 is ImslpStep.Browse -> {
-                    // WebView 顶部搜索框：提交后切回应用内结果网格（返回时回到浏览页）
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    // WebView 顶部搜索框：默认收起为小胶囊（不占空间），点击展开输入行（过渡动画）；
+                    // 提交后切回应用内结果网格（返回时回到浏览页）
+                    val focusRequester = remember { FocusRequester() }
+                    AnimatedVisibility(
+                        visible = !browseSearchExpanded,
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically()
                     ) {
-                        OutlinedTextField(
-                            value = browseQuery,
-                            onValueChange = { browseQuery = it },
-                            placeholder = { Text("在 IMSLP 搜索…", fontSize = 12.sp, color = muted) },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                            keyboardActions = KeyboardActions(onSearch = { doSearch(browseQuery, fromBrowse = true) }),
-                            textStyle = LocalTextStyle.current.copy(fontSize = 12.sp, color = text),
-                            modifier = Modifier.weight(1f)
-                        )
-                        Box(
-                            Modifier
-                                .clip(ButtonShape)
-                                .background(accent)
-                                .clickable { doSearch(browseQuery, fromBrowse = true) }
-                                .padding(horizontal = 12.dp, vertical = 8.dp)
-                        ) {
-                            Text("搜索", color = onAccent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Row(Modifier.fillMaxWidth()) {
+                            Box(
+                                Modifier
+                                    .clip(ButtonShape)
+                                    .background(itemBg)
+                                    .border(1.dp, itemBorder, ButtonShape)
+                                    .clickable { browseSearchExpanded = true }
+                                    .padding(horizontal = 14.dp, vertical = 6.dp)
+                            ) {
+                                Text("🔍 在 IMSLP 搜索…", color = muted, fontSize = 12.sp)
+                            }
                         }
+                    }
+                    AnimatedVisibility(
+                        visible = browseSearchExpanded,
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically()
+                    ) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = browseQuery,
+                                onValueChange = { browseQuery = it },
+                                placeholder = { Text("在 IMSLP 搜索…", fontSize = 12.sp, color = muted) },
+                                singleLine = true,
+                                shape = RoundedCornerShape(20.dp),
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                                keyboardActions = KeyboardActions(onSearch = {
+                                    browseSearchExpanded = false
+                                    doSearch(browseQuery, fromBrowse = true)
+                                }),
+                                textStyle = LocalTextStyle.current.copy(fontSize = 12.sp, color = text),
+                                modifier = Modifier.weight(1f).height(50.dp).focusRequester(focusRequester)
+                            )
+                            Box(
+                                Modifier
+                                    .clip(ButtonShape)
+                                    .background(accent)
+                                    .clickable {
+                                        browseSearchExpanded = false
+                                        doSearch(browseQuery, fromBrowse = true)
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                            ) {
+                                Text("搜索", color = onAccent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+                    LaunchedEffect(browseSearchExpanded) {
+                        if (browseSearchExpanded) focusRequester.requestFocus()
                     }
                     Spacer(Modifier.height(6.dp))
 
@@ -704,6 +752,22 @@ fun ImslpDialog(
                             },
                             modifier = Modifier.fillMaxSize()
                         )
+
+                        // 页面未加载完成时显示"加载中"覆盖层（含广告拦截/慢网场景），完成后自动消失
+                        if (state.pageProgress in 0..99) {
+                            Box(
+                                Modifier
+                                    .fillMaxSize()
+                                    .background(if (isDark) Color(0xF00F121C) else Color(0xF2FFFFFF)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    CircularProgressIndicator(color = accent)
+                                    Spacer(Modifier.height(8.dp))
+                                    Text("加载中…", color = muted, fontSize = 12.sp)
+                                }
+                            }
+                        }
                     }
 
                     // 门禁页轮询：用户完成 mtcaptcha 后页面出现 "Bot Check Passed" → 自动重试下载
