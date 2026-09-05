@@ -130,6 +130,21 @@ $env:JAVA_HOME = "D:\software\AndroidStudio\jbr"; .\gradlew.bat assembleDebug
 
 ## 10. OTA 双平台发布流程 (Release Sync)
 
+**⚠️ 触发条件（曾因漏读本条导致用户拿不到更新，务必遵守）：** 功能/修复在本地完成并验证后，只要用户需要拿到新包——包括"打包"、"构建"、"怎么测试/验证"、"发布"等请求——**一律默认走本节完整发布流程**，让用户手机上的旧版本直接应用内 OTA 升级。**只打 debug APK 交差 = 漏发布**（debug 包不会触发 OTA，用户设备装不到更新；debug 包仅用于本地编译验证）。本节优先于规则 5/7 的"默认 debug 构建"。
+
+**标准完整发布序列（每次发布按序执行，全部完成才算结束）：**
+
+```powershell
+# ① bump 版本：编辑 app/build.gradle.kts → versionCode +1、versionName（如 2.3.5 → 2.3.6；tag 必须等于 versionName）
+# ② 写发布说明 release/releasenote{新versionCode}.md（Markdown，作两平台 release body）
+# ③ 提交并推送双远程（规则 6）
+git commit -m "feat: ... (versionCode=39, versionName=2.3.6)"; git push origin; git push gitee
+# ④ 一键发布（脚本自动：同步 version.json 并提交推送 → assembleRelease → 复制 APK 到 release/
+#    → 打 tag(=versionName) 推双远程 → GitHub gh release → Gitee REST API 创建 release + 上传附件）
+powershell -ExecutionPolicy Bypass -File release\publish.ps1
+# ⑤ 发布后验证：两平台 release 页面可见新版本 + APK 附件（gh release view v2.3.6；Gitee 网页）
+```
+
 **每次版本修改并打包后，必须同步发布到 GitHub 和 Gitee 两平台的 Release（用户指令：以后与 GitHub 同步 release）。**
 
 流程：
