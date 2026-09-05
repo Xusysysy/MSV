@@ -1,7 +1,7 @@
 {
-    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.3.6/MSV-ScoreViewer-v2.3.6-release.apk",
-    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.3.6/MSV-ScoreViewer-v2.3.6-release.apk",
-    "versionCode":  39,
-    "versionName":  "2.3.6",
-    "notes":  "# MSV 乐谱查看器 v2.3.6\n\n## 重构：IMSLP 下载链路全面改为官方页浏览\n\n- **搜索保留应用内**：作曲家与作品的搜索仍由应用直连 MediaWiki API 完成\n- **点击结果直达官方页**：点击作曲家/作品后，内嵌 WebView 直接打开 IMSLP 官方页面浏览（真实浏览器上下文，人机验证通过率最大化）\n- **应用内下载**：在官方页点击乐谱 PDF 链接时自动转为应用内下载（进度条实时显示），完成后自动导入谱架并打开\n- **跳过免责声明页**：预置已同意 cookie，不再弹出免责确认\n- **跳过 12 秒等待**：等待页的真实下载地址直接从页面中解析并立即下载，无需倒计时\n- **人工验证自动衔接**：若命中 Bot Check 门禁，验证页在 WebView 内呈现，完成 \"Start Verification\" 后自动继续下载\n- 移除旧的 API 详情解析与独立验证步骤（曲目信息以官方页面展示为准）\n\nversionCode=39, versionName=2.3.6\n"
+    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.3.7/MSV-ScoreViewer-v2.3.7-release.apk",
+    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.3.7/MSV-ScoreViewer-v2.3.7-release.apk",
+    "versionCode":  40,
+    "versionName":  "2.3.7",
+    "notes":  "# MSV 乐谱查看器 v2.3.7\n\n## 优化\n\n- **IMSLP 官方页加载提速**：内嵌浏览不再加载广告与统计类第三方资源（gtag/Clarity/各大广告网络等，占页面加载与流量的主要部分），页面打开明显更快、更省流量；站点功能与人机验证组件不受影响\n- **页面加载进度条**：浏览官方页时顶部实时显示加载进度，加载过程可感知\n- **搜索提速**：作品与作曲家两组搜索请求由串行改为并行，出结果等待约减半\n- **观感修复**：点击乐谱后应用内立即开始下载，同时自动隐藏站点弹出的\"15 秒等待\"倒计时弹窗（实际下载本就无需等待，此前弹窗会一直挂在页面上造成困惑）\n\nversionCode=40, versionName=2.3.7\n"
 }
