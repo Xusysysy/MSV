@@ -2,9 +2,11 @@ package com.music.msv.ui.components
 
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.graphics.Bitmap
 import android.net.Uri
 import android.webkit.CookieManager
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -61,6 +63,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.io.ByteArrayInputStream
 import java.net.URLDecoder
 import java.net.URLEncoder
 
@@ -78,8 +81,9 @@ private fun pdfDisplayName(filename: String): String =
 /**
  * IMSLP 页面注入脚本（onPageFinished 执行，幂等）：
  * ① 蜜罐守卫：门禁页隐藏 .pld 输入框被输入法/自动填充写入会中止 mtcaptcha 加载——持续清空；
- * ② 等待跳过：等待页 #sm_dl_wait 的 data-id 即真实下载地址（倒计时纯前端），读出立即导航，
- *    导航被 shouldOverrideUrlLoading 拦截为应用内下载，12~15 秒等待完全跳过。
+ * ② 等待跳过：等待弹窗/页 #sm_dl_wait 的 data-id 即真实下载地址（倒计时纯前端），读出立即导航
+ *    （被 shouldOverrideUrlLoading 拦截为应用内下载，12~15 秒等待完全跳过），
+ *    并隐藏站点倒计时弹窗——避免"应用内已在下载、页面仍显示 15 秒等待"的困惑。
  */
 private const val IMSLP_PAGE_JS = """(function(){
     if (window.__msvInjected) return;
@@ -90,11 +94,28 @@ private const val IMSLP_PAGE_JS = """(function(){
             var w = document.getElementById('sm_dl_wait');
             if (w && w.dataset && w.dataset.id) {
                 window.__msvWaitSkip = 1;
+                var dlg = w.closest('.ui-dialog') || w;
+                dlg.style.display = 'none';
                 window.location = w.dataset.id;
             }
         }
     }, 500);
 })();"""
+
+/**
+ * 页面加载提速：拦截广告/统计类第三方资源（IMSLP 页面挂载大量 gtag/Clarity/广告网络请求，
+ * 占页面加载与流量大头；均为纯追踪/广告域，不涉及站点功能与 mtcaptcha 验证组件）。
+ */
+private val IMSLP_AD_HOSTS = listOf(
+    "googletagmanager.com", "google-analytics.com", "analytics.google.com",
+    "googlesyndication.com", "doubleclick.net", "googleadservices.com", "adservice.google.com",
+    "clarity.ms", "hotjar.com", "mouseflow.com", "fullstory.com",
+    "scorecardresearch.com", "quantserve.com", "quantcount.com",
+    "amazon-adsystem.com", "adnxs.com", "adsrvr.org", "pubmatic.com", "rubiconproject.com",
+    "openx.net", "casalemedia.com", "criteo.com", "criteo.net", "taboola.com", "outbrain.com",
+    "smartadserver.com", "teads.tv", "sharethrough.com", "connect.facebook.net", "facebook.net",
+    "bat.bing.com", "adnigma.io", "adngin.net", "adnium.com"
+)
 
 /**
  * IMSLP 乐谱搜索/下载弹窗。
@@ -138,6 +159,8 @@ fun ImslpDialog(
     var gatePassed by remember { mutableStateOf(false) }
     var gateFileUrl by remember { mutableStateOf<String?>(null) }
     var gateRetry by remember { mutableStateOf(0) }
+    // 官方页加载进度（0=刚开始/未加载，100=完成；1~99 期间显示进度条）
+    var pageProgress by remember { mutableStateOf(100) }
 
     fun urlEncode(s: String): String = URLEncoder.encode(s, "UTF-8").replace("+", "%20")
 
@@ -353,6 +376,15 @@ fun ImslpDialog(
                 }
 
                 is ImslpStep.Browse -> {
+                    // 页面加载进度（官方页资源较重，给出即时反馈）
+                    if (pageProgress in 1..99) {
+                        LinearProgressIndicator(
+                            progress = { pageProgress / 100f },
+                            modifier = Modifier.fillMaxWidth().height(2.dp),
+                            color = accent
+                        )
+                        Spacer(Modifier.height(4.dp))
+                    }
                     // 应用内下载进度（保持官方页挂载：验证/重试不丢浏览上下文）
                     if (downloadingUrl != null) {
                         LinearProgressIndicator(
@@ -397,6 +429,21 @@ fun ImslpDialog(
                                     CookieManager.getInstance().setCookie("https://imslp.org/", "imslpdisclaimeraccepted=yes; Domain=.imslp.org; Path=/")
                                     CookieManager.getInstance().flush()
                                     webViewClient = object : WebViewClient() {
+                                        override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
+                                            super.onPageStarted(view, url, favicon)
+                                            pageProgress = 0
+                                        }
+
+                                        // 页面加载提速：广告/统计类第三方资源直接返回空响应，不再发起真实请求
+                                        override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+                                            val host = request.url.host?.lowercase() ?: return null
+                                            val blocked = IMSLP_AD_HOSTS.any { host == it || host.endsWith(".$it") } ||
+                                                request.url.toString().contains("adngin", ignoreCase = true)
+                                            return if (blocked) {
+                                                WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
+                                            } else null
+                                        }
+
                                         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                                             val u = request.url
                                             val scheme = u.scheme ?: return false
@@ -428,6 +475,11 @@ fun ImslpDialog(
                                     }
                                     // 弹窗类验证组件可能在新建窗口打开：统一接管到本 WebView
                                     webChromeClient = object : android.webkit.WebChromeClient() {
+                                        override fun onProgressChanged(view: WebView, newProgress: Int) {
+                                            pageProgress = newProgress
+                                            super.onProgressChanged(view, newProgress)
+                                        }
+
                                         override fun onCreateWindow(
                                             view: WebView, isDialog: Boolean, isUserGesture: Boolean, resultMsg: android.os.Message
                                         ): Boolean {

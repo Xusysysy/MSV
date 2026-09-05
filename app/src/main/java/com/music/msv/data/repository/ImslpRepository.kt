@@ -5,6 +5,8 @@ import android.webkit.CookieManager
 import com.music.msv.data.model.ImslpSearchResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
@@ -71,45 +73,51 @@ class ImslpRepository {
 
     private fun isNonWork(title: String): Boolean = NON_WORK_PREFIXES.any { title.startsWith(it) }
 
-    /** 搜索：作品（主命名空间全文）+ 作曲家分类（Category 命名空间标题匹配） */
+    /** 搜索：作品（主命名空间全文）+ 作曲家分类（Category 命名空间标题匹配）；两组请求并行以缩短等待 */
     suspend fun search(query: String): Pair<List<ImslpSearchResult>, List<ImslpSearchResult>> =
         withContext(Dispatchers.IO) {
             val q = URLEncoder.encode(query, "UTF-8")
-            val works = mutableListOf<ImslpSearchResult>()
-            val composers = mutableListOf<ImslpSearchResult>()
-
-            val searchJson = httpGetString("$API?action=query&list=search&srnamespace=0&srwhat=text&srlimit=50&format=json&srsearch=$q")
-            if (searchJson != null) {
-                try {
-                    val arr = JSONObject(searchJson).optJSONObject("query")?.optJSONArray("search")
-                    if (arr != null) for (i in 0 until arr.length()) {
-                        val o = arr.getJSONObject(i)
-                        val title = o.optString("title")
-                        if (isNonWork(title)) continue
-                        val snippet = o.optString("snippet").replace(Regex("<[^>]+>"), "").trim()
-                        works.add(ImslpSearchResult(title, o.optLong("pageid"), false, snippet))
+            coroutineScope {
+                val works = async {
+                    val out = mutableListOf<ImslpSearchResult>()
+                    val searchJson = httpGetString("$API?action=query&list=search&srnamespace=0&srwhat=text&srlimit=50&format=json&srsearch=$q")
+                    if (searchJson != null) {
+                        try {
+                            val arr = JSONObject(searchJson).optJSONObject("query")?.optJSONArray("search")
+                            if (arr != null) for (i in 0 until arr.length()) {
+                                val o = arr.getJSONObject(i)
+                                val title = o.optString("title")
+                                if (isNonWork(title)) continue
+                                val snippet = o.optString("snippet").replace(Regex("<[^>]+>"), "").trim()
+                                out.add(ImslpSearchResult(title, o.optLong("pageid"), false, snippet))
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "search parse failed", e)
+                        }
                     }
-                } catch (e: Exception) {
-                    Log.e(TAG, "search parse failed", e)
+                    out
                 }
-            }
-
-            // 作曲家分类候选：在 Category 命名空间搜分类标题（如 Category:Mozart, Wolfgang Amadeus）
-            val catJson = httpGetString("$API?action=query&list=search&srnamespace=14&srlimit=20&format=json&srsearch=$q")
-            if (catJson != null) {
-                try {
-                    val arr = JSONObject(catJson).optJSONObject("query")?.optJSONArray("search")
-                    if (arr != null) for (i in 0 until arr.length()) {
-                        val o = arr.getJSONObject(i)
-                        val title = o.optString("title").removePrefix("Category:")
-                        if (title.isEmpty()) continue
-                        composers.add(ImslpSearchResult(title, o.optLong("pageid"), true, ""))
+                val composers = async {
+                    val out = mutableListOf<ImslpSearchResult>()
+                    // 作曲家分类候选：在 Category 命名空间搜分类标题（如 Category:Mozart, Wolfgang Amadeus）
+                    val catJson = httpGetString("$API?action=query&list=search&srnamespace=14&srlimit=20&format=json&srsearch=$q")
+                    if (catJson != null) {
+                        try {
+                            val arr = JSONObject(catJson).optJSONObject("query")?.optJSONArray("search")
+                            if (arr != null) for (i in 0 until arr.length()) {
+                                val o = arr.getJSONObject(i)
+                                val title = o.optString("title").removePrefix("Category:")
+                                if (title.isEmpty()) continue
+                                out.add(ImslpSearchResult(title, o.optLong("pageid"), true, ""))
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "composer search parse failed", e)
+                        }
                     }
-                } catch (e: Exception) {
-                    Log.e(TAG, "composer search parse failed", e)
+                    out
                 }
+                Pair(works.await(), composers.await())
             }
-            Pair(works, composers)
         }
 
     /** 组装 cookie 头：WebView 会话 cookie 全量携带（验证放行 cookie 绑定会话）；免责 cookie 缺失时补上 */
