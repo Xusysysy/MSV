@@ -342,6 +342,7 @@ Single-screen app — no Navigation component. State-based content switching via
 | `updateRepo` | private val UpdateRepository | L53 |
 | `_uiState` | private val MutableStateFlow | L55 |
 | `uiState` | val StateFlow (public) | L56 |
+| `imslpState` | val ImslpDialogState — IMSLP 弹窗状态（showDialog/step/currentBrowseUrl/resultsFromBrowse/searchHistory 等；跨弹窗开关/旋转保持，冷启动重置） | L63 |
 | `imageUris` | private var List<Uri> | L58 |
 | `pdfUri` | private var Uri? | L59 |
 | `loadJob` / `preloadJob` | private var Job? | L60-L61 |
@@ -350,7 +351,8 @@ Single-screen app — no Navigation component. State-based content switching via
 | `pageScales` | private val ConcurrentHashMap<Int, Float> — 每页渲染比例（1f 全分辨率 / 0.6f / 0.4f 压缩层），翻页升级判断依据 | L65-L66 |
 | `flipTimestamps` / `settleJob` | ArrayDeque<Long> 翻页时间戳 + 停止翻动后恢复正常分辨率的延时任务 | L68-L70 |
 | `singleRenderJob` / `downloadJob` | private var Job? — 当前页渲染任务 + 应用内更新包下载任务 | L72-L73 |
-| `init` block | 版本字段填充 + 注册下载接收器 + pageMap collector + face prefs load + faceState 同步 + onGesture→faceFlip + restoreSession() + 冷启动静默检查更新 | L83-L115 |
+| `init` block | 版本字段填充 + 注册下载接收器 + pageMap collector + **IMSLP 搜索历史收集** + face prefs load + faceState 同步 + onGesture→faceFlip + restoreSession() + 冷启动静默检查更新 | L83-L120 |
+| `addImslpHistory(q)` / `clearImslpHistory()` | public fun — IMSLP 搜索历史记录/清空（委托 SessionRepository，DataStore 持久化） | L123-L129 |
 | `handleShareIntent(intent)` | public fun | L117-L146 |
 | `onEvent(event)` | public fun (event dispatch, spread-aware page step, update/log events, shelf sort/delete, +Add/Delete/RenameBookmark) | L142-L183 |
 | `handleFilesSelected(uris)` | private fun — imports file, then calls loadShelfFiles() if shelf is visible | L189-L215 |
@@ -481,19 +483,22 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 16. data/repository/SessionRepository.kt (L1-L69)
+### 16. data/repository/SessionRepository.kt (L1-L101)
 
 | Element | Type | Lines |
 |---|---|---|
 | Package + imports | — | L1-L10 |
 | `Context.dataStore` | extension property ("session") | L12 |
-| `SessionRepository(context)` | class | L14-L69 |
-| Companion object — keys | KEY_MODE, KEY_CURRENT_PAGE, KEY_URIS, KEY_FILE_NAME, KEY_PAGE_MAP | L16-L22 |
-| `SessionData` | nested data class (4 fields) | L24-L29 |
-| `sessionFlow: Flow<SessionData?>` | val | L31-L38 |
-| `saveSession(mode, currentPage, uris, fileName)` | suspend fun — also records fileName→currentPage into KEY_PAGE_MAP JSON | L40-L56 |
-| `getPageMap(): Flow<Map<String, Int>>` | fun — parses KEY_PAGE_MAP JSON (per-file last-read page) | L58-L64 |
-| `clearSession()` | suspend fun | L66-L68 |
+| `SessionRepository(context)` | class | L14-L101 |
+| Companion object — keys | KEY_MODE, KEY_CURRENT_PAGE, KEY_URIS, KEY_FILE_NAME, KEY_PAGE_MAP, **KEY_IMSLP_HISTORY + IMSLP_HISTORY_LIMIT(10)** | L16-L26 |
+| `SessionData` | nested data class (4 fields) | L28-L33 |
+| `sessionFlow: Flow<SessionData?>` | val | L35-L42 |
+| `saveSession(mode, currentPage, uris, fileName)` | suspend fun — also records fileName→currentPage into KEY_PAGE_MAP JSON | L44-L60 |
+| `getPageMap(): Flow<Map<String, Int>>` | fun — parses KEY_PAGE_MAP JSON (per-file last-read page) | L63-L69 |
+| `getImslpHistory(): Flow<List<String>>` | fun — 解析 KEY_IMSLP_HISTORY JSON 数组（最近在前） | L71-L78 |
+| `addImslpHistory(query)` | suspend fun — 去重置顶、上限 10 条写回 | L80-L92 |
+| `clearImslpHistory()` | suspend fun — remove KEY_IMSLP_HISTORY | L94-L96 |
+| `clearSession()` | suspend fun | L98-L100 |
 
 ---
 
@@ -652,42 +657,43 @@ Single-screen app — no Navigation component. State-based content switching via
 |---|---|---|
 | `ImslpSearchResult` | data class — title/pageid/isComposer/snippet | L3-L9 |
 
-### 26. data/repository/ImslpRepository.kt (L1-L264)
+### 26. data/repository/ImslpRepository.kt (L1-L275)
 
 | Element | Type | Lines |
 |---|---|---|
-| `ImslpRepository` | class — IMSLP 搜索 + 官方页 WebView 下载仓库（2026-09 实测：免责 cookie 门 / 等待页 data-id / Bot Check 门禁） | L23-L263 |
+| `ImslpRepository` | class — IMSLP 搜索 + 官方页 WebView 下载仓库（2026-09 实测：免责 cookie 门 / 等待页 data-id / Bot Check 门禁） | L23-L274 |
 | companion | BASE/API/TAG/超时/**WAIT_BUDGET_MS(16s 等待页轮询预算)**/USER_AGENT(仅 api.php 搜索用)/NON_WORK_PREFIXES | L25-L41 |
 | `DownloadResult` | sealed class — Success(file)/BotCheck/Error(msg) | L43-L47 |
 | `httpGetString(url)` | private fun — api.php GET + 免责 cookie | L49-L65 |
 | `isNonWork(title)` | private fun | L67 |
-| `search(query)` | suspend — srnamespace=0 全文 + Category 命名空间作曲家分类（**两组请求 async 并行**，出结果等待约减半） | L71-L112 |
-| `cookieHeader(url)` | private fun — **CookieManager 全量会话 cookie**（验证放行绑定会话）+ 免责 cookie 兜底 | L118-L128 |
-| `openConn(url, ua)` | private fun — HttpURLConnection（UA/Cookie/Referer） | L130-L138 |
-| `resolveUrl(u)` | private fun — 相对/协议相对地址 → 绝对地址 | L140-L146 |
-| `nextUrlFromHtml(body)` | private fun — 非 PDF HTML 分类：门禁(Bot Check/Start Verification)→null 交 WebView 验证；**等待页 #sm_dl_wait data-id→真实下载直链（倒计时纯前端）**；meta refresh/location.href 兜底 | L148-L162 |
-| `downloadUrl(url, ua, dest, onProgress)` | suspend — withContext(IO) 委托 downloadLoop（独立函数规避 K2 lambda 推断问题） | L164-L172 |
-| `downloadLoop(url, ua, dest, onProgress)` | private suspend — **流式下载 + %PDF- 魔数校验**；非 PDF→分类跟进（重复 URL 按 2s 轮询至 16s 预算，覆盖站点匿名等待间隔）；进度回调 + 协作式取消（内层 lambda 用捕获的 Job.ensureActive） | L174-L263 |
+| `cleanSnippet(raw)` | private fun — **搜索简介清洗**：丢模板参数行(\|Field=)/{{模板}}/[[链接]]、解码 HTML 实体；为空则 UI 不显示灰字区 | L69-L81 |
+| `search(query)` | suspend — srnamespace=0 全文 + Category 命名空间作曲家分类（**两组请求 async 并行**，出结果等待约减半；snippet 经 cleanSnippet 清洗） | L82-L123 |
+| `cookieHeader(url)` | private fun — **CookieManager 全量会话 cookie**（验证放行绑定会话）+ 免责 cookie 兜底 | L126-L136 |
+| `openConn(url, ua)` | private fun — HttpURLConnection（UA/Cookie/Referer） | L138-L146 |
+| `resolveUrl(u)` | private fun — 相对/协议相对地址 → 绝对地址 | L148-L154 |
+| `nextUrlFromHtml(body)` | private fun — 非 PDF HTML 分类：门禁(Bot Check/Start Verification)→null 交 WebView 验证；**等待页 #sm_dl_wait data-id→真实下载直链（倒计时纯前端）**；meta refresh/location.href 兜底 | L156-L170 |
+| `downloadUrl(url, ua, dest, onProgress)` | suspend — withContext(IO) 委托 downloadLoop（独立函数规避 K2 lambda 推断问题） | L172-L180 |
+| `downloadLoop(url, ua, dest, onProgress)` | private suspend — **流式下载 + %PDF- 魔数校验**；非 PDF→分类跟进（重复 URL 按 2s 轮询至 16s 预算，覆盖站点匿名等待间隔）；进度回调 + 协作式取消（内层 lambda 用捕获的 Job.ensureActive） | L182-L274 |
 
-### 27. ui/components/ImslpPanel.kt (L1-L529)
+### 27. ui/components/ImslpPanel.kt (L1-L723)
 
 | Element | Type | Lines |
 |---|---|---|
-| `ImslpStep` | private sealed interface — Search/Results(works,composers)/**Browse(url)** 步骤状态机 | L71-L75 |
-| `pdfDisplayName(filename)` | private fun — 去 PMLP 编号前缀展示 | L78-L79 |
-| `IMSLP_PAGE_JS` | private const — onPageFinished 注入脚本：**.pld 蜜罐清空（防 mtcaptcha 中止）+ #sm_dl_wait data-id 立即导航（跳过 12~15s 等待倒计时）并隐藏站点等待弹窗（closest('.ui-dialog')）** | L81-L102 |
-| `IMSLP_AD_HOSTS` | private val — **广告/统计第三方域名清单**（gtag/Clarity/广告网络等），shouldInterceptRequest 拦截提速 | L104-L116 |
-| `ImslpDialog(isDark, onDismiss, onImported)` | @Composable Dialog（fillMaxWidth(0.94)×fillMaxHeight(0.88)） | L120-L529 |
-| — 状态 | step/lastResults/query/busy/statusText/downloadJob/webViewRef + **downloadingUrl/downloadProgress/gateWait/gatePassed/gateFileUrl/gateRetry（应用内下载与门禁重试状态）** + **pageProgress（官方页加载进度）** | L138-L155 |
-| — goBack() | 取消下载/清理门禁态；Browse 内优先 WebView 历史回退，否则回 Results | L158-L179 |
-| — doSearch(q) | 搜索（MediaWiki API，仓库层已并行化） | L181-L193 |
-| — openComposer/openWork | 点击结果 → Browse 步（官方 Category 页 / 官方作品页，URL 编码） | L195-L204 |
-| — startInterceptedDownload(fileUrl, ua, isAutoRetry) | 拦截下载入口：末段解码文件名（仅 .pdf）→ downloadUrl 应用内下载（进度回调）；**BotCheck → gateFileUrl 记录 + WebView 加载门禁页（mtcaptcha）**；Success → onImported 导入谱架 | L206-L238 |
-| — Search 步 | 搜索框（ImeAction.Search）+ 搜索按钮 + 说明文案 | L282-L313 |
-| — Results 步 | 👤作曲家组 + 📄作品组 两列网格（点作曲家→官方 Category 页，点作品→官方作品页） | L315-L367 |
-| — Browse 步·进度区 | **页面加载进度条（pageProgress 1~99 时 2dp 细条）** + 下载进度条+百分比（**官方页保持挂载，验证/重试不丢浏览上下文**） | L369-L390 |
-| — Browse 步·WebView | 官方页 AndroidView：**UA 不覆盖（设备默认，通过率最高）** + JS/DOM 存储/第三方 Cookie/混合内容/内置缩放全开 + **免责 cookie 预置（confirm 门静默通过）**；**onPageStarted 置 pageProgress=0**；**shouldInterceptRequest 按 IMSLP_AD_HOSTS 拦截广告/统计资源（空响应）**；shouldOverrideUrlLoading **拦截 /images/*.pdf 与 Special:Redirect/file/*.pdf → 应用内下载、外链跳系统浏览器**；onPageFinished 注入 IMSLP_PAGE_JS；onProgressChanged 更新加载进度；onCreateWindow 接管弹窗；DownloadListener 兜底；**onRelease 移除并 destroy()** | L392-L496 |
-| — Browse 步·门禁轮询 | LaunchedEffect 每 1200ms 读 body innerText，检出 "Bot Check Passed" → **自动重试下载（≤2 次，UA 取自 WebView）** | L498-L529 |
+| `ImslpStep` | sealed interface — Search/Results(works,composers)/**Browse(url)** 步骤状态机 | L76-L80 |
+| `pdfDisplayName(filename)` | private fun — 去 PMLP 编号前缀展示 | L83-L84 |
+| `ImslpDialogState` | **class（ViewerViewModel 持有，冷启动重置）** — showDialog/step/lastResults/query/busy/statusText/downloadJob/webViewRef + 下载与门禁状态（downloadingUrl/downloadProgress/gateWait/gatePassed/gateFileUrl/gateRetry）+ pageProgress + **currentBrowseUrl（onPageFinished 实时记录，重开恢复最后浏览页）** + **resultsFromBrowse（Results 返回去向）** + **searchHistory（持久化历史）** | L88-L109 |
+| `IMSLP_PAGE_JS` | private const — onPageFinished 注入脚本：**.pld 蜜罐清空 + #sm_dl_wait data-id 立即导航（跳过等待）并隐藏倒计时弹窗 + View 预览兜底（捕获点击 View → 2s 未渲染官方组件时用 www.peachnote.com 图片接口自绘可翻页预览，官方组件渲染后自动移除）** | L112-L206 |
+| `IMSLP_AD_HOSTS` | private val — **广告/统计第三方域名清单**（gtag/Clarity/广告网络等），shouldInterceptRequest 拦截提速 | L208-L219 |
+| `ImslpDialog(state, isDark, onImported, onSearchCommit, onClearHistory)` | @Composable Dialog — **响应式尺寸**：宽 Search 0.70/其余 0.94 屏宽，高 Search 随历史条数(封顶 0.5 屏)/Results 按结果数分档(0.35/0.60/0.88)/Browse 恒 0.88 屏高，**animateDpAsState(tween 300) 过渡** | L225-L723 |
+| — goBack() | 取消下载/清理门禁态；Results 且 resultsFromBrowse → 回 Browse(currentBrowseUrl)；Browse 内优先 WebView 历史回退，否则回 Results | L272-L301 |
+| — doSearch(q, fromBrowse) | 搜索（仓库层并行）；有结果时 onSearchCommit 记录历史 | L304-L318 |
+| — openComposer/openWork | 点击结果 → Browse 步（官方 Category 页 / 官方作品页，URL 编码，同步 currentBrowseUrl） | L320-L330 |
+| — startInterceptedDownload(fileUrl, ua, isAutoRetry) | 拦截下载入口：末段解码文件名（仅 .pdf）→ downloadUrl 应用内下载（进度回调）；**BotCheck → gateFileUrl 记录 + WebView 加载门禁页（mtcaptcha）**；Success → onImported 导入谱架 | L333-L365 |
+| — Search 步 | 搜索框 + **最近搜索历史列表（点击直接搜索 / 清空按钮）**+ 说明文案 | L409-L476 |
+| — Results 步 | 👤作曲家组 + 📄作品组 两列网格（点作曲家→官方 Category 页，点作品→官方作品页） | L478-L530 |
+| — Browse 步·搜索框+进度区 | **WebView 顶部搜索框（提交→应用内结果网格，fromBrowse=true）** + 页面加载进度条（pageProgress 1~99）+ 下载进度条（**官方页保持挂载**） | L532-L580 |
+| — Browse 步·WebView | 官方页 AndroidView：**UA 不覆盖（设备默认）** + JS/DOM 存储/第三方 Cookie/混合内容/内置缩放 + **免责 cookie 预置**；onPageStarted 置 pageProgress=0；**shouldInterceptRequest 按 IMSLP_AD_HOSTS 拦截广告/统计资源**；shouldOverrideUrlLoading **拦截 /images/*.pdf 与 Special:Redirect/file/*.pdf → 应用内下载、外链跳系统浏览器**；**onPageFinished 记录 currentBrowseUrl + 注入 IMSLP_PAGE_JS**；onProgressChanged 更新加载进度；onCreateWindow 接管弹窗；DownloadListener 兜底；**onRelease 移除并 destroy()**；**factory loadUrl(currentBrowseUrl ?: s.url) 恢复浏览位置** | L582-L690 |
+| — Browse 步·门禁轮询 | LaunchedEffect 每 1200ms 读 body innerText，检出 "Bot Check Passed" → **自动重试下载（≤2 次，UA 取自 WebView）** | L692-L723 |
 
 | Element | Type | Lines |
 |---|---|---|

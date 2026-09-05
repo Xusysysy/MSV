@@ -22,6 +22,7 @@ import com.music.msv.data.model.PageBookmark
 import com.music.msv.data.model.UpdateInfo
 import com.music.msv.facer.FaceRecognitionManager
 import com.music.msv.facer.FaceRecognitionRepository
+import com.music.msv.ui.components.ImslpDialogState
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 import com.tom_roush.pdfbox.pdmodel.interactive.documentnavigation.destination.PDPageFitWidthDestination
@@ -58,6 +59,9 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     private val _uiState = MutableStateFlow(ViewerState())
     val uiState: StateFlow<ViewerState> = _uiState.asStateFlow()
 
+    /** IMSLP 弹窗状态：ViewModel 级持有，误触关闭/旋转不丢，冷启动才重置 */
+    val imslpState = ImslpDialogState()
+
     private var imageUris: List<Uri> = emptyList()
     private var pdfUri: Uri? = null
     private var loadJob: Job? = null
@@ -88,6 +92,9 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             sessionRepo.getPageMap().collect { pageMap = it }
         }
         viewModelScope.launch {
+            sessionRepo.getImslpHistory().collect { imslpState.searchHistory = it }
+        }
+        viewModelScope.launch {
             FaceLog.d("MSV_VM", "开始加载面部偏好+监听stateFlow")
             faceRepo.load(faceManager)
             faceManager.stateFlow.collect { faceState ->
@@ -110,6 +117,15 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             updateRepo.cleanupDownloadedApk(updateRepo.installedVersionName)
             checkUpdate(manual = false)
         }
+    }
+
+    /** IMSLP 搜索历史：记录/清空（DataStore 持久化） */
+    fun addImslpHistory(query: String) {
+        viewModelScope.launch { sessionRepo.addImslpHistory(query) }
+    }
+
+    fun clearImslpHistory() {
+        viewModelScope.launch { sessionRepo.clearImslpHistory() }
     }
 
     fun handleShareIntent(intent: Intent?) {

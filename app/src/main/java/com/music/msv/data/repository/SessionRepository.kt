@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import org.json.JSONArray
 import org.json.JSONObject
 
 private val Context.dataStore by preferencesDataStore(name = "session")
@@ -19,6 +20,10 @@ class SessionRepository(private val context: Context) {
         private val KEY_URIS = stringPreferencesKey("uris")
         private val KEY_FILE_NAME = stringPreferencesKey("file_name")
         private val KEY_PAGE_MAP = stringPreferencesKey("page_map")
+        private val KEY_IMSLP_HISTORY = stringPreferencesKey("imslp_history")
+
+        /** 搜索历史上限 */
+        private const val IMSLP_HISTORY_LIMIT = 10
     }
 
     data class SessionData(
@@ -61,6 +66,33 @@ class SessionRepository(private val context: Context) {
             val json = JSONObject(mapJson)
             json.keys().asSequence().associateWith { json.getInt(it) }
         } catch (_: Exception) { emptyMap() }
+    }
+
+    /** IMSLP 搜索历史（持久化，最近在前，去重，上限 10 条） */
+    fun getImslpHistory(): Flow<List<String>> = context.dataStore.data.map { prefs ->
+        val json = prefs[KEY_IMSLP_HISTORY] ?: "[]"
+        try {
+            val arr = JSONArray(json)
+            (0 until arr.length()).map { arr.optString(it) }
+        } catch (_: Exception) { emptyList() }
+    }
+
+    suspend fun addImslpHistory(query: String) {
+        val q = query.trim()
+        if (q.isEmpty()) return
+        context.dataStore.edit { prefs ->
+            val json = prefs[KEY_IMSLP_HISTORY] ?: "[]"
+            val list = try {
+                val arr = JSONArray(json)
+                (0 until arr.length()).map { arr.optString(it) }
+            } catch (_: Exception) { emptyList() }
+            val updated = (listOf(q) + list.filter { it != q }).take(IMSLP_HISTORY_LIMIT)
+            prefs[KEY_IMSLP_HISTORY] = JSONArray(updated).toString()
+        }
+    }
+
+    suspend fun clearImslpHistory() {
+        context.dataStore.edit { it.remove(KEY_IMSLP_HISTORY) }
     }
 
     suspend fun clearSession() {

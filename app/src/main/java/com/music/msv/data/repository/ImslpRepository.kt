@@ -73,6 +73,22 @@ class ImslpRepository {
 
     private fun isNonWork(title: String): Boolean = NON_WORK_PREFIXES.any { title.startsWith(it) }
 
+    /**
+     * 搜索简介清洗：MediaWiki snippet 是 wiki 模板原文（如 "|Performer Categories=…" 参数行、{{模板}}、
+     * [[链接|文本]]、HTML 实体），直接展示会出现无效字符。过滤模板参数行/标记并解码实体；
+     * 清洗后为空则返回空串（UI 侧 isNotEmpty 判断自动不渲染灰字区）。
+     */
+    private fun cleanSnippet(raw: String): String = raw
+        .replace(Regex("<[^>]+>"), "")                                  // 去 searchmatch 高亮等标签
+        .lines()
+        .filter { it.isNotBlank() && !it.trimStart().startsWith("|") }   // 丢弃模板参数行（|Field=Value 无效信息）
+        .joinToString(" ")
+        .replace(Regex("\\{\\{[^{}]*\\}\\}"), "")                        // {{模板}}
+        .replace(Regex("\\[\\[([^]|]*\\|)?([^]]*)\\]\\]"), "$2")         // [[链接|文本]]→文本
+        .replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
+        .replace("&quot;", "\"").replace(Regex("&#0?39;"), "'").replace("&nbsp;", " ")
+        .replace(Regex("\\s+"), " ").trim()
+
     /** 搜索：作品（主命名空间全文）+ 作曲家分类（Category 命名空间标题匹配）；两组请求并行以缩短等待 */
     suspend fun search(query: String): Pair<List<ImslpSearchResult>, List<ImslpSearchResult>> =
         withContext(Dispatchers.IO) {
@@ -88,7 +104,7 @@ class ImslpRepository {
                                 val o = arr.getJSONObject(i)
                                 val title = o.optString("title")
                                 if (isNonWork(title)) continue
-                                val snippet = o.optString("snippet").replace(Regex("<[^>]+>"), "").trim()
+                                val snippet = cleanSnippet(o.optString("snippet"))
                                 out.add(ImslpSearchResult(title, o.optLong("pageid"), false, snippet))
                             }
                         } catch (e: Exception) {

@@ -80,7 +80,7 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
     var showPageDialog by remember { mutableStateOf(false) }
     var pageInput by remember { mutableStateOf("") }
     var showResetDialog by remember { mutableStateOf(false) }
-    var showImslpDialog by remember { mutableStateOf(false) }
+    // IMSLP 弹窗开关在 viewModel.imslpState.showDialog（状态跨弹窗开关/旋转保持，冷启动重置）
 
     val isDark = state.isDarkTheme
     val appBg = if (isDark) Color(0xFF0F1220) else Color(0xFFDFE6F5)
@@ -288,7 +288,7 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                     shelfSortBy = state.shelfSortBy,
                     onFileSelected = { uri -> viewModel.onEvent(ViewerEvent.OpenShelfFile(uri)) },
                     onImportClick = openFilePicker,
-                    onImslpClick = { showImslpDialog = true },
+                    onImslpClick = { viewModel.imslpState.showDialog = true },
                     onClose = { viewModel.onEvent(ViewerEvent.ToggleShelf) },
                     onRename = { uri, name -> viewModel.onEvent(ViewerEvent.RenameShelfFile(uri, name)) },
                     onSortSelected = { viewModel.onEvent(ViewerEvent.SetShelfSort(it)) },
@@ -419,14 +419,16 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
             )
         }
 
-        if (showImslpDialog) {
+        if (viewModel.imslpState.showDialog) {
             ImslpDialog(
+                state = viewModel.imslpState,
                 isDark = isDark,
-                onDismiss = { showImslpDialog = false },
                 onImported = { uri ->
-                    showImslpDialog = false
+                    viewModel.imslpState.showDialog = false
                     viewModel.onEvent(ViewerEvent.OpenShelfFile(uri))
-                }
+                },
+                onSearchCommit = { viewModel.addImslpHistory(it) },
+                onClearHistory = { viewModel.clearImslpHistory() }
             )
         }
 
