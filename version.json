@@ -1,7 +1,7 @@
 {
-    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.3.9/MSV-ScoreViewer-v2.3.9-release.apk",
-    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.3.9/MSV-ScoreViewer-v2.3.9-release.apk",
-    "versionCode":  42,
-    "versionName":  "2.3.9",
-    "notes":  "# MSV 乐谱查看器 v2.3.9\n\n## 修复\n\n- **搜索结果页\"返回\"按钮失效**：结果网格点返回无反应的 bug 已修复（现正确回到搜索页；从浏览页搜索进入的结果页则返回浏览页）\n- **状态行把内容挤出弹窗**：搜索弹窗出现\"搜索中…\"等状态文字时不再把底部内容推出弹窗外（高度动态计入）\n- **官方页下载按钮\"消失\"**：多数情况是页面尚未加载完成——网页加载中现在显示明确的\"加载中…\"覆盖层（转圈+文字），完成后自动消失；页面加载完成前不再误以为按钮丢失。若加载完成后下载入口仍缺失，请反馈截图\n\n## 优化\n\n- **浏览页顶部搜索框收起式设计**：默认收起为一个小胶囊（不再占用大块空间），点击后展开为输入行（带过渡动画并自动聚焦），提交搜索后自动收起\n- **搜索框样式统一**：搜索页与浏览页搜索框统一为矮高度（50dp）+ 大圆角（20dp），与弹窗整体风格协调，消除割裂感\n\nversionCode=42, versionName=2.3.9\n"
+    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.4.0/MSV-ScoreViewer-v2.4.0-release.apk",
+    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.4.0/MSV-ScoreViewer-v2.4.0-release.apk",
+    "versionCode":  43,
+    "versionName":  "2.4.0",
+    "notes":  "# MSV 乐谱查看器 v2.4.0\n\n## 修复\n\n- **主页面双击缩放失效**（历史问题）：三处根因一并修复——①双击时手指轻微移动超过触摸阈值会被误判为拖拽（现增加路径位移兜底，微动仍按双击处理）；②缩放模式下单击未记录首击时间，导致双击第二击永远判定不到（双击缩小/退出缩放模式失效的直接原因）；③双击判定窗口从 300ms 放宽到 400ms，慢速双击也能触发\n- **面部识别预览绿紫色块/残影**：修复 YUV 色度索引与组装格式不匹配导致的绿紫色调错乱；预览位图改为每帧更新，消除运动拖影感\n\n## 优化\n\n- **双指缩小自动退出缩放模式**：捏合缩小到接近原比例时无需松手，自动以动画过渡归位并退出缩放模式；退出缩放模式的恢复动画不再被状态同步打断（此前会瞬间跳变无动画）\n\n## 新增\n\n- **IMSLP 首次使用免责声明**：第一次打开 IMSLP 搜索时弹窗强调版权法规（乐谱公有领域状态因国家/地区而异、需自行确认、遵守当地版权法与 IMSLP 条款），同意后永久生效\n- **开源与内容许可更新**：设置面板的开源许可清单新增 IMSLP（内容遵循 CC BY-SA 4.0）与 Peachnote（预览接口）条目，并附 IMSLP 内容使用说明\n\nversionCode=43, versionName=2.4.0\n"
 }
