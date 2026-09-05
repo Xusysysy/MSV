@@ -1,7 +1,7 @@
 {
-    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.3.7/MSV-ScoreViewer-v2.3.7-release.apk",
-    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.3.7/MSV-ScoreViewer-v2.3.7-release.apk",
-    "versionCode":  40,
-    "versionName":  "2.3.7",
-    "notes":  "# MSV 乐谱查看器 v2.3.7\n\n## 优化\n\n- **IMSLP 官方页加载提速**：内嵌浏览不再加载广告与统计类第三方资源（gtag/Clarity/各大广告网络等，占页面加载与流量的主要部分），页面打开明显更快、更省流量；站点功能与人机验证组件不受影响\n- **页面加载进度条**：浏览官方页时顶部实时显示加载进度，加载过程可感知\n- **搜索提速**：作品与作曲家两组搜索请求由串行改为并行，出结果等待约减半\n- **观感修复**：点击乐谱后应用内立即开始下载，同时自动隐藏站点弹出的\"15 秒等待\"倒计时弹窗（实际下载本就无需等待，此前弹窗会一直挂在页面上造成困惑）\n\nversionCode=40, versionName=2.3.7\n"
+    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.3.8/MSV-ScoreViewer-v2.3.8-release.apk",
+    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.3.8/MSV-ScoreViewer-v2.3.8-release.apk",
+    "versionCode":  41,
+    "versionName":  "2.3.8",
+    "notes":  "# MSV 乐谱查看器 v2.3.8\n\n## 新增\n\n- **IMSLP 弹窗响应式**：初始为小弹窗（仅搜索框 + 最近搜索记录），搜索后按结果数量自动调整弹窗大小，全程过渡动画；进入官方页浏览时保持原有 0.94×0.88 大小不变\n- **搜索历史**：最近 10 条持久化保存（跨冷启动），点击历史项直接搜索，支持一键清空\n- **浏览页顶部搜索框**：浏览 IMSLP 官方页时可直接输入关键词搜索，切回应用内结果网格，返回时自动回到刚才浏览的页面\n- **浏览状态保持**：误触弹窗边缘关闭后重新打开，自动恢复到之前浏览的官方页面（不会回到搜索页），登录/验证状态一并保留；应用内一直有效，直到下次冷启动\n- **横竖屏切换弹窗不再退出**：旋转屏幕时弹窗与浏览内容原样保持\n\n## 修复\n\n- **作品页 View 预览不可用**：IMSLP 官方预览组件托管于 Google 域（部分网络无法访问），现自动启用兜底预览——点击 View 约 2 秒后自绘显示乐谱预览，支持翻页/关闭；官方组件可用时仍优先使用官方组件\n- **搜索简介乱字符**：结果列表的灰字简介不再出现 `|Field=Value` 模板残留、`{{}}` 与转义符号；无有效信息的条目不再显示简介\n\nversionCode=41, versionName=2.3.8\n"
 }
