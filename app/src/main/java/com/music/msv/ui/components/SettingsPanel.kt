@@ -53,7 +53,8 @@ private val openSourceProjects = listOf(
     "MediaPipe Tasks Vision (面部识别)" to "Apache License 2.0",
     "pdfbox-android (PDF 读写)" to "Apache License 2.0",
     "IMSLP / Petrucci Music Library (乐谱数据来源)" to "站点内容遵循 Creative Commons Attribution-ShareAlike 4.0 (CC BY-SA 4.0)；乐谱文件本身的版权状态因国家/地区而异，以文件页标注为准",
-    "Peachnote (乐谱预览接口)" to "公开 REST 接口，预览图像版权归原提供方所有"
+    "Peachnote (乐谱预览接口)" to "公开 REST 接口，预览图像版权归原提供方所有",
+    "Material Symbols (应用图标 Library Music)" to "Google Fonts 提供，Apache License 2.0"
 )
 
 private val supportStory = """

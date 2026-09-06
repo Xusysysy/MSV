@@ -309,7 +309,7 @@ Single-screen app — no Navigation component. State-based content switching via
 | — — Check-update button（Checking/Downloading 时禁用，文案"检查中…"/"下载中…"） | L125-L148 |
 | — — `when(updateStatus)` 状态区 | Idle/Checking 空态 · UpToDate/Error 文案 · Downloading **应用内进度条+百分比** · Available 版本+notes+查看更新日志展开+立即更新按钮 · Downloaded 立即安装按钮 | L150-L195 |
 | — Footer Spacer(weight) + 版权行 "© 2026 Xusysysy · MSV 乐谱查看器" | L180-L183 |
-| `openSourceProjects` | private val — 开源组件许可清单（**含 IMSLP CC BY-SA 4.0 内容协议与 Peachnote 预览接口**） | L46-L58 |
+| `openSourceProjects` | private val — 开源组件许可清单（**含 IMSLP CC BY-SA 4.0 内容协议、Peachnote 预览接口、应用图标 Material Symbols (Library Music, Google Fonts, Apache 2.0)**） | L46-L59 |
 | — 开源许可 AlertDialog | 许可列表 + **"IMSLP 内容使用说明"法规段（公有领域因国而异/需自行确认/遵守当地版权法）** | L301-L330 |
 | `StatusText` | private @Composable | L364-L367 |
 | `OutlineButton` | private @Composable — accent 描边按钮 | L369-L377 |
