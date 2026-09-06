@@ -1,7 +1,7 @@
 {
-    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.4.1/MSV-ScoreViewer-v2.4.1-release.apk",
-    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.4.1/MSV-ScoreViewer-v2.4.1-release.apk",
-    "versionCode":  44,
-    "versionName":  "2.4.1",
-    "notes":  "# MSV 乐谱查看器 v2.4.1\n\n## 修复\n\n- **搜索框文字偏下被裁一半**：搜索框改为自绘胶囊输入框（42dp 高、文字垂直居中），搜索页与浏览页统一\n- **双指缩放以双指起始中点为中心**：捏合放大时内容围绕两指起始位置展开（此前围绕屏幕中心），并修复连续捏合时的焦点漂移\n- **双击缩小一步回到正常状态**：双击恢复时缩放与平移动画并行执行，不再出现\"先回正、再居中\"的两段过程（边缘放大后尤其明显）\n- **官方网页加载感知**：加载中的白色遮挡层改为半透明（页面内容渐进可见，转圈提示保留），注入脚本轮询降频，减少对页面加载的干扰\n\n## 优化\n\n- **谱架瀑布流**：双列自然排列——卡片高度按乐谱首页真实比例与文件名行数自适应，长短高低自然错开，不再固定格子留空；缩略图去掉灰色背景，白底页面干净显示\n\nversionCode=44, versionName=2.4.1\n"
+    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.4.2/MSV-ScoreViewer-v2.4.2-release.apk",
+    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.4.2/MSV-ScoreViewer-v2.4.2-release.apk",
+    "versionCode":  45,
+    "versionName":  "2.4.2",
+    "notes":  "# MSV 乐谱查看器 v2.4.2\n\n## 修复\n\n- **竖屏向前翻页闪一帧**：翻页动画期间页面定位与页码状态跨帧重组完全解耦（与横屏双页同方案），动画首帧不再闪现前一页\n- **面部识别预览与线条未镜像**：去除显示层的抵消翻转，预览画面与线条现在显示为镜像（前置摄像头习惯方向），左右识别逻辑不受影响\n\n## 优化\n\n- **浏览页搜索即时反馈**：顶部搜索框提交后立即显示\"搜索中…\"覆盖层，结果就绪后切换到结果网格（此前无反馈直到跳页）\n\n## 新增\n\n- **面部识别\"仅显示线条\"开关**：设置面板新增切换，开启后隐藏相机画面、深色底上只显示关键点连线（触发效果不变），设置随偏好持久化\n\nversionCode=45, versionName=2.4.2\n"
 }
