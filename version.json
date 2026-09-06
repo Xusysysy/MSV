@@ -1,7 +1,7 @@
 {
-    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.4.4/MSV-ScoreViewer-v2.4.4-release.apk",
-    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.4.4/MSV-ScoreViewer-v2.4.4-release.apk",
-    "versionCode":  47,
-    "versionName":  "2.4.4",
-    "notes":  "# MSV 乐谱查看器 v2.4.4\n\n## 修复\n\n- **边界连点闪回**：竖屏在第 2 页左侧连续点击两次会先到第 1 页又闪回第 2 页——越界回弹动画现在正确重置翻页状态，边界点击只回弹不闪回\n- **重开 IMSLP 弹窗残留下载状态**：上次在下载进行中关闭弹窗，重新打开会残留\"下载中\"进度并挡住新下载——现在关闭弹窗时自动取消下载并清理瞬态状态（浏览位置仍会恢复）\n\n## 优化\n\n- **IMSLP 搜索结果 4 列瀑布流**：作品组（按相关度排序）前置置顶——关联度最高的结果位于左上角；卡片更紧凑，一屏可见更多结果\n- **最近搜索改横向卡片**：滑动选择，节省纵向空间\n- **中文搜索自动扩展**：输入中文时自动并行补充拼音与常见音乐词英文译名（50+ 条内置映射：贝多芬→Beethoven、莫扎特→Mozart、奏鸣曲→Sonata 等），结果合并去重、原词相关度优先\n\nversionCode=47, versionName=2.4.4\n"
+    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.4.5/MSV-ScoreViewer-v2.4.5-release.apk",
+    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.4.5/MSV-ScoreViewer-v2.4.5-release.apk",
+    "versionCode":  48,
+    "versionName":  "2.4.5",
+    "notes":  "# MSV 乐谱查看器 v2.4.5\n\n## 修复\n\n- **搜索弹窗\"搜索中…\"遮挡底部文字**：小窗高度计算精确计入状态行与历史块，且搜索页内容支持滚动，任何状态下说明文字不再被裁切\n- **官方页加载失败友好提示**：WebView 主文档加载失败（如超时）不再显示系统错误页——应用内显示错误描述与\"重试\"按钮，点击即重新加载；加载进度与错误状态互斥显示\n\n## 调整\n\n- **搜索结果作曲家优先**：结果页作曲家组前置显示，作品组（相关度排序）在后\n- **搜索并发收敛**：拼音扩展仅在无英文映射命中时触发（映射优先），降低对 IMSLP 站点的并发请求，减少页面被限流的概率\n\nversionCode=48, versionName=2.4.5\n"
 }
