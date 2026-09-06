@@ -832,6 +832,22 @@ fun ImslpDialog(
                                 }
                             }
                         }
+
+                        // 搜索中覆盖层：顶部搜索框提交后的即时反馈（结果就绪后切到结果网格）
+                        if (state.busy) {
+                            Box(
+                                Modifier
+                                    .fillMaxSize()
+                                    .background(if (isDark) Color(0x990F121C) else Color(0x99FFFFFF)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    CircularProgressIndicator(color = accent)
+                                    Spacer(Modifier.height(8.dp))
+                                    Text("搜索中…", color = muted, fontSize = 12.sp)
+                                }
+                            }
+                        }
                     }
 
                     // 门禁页轮询：用户完成 mtcaptcha 后页面出现 "Bot Check Passed" → 自动重试下载

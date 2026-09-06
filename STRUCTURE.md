@@ -171,7 +171,7 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 7. ui/components/Stage.kt (L1-L790)
+### 7. ui/components/Stage.kt (L1-L791)
 
 | Element | Type | Lines |
 |---|---|---|
@@ -191,7 +191,7 @@ Single-screen app — no Navigation component. State-based content switching via
 | — tap/drag/pinch awaitEachGesture pointerInput | 正常模式：1/3 点按三区/拖拽翻页；**双击窗口 400ms**；**双击手指微动超 touchSlop 的兜底：路径最大净位移 maxNetDisp<24dp 时仍按单击处理（修复双击失效）**；**双指捏合：...捏回 ≤1.02 动画恢复并退出（松手时）/捏合过程中 newZoom≤1.02 自动动画退出（pinchExited 防本次手势重入）**；**缩放以双指起始中点为焦点（局部 curZoom/curPanX/Y 同步追踪做焦点补偿，消除异步 snapTo 滞后误差）**；缩放模式：单指平移（钳制）、双击恢复（**恢复动画 zoom/pan 并行一步到位**）；全部 change 消费；捏合转单指重锚定防跳变 | L319-L650 |
 | — 内容 graphicsLayer 容器 | scaleX/Y = renderZoom，translation = renderPan（缩放模式整体缩放/平移，横屏双页为一个整体） | L502-L511 |
 | — Spread branch | gap fill Box、pages loop（L534 refPage：动画期 = lastPage 保证两对页滑动衔接）、gradient edge masks；页面用 PageWithPlaceholder（占位图+淡入）渲染 | L512-L388→L512-L587 |
-| — Single branch | pages loop；base when（L599-L605）/pageOffsetX when（L607-L613）：动画期以 lastPage 锚定滑出页（消除 currentPage 滞后窗口的前一页闪现）、拖拽期当前页/前页跟手、后续页停靠 stageWidth 防透闪；PageWithPlaceholder（占位图+淡入）渲染 | L589-L620 |
+| — Single branch | pages loop；**动画期（flipDir!=0）新旧两页完全由 lastPage 锚定（前向：旧页 t 滑出/新页钉 0；后向：旧页钉 0/新页 -dw+t 滑入），与 currentPage 跨帧重组时序解耦（同 spread 的 refPage 方案）——修复竖屏前向翻页动画前闪前一帧**；拖拽期当前页/前页跟手、后续页停靠屏外；PageWithPlaceholder 渲染 | L764-L803 |
 
 ---
 
@@ -530,7 +530,7 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 18. facer/FaceCamera.kt (L1-L135)
+### 18. facer/FaceCamera.kt (L1-L131)
 
 | Element | Type | Lines |
 |---|---|---|
@@ -543,7 +543,7 @@ Single-screen app — no Navigation component. State-based content switching via
 | `exec` + DisposableEffect | analyzer executor；绑定仅 ImageAnalysis（无 Preview use case/PreviewView），onDispose unbindAll + shutdown | L70-L94 |
 | `state` collect + alpha animation | fade-in when visible | L96-L99 |
 | `camModifier` | visible → fillMaxWidth 4:3; hidden → 1dp (keeps analyzer alive) | L101-L102 |
-| 预览 Box | **送检位图 Image 即预览画面（WYSIWYG）**：容器 aspectRatio=frameWidth/Height（竖屏不失真），否则暗色"正在启动相机…"占位 | L104-L129 |
+| 预览 Box | **送检位图即预览画面（decode 内已按 mirrored 镜像，显示层不再翻转——预览即镜像画面，线条同坐标系对齐）**；**skeletonOnly 时隐藏位图、深色底只画线条**；容器 aspectRatio=frameWidth/Height（竖屏不失真），否则暗色"正在启动相机…"占位 | L104-L128 |
 | — 位图 Image + Landmarks Canvas | 线条与画面同空间（px = lm.x*w, lm.y*h），横竖屏精确对齐 | L113-L128 |
 
 ---
@@ -570,7 +570,7 @@ Single-screen app — no Navigation component. State-based content switching via
 | Package + imports | — | L1-L26 |
 | `FaceRecognitionManager(context)` | class | L28-L215 |
 | Companion `TAG` | const "MSV_FACE" | L29 |
-| `FaceState` | data class — running, enabled, triggerMode, thresholds, mirrored, actionThreshold, actionActive, fps, scores, landmarks, status, frameWidth/Height（送检位图尺寸）, **previewImage（送检位图预览，WYSIWYG）** | L31-L39 |
+| `FaceState` | data class — running, enabled, triggerMode, thresholds, mirrored, **skeletonOnly（仅显示叠加线条）**, actionThreshold, actionActive, fps, scores, landmarks, status, frameWidth/Height, **previewImage（送检位图预览，WYSIWYG）** | L33-L42 |
 | `Thresholds` | data class — blink, pucker, puckerBiasL, puckerBiasR | L38 |
 | `GestureScores` | data class — lWink, rWink, lPucker, rPucker | L39 |
 | `TriggerMode` | enum (WINK, PUCKER, BOTH) | L40 |
@@ -608,20 +608,20 @@ Single-screen app — no Navigation component. State-based content switching via
 | `Card` | private @Composable — single emoji+score card | L130-L135 |
 | `Modes` | private @Composable — trigger mode buttons (Wink/撅嘴/两者) | L137-L146 |
 | `SliderCard` | private @Composable — labeled slider (blink/pucker/action/bias L/R) | L148-L154 |
-| `MirrorToggle` | private @Composable — 镜像/原始 toggle | L156-L163 |
+| `MirrorToggle` | private @Composable — **镜像/原始 toggle + 仅显示线条 toggle（纯线条模式：隐藏相机画面只画关键点连线）** | L156-L171 |
 | `Debug` | private @Composable — diagnostics line + status | L165-L171 |
 | `MBtn` | private @Composable — mode select button | L173-L177 |
 
 ---
 
-### 22. facer/FaceRecognitionRepository.kt (L1-L73)
+### 22. facer/FaceRecognitionRepository.kt (L1-L78)
 
 | Element | Type | Lines |
 |---|---|---|
 | Package + imports | — | L1-L10 |
 | `Context.faceStore` | extension property ("face_prefs" DataStore) | L12 |
 | `FaceRecognitionRepository(context)` | class | L14-L73 |
-| `FacePrefs` | data class (6 fields) — mirrored, blinkThreshold, puckerThreshold, puckerBiasL, puckerBiasR, actionThreshold | L16-L23 |
+| `FacePrefs` | data class (7 fields) — mirrored, **skeletonOnly**, blinkThreshold, puckerThreshold, puckerBiasL, puckerBiasR, actionThreshold | L16-L24 |
 | Companion — keys | K_MIRROR, K_BLINK, K_PUCKER, K_BIAS_L, K_BIAS_R, K_ACTION | L25-L32 |
 | `prefsFlow: Flow<FacePrefs>` | val | L34-L43 |
 | `save(manager)` | suspend fun — persists FaceState → DataStore | L45-L55 |
@@ -683,7 +683,7 @@ Single-screen app — no Navigation component. State-based content switching via
 | `downloadUrl(url, ua, dest, onProgress)` | suspend — withContext(IO) 委托 downloadLoop（独立函数规避 K2 lambda 推断问题） | L172-L180 |
 | `downloadLoop(url, ua, dest, onProgress)` | private suspend — **流式下载 + %PDF- 魔数校验**；非 PDF→分类跟进（重复 URL 按 2s 轮询至 16s 预算，覆盖站点匿名等待间隔）；进度回调 + 协作式取消（内层 lambda 用捕获的 Job.ensureActive） | L182-L274 |
 
-### 27. ui/components/ImslpPanel.kt (L1-L880)
+### 27. ui/components/ImslpPanel.kt (L1-L895)
 
 | Element | Type | Lines |
 |---|---|---|

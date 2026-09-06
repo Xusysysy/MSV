@@ -105,17 +105,17 @@ fun FaceCamera(
         val fw = state.frameWidth.toFloat()
         val fh = state.frameHeight.toFloat()
         if (visible && previewImage != null && fw > 0f && fh > 0f) {
-            // 送检位图即预览画面（已按 mirrored 在显示帧内旋转/镜像），预览与线条同空间必然对齐；
-            // 容器锁定位图宽高比，竖屏不失真不偏大
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                // 预览镜像修正：mirrored=true 时管线镜像了送检帧，显示层再水平翻转回去（位图与线条整体翻转，对齐关系不变，识别管线不受影响）
-                Box(Modifier.aspectRatio(fw / fh).graphicsLayer { scaleX = if (state.mirrored) -1f else 1f }) {
+            // 送检位图即预览画面（已按 mirrored 设置在 decode 内旋转/镜像），显示层不再翻转——
+            // 预览即镜像画面（前置习惯），线条与位图同坐标系必然对齐；容器锁定位图宽高比，竖屏不失真
+            Box(Modifier.aspectRatio(fw / fh).then(if (state.skeletonOnly) Modifier.background(Color(0xFF0A0D16)) else Modifier)) {
+                if (!state.skeletonOnly) {
                     Image(
                         bitmap = previewImage,
                         contentDescription = null,
                         contentScale = ContentScale.FillBounds,
                         modifier = Modifier.fillMaxSize()
                     )
+                }
                     if (state.landmarks != null) {
                         val lm = state.landmarks!!
                         Canvas(Modifier.fillMaxSize()) { val w = size.width; val h = size.height
@@ -124,7 +124,6 @@ fun FaceCamera(
                             d(F, Color(0xCCB08CFF), 3f); d(E, Color(0xDD00D4FF), 3f); d(B, Color(0xCC00D4FF), 2.5f); d(L, Color(0xDDFF3D8F), 3f)
                         }
                     }
-                }
             }
         } else {
             Box(Modifier.fillMaxSize().background(Color(0xFF0A0D16)), contentAlignment = Alignment.Center) {

@@ -763,22 +763,24 @@ fun Stage(
 
                 for (pageIndex in pagesToShow) {
                     val uri = pageUris[pageIndex]
-                    // 页码在翻页触发瞬间已推进到目标页；动画期以 lastPage（翻页前页码）锚定滑出页，
-                    // 避免 currentPage 更新滞后 1-2 帧时"前一页"闪现在当前页位置：
-                    // 前向动画：lastPage（旧当前页）叠在 0 处随 t 滑出，新当前页静止在 0 底下
-                    // 后向动画：lastPage 静止在 0 处被覆盖，新当前页从 -dw 随 t 滑入
+                    // 页码在翻页触发瞬间已推进到目标页；动画期（flipDir!=0）完全以 lastPage 锚定新旧两页，
+                    // 与 currentPage 的跨帧重组时序解耦（同 spread 的 refPage 方案）：前向=旧页随 t 滑出、新页钉在 0；
+                    // 后向=旧页钉在 0、新页从 -dw 随 t 滑入。currentPage 推进滞后 1-2 帧不再造成闪帧/露底。
                     // 拖拽期（flipDir==0）：当前页/前页跟手；其余后续页停靠屏幕外防透闪
                     val base = when {
-                        pageIndex == currentPage -> 0f
                         flipDir != 0 && pageIndex == lastPage -> 0f
+                        flipDir == 1 && pageIndex == lastPage + 1 -> 0f
+                        flipDir == -1 && pageIndex == lastPage - 1 -> -dw
+                        pageIndex == currentPage -> 0f
                         flipDir == 0 && t < 0 && pageIndex == currentPage + 1 -> 0f
-                        flipDir == 1 && t < 0 && pageIndex == lastPage + 1 -> 0f
                         pageIndex > currentPage -> stageWidth.toFloat()
                         else -> -(currentPage - pageIndex).toFloat() * dw
                     }
                     val pageOffsetX = when {
-                        flipDir == 1 && t < 0 && pageIndex == lastPage -> t
-                        flipDir == -1 && t > 0 && pageIndex == currentPage && pageIndex != lastPage -> -dw + t
+                        flipDir == 1 && pageIndex == lastPage -> t
+                        flipDir == 1 && pageIndex == lastPage + 1 -> 0f
+                        flipDir == -1 && pageIndex == lastPage -> 0f
+                        flipDir == -1 && pageIndex == lastPage - 1 -> -dw + t
                         flipDir == 0 && t < 0 && pageIndex == currentPage -> base + t
                         flipDir == 0 && t > 0 && pageIndex == currentPage - 1 -> base + t
                         else -> base

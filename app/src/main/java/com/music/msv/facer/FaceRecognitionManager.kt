@@ -33,6 +33,7 @@ class FaceRecognitionManager(context: Context) {
     data class FaceState(
         val running: Boolean = false, val enabled: Boolean = true, val triggerMode: TriggerMode = TriggerMode.BOTH,
         val thresholds: Thresholds = Thresholds(), val mirrored: Boolean = true,
+        val skeletonOnly: Boolean = false,
         val actionThreshold: Float = 0.1f, val actionActive: Boolean = false,
         val fps: Int = 0, val scores: GestureScores = GestureScores(),
         val landmarks: List<NormalizedLandmark>? = null, val status: String = "",

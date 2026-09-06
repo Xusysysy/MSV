@@ -15,6 +15,7 @@ class FaceRecognitionRepository(private val context: Context) {
 
     data class FacePrefs(
         val mirrored: Boolean = true,
+        val skeletonOnly: Boolean = false,
         val blinkThreshold: Float = 0.35f,
         val puckerThreshold: Float = 0.25f,
         val puckerBiasL: Float = 0.21f,
@@ -24,6 +25,7 @@ class FaceRecognitionRepository(private val context: Context) {
 
     companion object {
         private val K_MIRROR = booleanPreferencesKey("mirrored")
+        private val K_SKELETON = booleanPreferencesKey("skeleton_only")
         private val K_BLINK = floatPreferencesKey("blink")
         private val K_PUCKER = floatPreferencesKey("pucker")
         private val K_BIAS_L = floatPreferencesKey("bias_l")
@@ -34,6 +36,7 @@ class FaceRecognitionRepository(private val context: Context) {
     val prefsFlow: Flow<FacePrefs> = context.faceStore.data.map { p ->
         FacePrefs(
             mirrored = p[K_MIRROR] ?: true,
+            skeletonOnly = p[K_SKELETON] ?: false,
             blinkThreshold = p[K_BLINK] ?: 0.35f,
             puckerThreshold = p[K_PUCKER] ?: 0.25f,
             puckerBiasL = p[K_BIAS_L] ?: 0.21f,
@@ -46,6 +49,7 @@ class FaceRecognitionRepository(private val context: Context) {
         val s = manager.currentState()
         context.faceStore.edit {
             it[K_MIRROR] = s.mirrored
+            it[K_SKELETON] = s.skeletonOnly
             it[K_BLINK] = s.thresholds.blink
             it[K_PUCKER] = s.thresholds.pucker
             it[K_BIAS_L] = s.thresholds.puckerBiasL
@@ -59,6 +63,7 @@ class FaceRecognitionRepository(private val context: Context) {
             manager.updateState {
                 it.copy(
                     mirrored = p[K_MIRROR] ?: true,
+                    skeletonOnly = p[K_SKELETON] ?: false,
                     thresholds = it.thresholds.copy(
                         blink = p[K_BLINK] ?: 0.35f,
                         pucker = p[K_PUCKER] ?: 0.25f,

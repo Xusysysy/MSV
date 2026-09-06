@@ -160,6 +160,13 @@ fun FaceRecognitionOverlay(visible: Boolean, faceEnabled: Boolean, onDismiss: ()
             Text(if (state.mirrored) "镜像" else "原始", color = if (state.mirrored) ac else t2, fontSize = 11.sp, fontWeight = FontWeight.Bold)
         }
     }
+    // 仅显示叠加线条：隐藏相机画面，深色底上只画关键点连线（触发效果不受影响）
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(card).border(1.dp, b, RoundedCornerShape(10.dp)).padding(8.dp), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+        Text("仅显示线条", color = t, fontSize = 11.sp)
+        Box(Modifier.clip(RoundedCornerShape(8.dp)).background(if (state.skeletonOnly) ac.copy(alpha = 0.2f) else card).border(1.dp, if (state.skeletonOnly) ac else b, RoundedCornerShape(8.dp)).clickable { manager.updateState { it.copy(skeletonOnly = !it.skeletonOnly) } }.padding(horizontal = 12.dp, vertical = 4.dp)) {
+            Text(if (state.skeletonOnly) "纯线条" else "画面", color = if (state.skeletonOnly) ac else t2, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        }
+    }
 }
 
 @Composable private fun Debug(manager: FaceRecognitionManager, hasPerm: Boolean, state: FaceRecognitionManager.FaceState, card: Color, b: Color, t: Color, t2: Color, ac: Color) {
