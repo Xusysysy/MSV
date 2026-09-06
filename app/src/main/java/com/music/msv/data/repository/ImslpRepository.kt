@@ -11,6 +11,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import net.sourceforge.pinyin4j.PinyinHelper
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
@@ -45,6 +46,32 @@ class ImslpRepository {
         private val UA = USER_AGENT
         private val NON_WORK_PREFIXES =
             listOf("Category:", "Talk:", "File:", "User:", "Template:", "IMSLP:", "Portal:", "Help:", "Wishlist")
+
+        /** 中文→西文音乐词映射（覆盖常见作曲家与曲式术语；拼音对国际站命中率有限，映射表是有效路径） */
+        private val CN_MUSIC_MAP = mapOf(
+            "贝多芬" to "Beethoven", "莫扎特" to "Mozart", "巴赫" to "Bach", "肖邦" to "Chopin",
+            "李斯特" to "Liszt", "舒伯特" to "Schubert", "舒曼" to "Schumann", "勃拉姆斯" to "Brahms",
+            "海顿" to "Haydn", "亨德尔" to "Handel", "柴可夫斯基" to "Tchaikovsky", "德彪西" to "Debussy",
+            "拉赫玛尼诺夫" to "Rachmaninoff", "门德尔松" to "Mendelssohn", "瓦格纳" to "Wagner", "威尔第" to "Verdi",
+            "帕格尼尼" to "Paganini", "维瓦尔第" to "Vivaldi", "德沃夏克" to "Dvorak", "格里格" to "Grieg",
+            "马勒" to "Mahler", "布鲁克纳" to "Bruckner", "圣桑" to "Saint-Saens", "萨蒂" to "Satie",
+            "拉威尔" to "Ravel", "普罗科菲耶夫" to "Prokofiev", "肖斯塔科维奇" to "Shostakovich",
+            "斯卡拉蒂" to "Scarlatti", "车尔尼" to "Czerny", "哈农" to "Hanon", "拜厄" to "Beyer",
+            "奏鸣曲" to "Sonata", "协奏曲" to "Concerto", "交响曲" to "Symphony", "夜曲" to "Nocturne",
+            "前奏曲" to "Prelude", "练习曲" to "Etude", "圆舞曲" to "Waltz", "狂想曲" to "Rhapsody",
+            "序曲" to "Overture", "变奏曲" to "Variations", "组曲" to "Suite", "幻想曲" to "Fantasia",
+            "小提琴" to "Violin", "大提琴" to "Cello", "钢琴" to "Piano", "长笛" to "Flute",
+            "单簧管" to "Clarinet", "小号" to "Trumpet", "歌剧" to "Opera", "弥撒" to "Mass", "安魂曲" to "Requiem"
+        )
+
+        /** 中文转全拼（pinyin4j；去声调数字、非汉字字符跳过，异常静默返回空串） */
+        private fun toPinyin(q: String): String = try {
+            q.mapNotNull { c ->
+                if (c.code in 0x4E00..0x9FFF) {
+                    PinyinHelper.toHanyuPinyinStringArray(c)?.firstOrNull()?.replace(Regex("\\d$"), "")?.lowercase()
+                } else null
+            }.joinToString("")
+        } catch (_: Throwable) { "" }
     }
 
     sealed class DownloadResult {
@@ -89,52 +116,68 @@ class ImslpRepository {
         .replace("&quot;", "\"").replace(Regex("&#0?39;"), "'").replace("&nbsp;", " ")
         .replace(Regex("\\s+"), " ").trim()
 
-    /** 搜索：作品（主命名空间全文）+ 作曲家分类（Category 命名空间标题匹配）；两组请求并行以缩短等待 */
+    /**
+     * 搜索：原词（作品+作曲家并行）为主；含中文时自动并行补充拼音与常见音乐词英文译名，
+     * 结果合并去重（原词相关度优先）。拼音对国际站命中率有限，内置映射表才是有效路径，拼音兜底满足联想。
+     */
     suspend fun search(query: String): Pair<List<ImslpSearchResult>, List<ImslpSearchResult>> =
         withContext(Dispatchers.IO) {
-            val q = URLEncoder.encode(query, "UTF-8")
+            val q = query.trim()
+            val hasCJK = q.any { it.code in 0x4E00..0x9FFF }
+            val pinyin = if (hasCJK) toPinyin(q) else ""
+            val mapped = if (hasCJK) CN_MUSIC_MAP.entries.filter { q.contains(it.key) }.map { it.value }.take(2) else emptyList()
             coroutineScope {
-                val works = async {
-                    val out = mutableListOf<ImslpSearchResult>()
-                    val searchJson = httpGetString("$API?action=query&list=search&srnamespace=0&srwhat=text&srlimit=50&format=json&srsearch=$q")
-                    if (searchJson != null) {
-                        try {
-                            val arr = JSONObject(searchJson).optJSONObject("query")?.optJSONArray("search")
-                            if (arr != null) for (i in 0 until arr.length()) {
-                                val o = arr.getJSONObject(i)
-                                val title = o.optString("title")
-                                if (isNonWork(title)) continue
-                                val snippet = cleanSnippet(o.optString("snippet"))
-                                out.add(ImslpSearchResult(title, o.optLong("pageid"), false, snippet))
-                            }
-                        } catch (e: Exception) {
-                            Log.e(TAG, "search parse failed", e)
-                        }
-                    }
-                    out
-                }
-                val composers = async {
-                    val out = mutableListOf<ImslpSearchResult>()
-                    // 作曲家分类候选：在 Category 命名空间搜分类标题（如 Category:Mozart, Wolfgang Amadeus）
-                    val catJson = httpGetString("$API?action=query&list=search&srnamespace=14&srlimit=20&format=json&srsearch=$q")
-                    if (catJson != null) {
-                        try {
-                            val arr = JSONObject(catJson).optJSONObject("query")?.optJSONArray("search")
-                            if (arr != null) for (i in 0 until arr.length()) {
-                                val o = arr.getJSONObject(i)
-                                val title = o.optString("title").removePrefix("Category:")
-                                if (title.isEmpty()) continue
-                                out.add(ImslpSearchResult(title, o.optLong("pageid"), true, ""))
-                            }
-                        } catch (e: Exception) {
-                            Log.e(TAG, "composer search parse failed", e)
-                        }
-                    }
-                    out
-                }
-                Pair(works.await(), composers.await())
+                val worksDef = async { searchWorks(q) }
+                val compDef = async { searchComposers(q) }
+                val extraWorkDefs = mapped.map { w -> async { searchWorks(w) } }
+                val extraCompDefs = mapped.map { w -> async { searchComposers(w) } }
+                val pinyinDef = if (hasCJK && pinyin.isNotBlank() && pinyin != q) async { searchWorks(pinyin) } else null
+                val works = (worksDef.await() + extraWorkDefs.flatMap { it.await() } + (pinyinDef?.await() ?: emptyList()))
+                    .distinctBy { it.title }
+                val composers = (compDef.await() + extraCompDefs.flatMap { it.await() }).distinctBy { it.title }
+                Pair(works, composers)
             }
         }
+
+    /** 作品搜索（主命名空间全文，相关度排序） */
+    private suspend fun searchWorks(q: String): List<ImslpSearchResult> = withContext(Dispatchers.IO) {
+        val out = mutableListOf<ImslpSearchResult>()
+        val json = httpGetString("$API?action=query&list=search&srnamespace=0&srwhat=text&srlimit=50&format=json&srsearch=${URLEncoder.encode(q, "UTF-8")}")
+        if (json != null) {
+            try {
+                val arr = JSONObject(json).optJSONObject("query")?.optJSONArray("search")
+                if (arr != null) for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    val title = o.optString("title")
+                    if (isNonWork(title)) continue
+                    out.add(ImslpSearchResult(title, o.optLong("pageid"), false, cleanSnippet(o.optString("snippet"))))
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "search parse failed", e)
+            }
+        }
+        out
+    }
+
+    /** 作曲家分类搜索（Category 命名空间标题匹配，如 Category:Mozart, Wolfgang Amadeus） */
+    private suspend fun searchComposers(q: String): List<ImslpSearchResult> = withContext(Dispatchers.IO) {
+        val out = mutableListOf<ImslpSearchResult>()
+        val json = httpGetString("$API?action=query&list=search&srnamespace=14&srlimit=20&format=json&srsearch=${URLEncoder.encode(q, "UTF-8")}")
+        if (json != null) {
+            try {
+                val arr = JSONObject(json).optJSONObject("query")?.optJSONArray("search")
+                if (arr != null) for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    val title = o.optString("title").removePrefix("Category:")
+                    if (title.isEmpty()) continue
+                    out.add(ImslpSearchResult(title, o.optLong("pageid"), true, ""))
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "composer search parse failed", e)
+            }
+        }
+        out
+    }
 
     /** 组装 cookie 头：WebView 会话 cookie 全量携带（验证放行 cookie 绑定会话）；免责 cookie 缺失时补上 */
     private fun cookieHeader(url: String): String {

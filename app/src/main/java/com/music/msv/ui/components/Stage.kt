@@ -283,6 +283,9 @@ fun Stage(
     fun doBounce(dir: Int) {
         if (currentFlipUnit <= 0f) return
         flipJob?.cancel()
+        // 越界回弹不是翻页动画：重置方向，页面定位回归 currentPage 驱动——
+        // 否则边界连点时（第二次点击越界）渲染层仍按后向动画把旧页钉在 0，视觉上"闪回上一页"
+        flipDir = 0
         flipJob = scope.launch {
             transition.snapTo(0f)
             val overshoot = -dir * currentFlipUnit * 0.06f

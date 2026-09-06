@@ -25,6 +25,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -32,15 +33,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
+import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
@@ -329,8 +331,8 @@ fun ImslpDialog(
     val statusH = if (state.statusText.isNotEmpty()) 24.dp else 0.dp
     val targetH = when (val s = state.step) {
         is ImslpStep.Search -> {
-            // 标题+返回+搜索框 ≈200dp，随历史条数增高，封顶 0.5 屏高
-            val historyH = 30.dp * state.searchHistory.size
+            // 标题+返回+搜索框 ≈200dp，历史区横排固定一行，封顶 0.5 屏高
+            val historyH = if (state.searchHistory.isNotEmpty()) 34.dp else 0.dp
             minOf(screenH * 0.5f, 200.dp + statusH + historyH)
         }
         is ImslpStep.Results -> {
@@ -448,7 +450,14 @@ fun ImslpDialog(
         if (state.showDialog && !state.disclaimerAccepted) state.showDisclaimer = true
     }
 
-    Dialog(onDismissRequest = { state.showDialog = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    Dialog(onDismissRequest = {
+        // 关闭弹窗：取消进行中的下载/门禁等待并清理瞬态状态（浏览位置仍保留，重开恢复最后页面）
+        state.downloadJob?.cancel()
+        state.downloadingUrl = null
+        state.gateWait = false
+        state.gatePassed = false
+        state.showDialog = false
+    }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
             modifier
                 .width(dialogW)
@@ -521,7 +530,7 @@ fun ImslpDialog(
                     }
                     Spacer(Modifier.height(8.dp))
 
-                    // 搜索历史（持久化；点击直接搜索）
+                    // 搜索历史（持久化；横向卡片，点击直接搜索）
                     if (state.searchHistory.isNotEmpty()) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Text("最近搜索", color = muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
@@ -533,24 +542,22 @@ fun ImslpDialog(
                                     .padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
-                        Spacer(Modifier.height(2.dp))
-                        Column(
-                            Modifier
-                                .weight(1f, fill = false)
-                                .verticalScroll(rememberScrollState())
-                        ) {
-                            state.searchHistory.forEach { h ->
-                                Text(
-                                    h, color = text, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(8.dp))
+                        Spacer(Modifier.height(4.dp))
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(state.searchHistory) { h ->
+                                Box(
+                                    Modifier
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(itemBg)
+                                        .border(1.dp, itemBorder, RoundedCornerShape(10.dp))
                                         .clickable {
                                             state.query = h
                                             doSearch(h)
                                         }
-                                        .padding(horizontal = 8.dp, vertical = 6.dp)
-                                )
+                                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                                ) {
+                                    Text(h, color = text, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 120.dp))
+                                }
                             }
                         }
                         Spacer(Modifier.height(6.dp))
@@ -563,14 +570,43 @@ fun ImslpDialog(
                 }
 
                 is ImslpStep.Results -> {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(2),
-                        modifier = Modifier.weight(1f),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    // 4 列瀑布流：作品组（API 相关度排序）前置置顶——关联度最高结果位于左上；作曲家组在后
+                    LazyVerticalStaggeredGrid(
+                        columns = StaggeredGridCells.Fixed(4),
+                        contentPadding = PaddingValues(horizontal = 2.dp, vertical = 2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalItemSpacing = 6.dp,
+                        modifier = Modifier.weight(1f)
                     ) {
+                        if (s.works.isNotEmpty()) {
+                            item(span = StaggeredGridItemSpan.FullLine) {
+                                Text("📄 作品 (${s.works.size}) · 按相关度", color = accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        items(s.works, key = { "w" + it.pageid + it.title }) { w ->
+                            Box(
+                                Modifier
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(itemBg)
+                                    .border(1.dp, itemBorder, RoundedCornerShape(10.dp))
+                                    .clickable { openWork(w) }
+                                    .padding(horizontal = 8.dp, vertical = 7.dp)
+                            ) {
+                                Column {
+                                    Text(w.title, color = text, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                                    if (w.snippet.isNotEmpty()) {
+                                        Spacer(Modifier.height(3.dp))
+                                        Text(
+                                            w.snippet.take(120),
+                                            color = muted, fontSize = 9.sp, lineHeight = 12.sp,
+                                            maxLines = 3, overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                            }
+                        }
                         if (s.composers.isNotEmpty()) {
-                            item(span = { GridItemSpan(2) }) {
+                            item(span = StaggeredGridItemSpan.FullLine) {
                                 Text("👤 作曲家 (${s.composers.size})", color = accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
                         }
@@ -581,36 +617,9 @@ fun ImslpDialog(
                                     .background(itemBg)
                                     .border(1.dp, itemBorder, RoundedCornerShape(10.dp))
                                     .clickable { openComposer(c) }
-                                    .padding(horizontal = 10.dp, vertical = 8.dp)
+                                    .padding(horizontal = 8.dp, vertical = 7.dp)
                             ) {
-                                Text(c.title, color = text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            }
-                        }
-                        if (s.works.isNotEmpty()) {
-                            item(span = { GridItemSpan(2) }) {
-                                Text("📄 作品 (${s.works.size})", color = accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                        items(s.works, key = { "w" + it.pageid + it.title }) { w ->
-                            Box(
-                                Modifier
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(itemBg)
-                                    .border(1.dp, itemBorder, RoundedCornerShape(10.dp))
-                                    .clickable { openWork(w) }
-                                    .padding(horizontal = 10.dp, vertical = 8.dp)
-                            ) {
-                                Column {
-                                    Text(w.title, color = text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                    if (w.snippet.isNotEmpty()) {
-                                        Spacer(Modifier.height(3.dp))
-                                        Text(
-                                            w.snippet.take(160),
-                                            color = muted, fontSize = 10.sp, lineHeight = 13.sp,
-                                            maxLines = 4, overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                }
+                                Text(c.title, color = text, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 3, overflow = TextOverflow.Ellipsis)
                             }
                         }
                     }

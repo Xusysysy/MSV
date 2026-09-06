@@ -15,8 +15,8 @@ android {
         applicationId = "com.scoreviewer.msv"
         minSdk = 26
         targetSdk = 36
-        versionCode = 46
-        versionName = "2.4.3"
+        versionCode = 47
+        versionName = "2.4.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -48,6 +48,7 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.datastore.preferences)
     implementation(libs.lifecycle.viewmodel.compose)
+    implementation(libs.pinyin4j)
     implementation("com.google.mediapipe:tasks-vision:0.10.18")
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
     implementation("androidx.camera:camera-core:1.3.4")

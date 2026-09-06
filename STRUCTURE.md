@@ -665,17 +665,21 @@ Single-screen app — no Navigation component. State-based content switching via
 |---|---|---|
 | `ImslpSearchResult` | data class — title/pageid/isComposer/snippet | L3-L9 |
 
-### 26. data/repository/ImslpRepository.kt (L1-L275)
+### 26. data/repository/ImslpRepository.kt (L1-L318)
 
 | Element | Type | Lines |
 |---|---|---|
-| `ImslpRepository` | class — IMSLP 搜索 + 官方页 WebView 下载仓库（2026-09 实测：免责 cookie 门 / 等待页 data-id / Bot Check 门禁） | L23-L274 |
+| `ImslpRepository` | class — IMSLP 搜索 + 官方页 WebView 下载仓库（2026-09 实测：免责 cookie 门 / 等待页 data-id / Bot Check 门禁） | L23-L317 |
+| **CN_MUSIC_MAP** | private val — **中文→西文音乐词映射表**（50+ 条：作曲家/曲式/乐器），中文搜索的有效扩展路径 | L46-L61 |
+| **toPinyin(q)** | private fun — pinyin4j 全拼转换（去声调数字，非汉字跳过，异常静默） | L63-L71 |
 | companion | BASE/API/TAG/超时/**WAIT_BUDGET_MS(16s 等待页轮询预算)**/USER_AGENT(仅 api.php 搜索用)/NON_WORK_PREFIXES | L25-L41 |
 | `DownloadResult` | sealed class — Success(file)/BotCheck/Error(msg) | L43-L47 |
 | `httpGetString(url)` | private fun — api.php GET + 免责 cookie | L49-L65 |
 | `isNonWork(title)` | private fun | L67 |
 | `cleanSnippet(raw)` | private fun — **搜索简介清洗**：丢模板参数行(\|Field=)/{{模板}}/[[链接]]、解码 HTML 实体；为空则 UI 不显示灰字区 | L69-L81 |
-| `search(query)` | suspend — srnamespace=0 全文 + Category 命名空间作曲家分类（**两组请求 async 并行**，出结果等待约减半；snippet 经 cleanSnippet 清洗） | L82-L123 |
+| `search(query)` | suspend — **原词 works+composers 并行；含中文时并行补充拼音与映射英文词（最多 2 个）各一路查询，合并去重（原词相关度优先）** | L107-L130 |
+| `searchWorks(q)` | private suspend — 作品搜索（主命名空间全文，相关度排序，cleanSnippet 清洗） | L132-L150 |
+| `searchComposers(q)` | private suspend — 作曲家分类搜索（Category 命名空间标题匹配） | L152-L170 |
 | `cookieHeader(url)` | private fun — **CookieManager 全量会话 cookie**（验证放行绑定会话）+ 免责 cookie 兜底 | L126-L136 |
 | `openConn(url, ua)` | private fun — HttpURLConnection（UA/Cookie/Referer） | L138-L146 |
 | `resolveUrl(u)` | private fun — 相对/协议相对地址 → 绝对地址 | L148-L154 |
@@ -683,7 +687,7 @@ Single-screen app — no Navigation component. State-based content switching via
 | `downloadUrl(url, ua, dest, onProgress)` | suspend — withContext(IO) 委托 downloadLoop（独立函数规避 K2 lambda 推断问题） | L172-L180 |
 | `downloadLoop(url, ua, dest, onProgress)` | private suspend — **流式下载 + %PDF- 魔数校验**；非 PDF→分类跟进（重复 URL 按 2s 轮询至 16s 预算，覆盖站点匿名等待间隔）；进度回调 + 协作式取消（内层 lambda 用捕获的 Job.ensureActive） | L182-L274 |
 
-### 27. ui/components/ImslpPanel.kt (L1-L895)
+### 27. ui/components/ImslpPanel.kt (L1-L903)
 
 | Element | Type | Lines |
 |---|---|---|
@@ -698,7 +702,7 @@ Single-screen app — no Navigation component. State-based content switching via
 | — doSearch(q, fromBrowse) | 搜索（仓库层并行）；有结果时 onSearchCommit 记录历史 | L314-L328 |
 | — openComposer/openWork | 点击结果 → Browse 步（官方 Category 页 / 官方作品页，URL 编码，同步 currentBrowseUrl） | L330-L340 |
 | — startInterceptedDownload(fileUrl, ua, isAutoRetry) | 拦截下载入口：末段解码文件名（仅 .pdf）→ downloadUrl 应用内下载（进度回调）；**BotCheck → gateFileUrl 记录 + WebView 加载门禁页（mtcaptcha）**；Success → onImported 导入谱架 | L343-L375 |
-| — Search 步 | 搜索框（**矮 50dp + 大圆角 20dp 统一风格**）+ **最近搜索历史列表（点击直接搜索 / 清空按钮）**+ 说明文案 | L419-L487 |
+| — Search 步 | 胶囊搜索框 + **最近搜索横向卡片（LazyRow，点击直接搜索 / 清空）**+ 说明文案 | L427-L508 |
 | — Results 步 | 👤作曲家组 + 📄作品组 两列网格（点作曲家→官方 Category 页，点作品→官方作品页） | L489-L541 |
 | — Browse 步·搜索框+进度区 | **顶部搜索框默认收起为小胶囊（省空间），点击展开输入行（AnimatedVisibility 过渡 + 自动聚焦），提交后收起**；页面加载进度条（pageProgress 1~99）+ 下载进度条（**官方页保持挂载**） | L543-L636 |
 | — Browse 步·WebView | 官方页 AndroidView：**UA 不覆盖（设备默认）** + JS/DOM 存储/第三方 Cookie/混合内容/内置缩放 + **免责 cookie 预置**；onPageStarted 置 pageProgress=0；**shouldInterceptRequest 按 IMSLP_AD_HOSTS 拦截广告/统计资源**；shouldOverrideUrlLoading **拦截 /images/*.pdf 与 Special:Redirect/file/*.pdf → 应用内下载、外链跳系统浏览器**；**onPageFinished 记录 currentBrowseUrl + 注入 IMSLP_PAGE_JS**；onProgressChanged 更新加载进度；onCreateWindow 接管弹窗；DownloadListener 兜底；**onRelease 移除并 destroy()**；**factory loadUrl(currentBrowseUrl ?: s.url) 恢复浏览位置**；**pageProgress<100 时"加载中…"覆盖层** | L638-L752 |
