@@ -131,7 +131,8 @@ class ImslpRepository {
                 val compDef = async { searchComposers(q) }
                 val extraWorkDefs = mapped.map { w -> async { searchWorks(w) } }
                 val extraCompDefs = mapped.map { w -> async { searchComposers(w) } }
-                val pinyinDef = if (hasCJK && pinyin.isNotBlank() && pinyin != q) async { searchWorks(pinyin) } else null
+                // 并发收敛：映射命中时用英文译名扩展（有效路径），拼音仅在无映射命中时兜底一路
+                val pinyinDef = if (hasCJK && mapped.isEmpty() && pinyin.isNotBlank() && pinyin != q) async { searchWorks(pinyin) } else null
                 val works = (worksDef.await() + extraWorkDefs.flatMap { it.await() } + (pinyinDef?.await() ?: emptyList()))
                     .distinctBy { it.title }
                 val composers = (compDef.await() + extraCompDefs.flatMap { it.await() }).distinctBy { it.title }

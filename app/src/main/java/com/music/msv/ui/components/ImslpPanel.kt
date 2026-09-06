@@ -5,6 +5,7 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
 import android.webkit.CookieManager
+import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
@@ -40,9 +41,11 @@ import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
@@ -167,6 +170,8 @@ class ImslpDialogState {
     var gateRetry by mutableStateOf(0)
     // 官方页加载进度（0=刚开始/未加载，100=完成；1~99 期间显示进度条）
     var pageProgress by mutableStateOf(100)
+    // 官方页主文档加载失败描述（null=正常；显示错误覆盖层 + 重试）
+    var pageError by mutableStateOf<String?>(null)
     // 最后浏览的官方页 URL（onPageFinished 实时更新；重开弹窗据此恢复）
     var currentBrowseUrl by mutableStateOf<String?>(null)
     // Results 步是否来自 Browse 内搜索（返回时回浏览页而非搜索页）
@@ -331,9 +336,9 @@ fun ImslpDialog(
     val statusH = if (state.statusText.isNotEmpty()) 24.dp else 0.dp
     val targetH = when (val s = state.step) {
         is ImslpStep.Search -> {
-            // 标题+返回+搜索框 ≈200dp，历史区横排固定一行，封顶 0.5 屏高
-            val historyH = if (state.searchHistory.isNotEmpty()) 34.dp else 0.dp
-            minOf(screenH * 0.5f, 200.dp + statusH + historyH)
+            // 标题+返回+搜索框 ≈180dp；历史块（标题行+清空+横向卡片+间距）≈58dp；状态行 24dp；内容整体可滚动兜底
+            val historyH = if (state.searchHistory.isNotEmpty()) 58.dp else 0.dp
+            minOf(screenH * 0.5f, 180.dp + statusH + historyH)
         }
         is ImslpStep.Results -> {
             val n = s.works.size + s.composers.size
@@ -500,6 +505,12 @@ fun ImslpDialog(
 
             when (val s = state.step) {
                 is ImslpStep.Search -> {
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .weight(1f, fill = false)
+                            .verticalScroll(rememberScrollState())
+                    ) {
                     Row(
                         Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
@@ -567,6 +578,7 @@ fun ImslpDialog(
                         "搜索 IMSLP 公有领域乐谱，支持曲名与作曲家；\n点击结果进入官方页面浏览，在页面中点击乐谱即可应用内下载（自动跳过免责声明与等待）。",
                         color = muted, fontSize = 11.sp, lineHeight = 16.sp
                     )
+                    }
                 }
 
                 is ImslpStep.Results -> {
@@ -578,6 +590,23 @@ fun ImslpDialog(
                         verticalItemSpacing = 6.dp,
                         modifier = Modifier.weight(1f)
                     ) {
+                        if (s.composers.isNotEmpty()) {
+                            item(span = StaggeredGridItemSpan.FullLine) {
+                                Text("👤 作曲家 (${s.composers.size})", color = accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        items(s.composers, key = { "c" + it.pageid + it.title }) { c ->
+                            Box(
+                                Modifier
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(itemBg)
+                                    .border(1.dp, itemBorder, RoundedCornerShape(10.dp))
+                                    .clickable { openComposer(c) }
+                                    .padding(horizontal = 8.dp, vertical = 7.dp)
+                            ) {
+                                Text(c.title, color = text, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
                         if (s.works.isNotEmpty()) {
                             item(span = StaggeredGridItemSpan.FullLine) {
                                 Text("📄 作品 (${s.works.size}) · 按相关度", color = accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
@@ -603,23 +632,6 @@ fun ImslpDialog(
                                         )
                                     }
                                 }
-                            }
-                        }
-                        if (s.composers.isNotEmpty()) {
-                            item(span = StaggeredGridItemSpan.FullLine) {
-                                Text("👤 作曲家 (${s.composers.size})", color = accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                        items(s.composers, key = { "c" + it.pageid + it.title }) { c ->
-                            Box(
-                                Modifier
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(itemBg)
-                                    .border(1.dp, itemBorder, RoundedCornerShape(10.dp))
-                                    .clickable { openComposer(c) }
-                                    .padding(horizontal = 8.dp, vertical = 7.dp)
-                            ) {
-                                Text(c.title, color = text, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 3, overflow = TextOverflow.Ellipsis)
                             }
                         }
                     }
@@ -749,6 +761,15 @@ fun ImslpDialog(
                                         override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
                                             super.onPageStarted(view, url, favicon)
                                             state.pageProgress = 0
+                                            state.pageError = null
+                                        }
+
+                                        // 主文档加载失败（超时/断网/站点限流）：记录错误描述，UI 显示错误覆盖层与重试
+                                        override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
+                                            super.onReceivedError(view, request, error)
+                                            if (request.isForMainFrame) {
+                                                state.pageError = (error.description?.toString() ?: "").ifEmpty { "加载失败" }
+                                            }
                                         }
 
                                         // 页面加载提速：广告/统计类第三方资源直接返回空响应，不再发起真实请求
@@ -826,8 +847,35 @@ fun ImslpDialog(
                             modifier = Modifier.fillMaxSize()
                         )
 
-                        // 页面未加载完成时显示"加载中"覆盖层（含广告拦截/慢网场景），完成后自动消失
-                        if (state.pageProgress in 0..99) {
+                        // 主文档加载失败（如 timeout）：错误描述 + 一键重试
+                        if (state.pageError != null) {
+                            Box(
+                                Modifier
+                                    .fillMaxSize()
+                                    .background(if (isDark) Color(0xFF0F121C) else Color(0xFFF2FFFFFF)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(16.dp)) {
+                                    Text("⚠️ 页面加载失败", color = text, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                    Spacer(Modifier.height(6.dp))
+                                    Text(state.pageError ?: "", color = muted, fontSize = 11.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    Spacer(Modifier.height(12.dp))
+                                    Box(
+                                        Modifier
+                                            .clip(ButtonShape)
+                                            .background(accent)
+                                            .clickable {
+                                                state.pageError = null
+                                                state.pageProgress = 0
+                                                state.webViewRef?.reload()
+                                            }
+                                            .padding(horizontal = 20.dp, vertical = 8.dp)
+                                    ) {
+                                        Text("重试", color = onAccent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                    }
+                                }
+                            }
+                        } else if (state.pageProgress in 0..99) {
                             Box(
                                 Modifier
                                     .fillMaxSize()

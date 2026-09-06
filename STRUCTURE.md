@@ -687,7 +687,7 @@ Single-screen app — no Navigation component. State-based content switching via
 | `downloadUrl(url, ua, dest, onProgress)` | suspend — withContext(IO) 委托 downloadLoop（独立函数规避 K2 lambda 推断问题） | L172-L180 |
 | `downloadLoop(url, ua, dest, onProgress)` | private suspend — **流式下载 + %PDF- 魔数校验**；非 PDF→分类跟进（重复 URL 按 2s 轮询至 16s 预算，覆盖站点匿名等待间隔）；进度回调 + 协作式取消（内层 lambda 用捕获的 Job.ensureActive） | L182-L274 |
 
-### 27. ui/components/ImslpPanel.kt (L1-L903)
+### 27. ui/components/ImslpPanel.kt (L1-L950)
 
 | Element | Type | Lines |
 |---|---|---|
@@ -702,12 +702,12 @@ Single-screen app — no Navigation component. State-based content switching via
 | — doSearch(q, fromBrowse) | 搜索（仓库层并行）；有结果时 onSearchCommit 记录历史 | L314-L328 |
 | — openComposer/openWork | 点击结果 → Browse 步（官方 Category 页 / 官方作品页，URL 编码，同步 currentBrowseUrl） | L330-L340 |
 | — startInterceptedDownload(fileUrl, ua, isAutoRetry) | 拦截下载入口：末段解码文件名（仅 .pdf）→ downloadUrl 应用内下载（进度回调）；**BotCheck → gateFileUrl 记录 + WebView 加载门禁页（mtcaptcha）**；Success → onImported 导入谱架 | L343-L375 |
-| — Search 步 | 胶囊搜索框 + **最近搜索横向卡片（LazyRow，点击直接搜索 / 清空）**+ 说明文案 | L427-L508 |
-| — Results 步 | 👤作曲家组 + 📄作品组 两列网格（点作曲家→官方 Category 页，点作品→官方作品页） | L489-L541 |
-| — Browse 步·搜索框+进度区 | **顶部搜索框默认收起为小胶囊（省空间），点击展开输入行（AnimatedVisibility 过渡 + 自动聚焦），提交后收起**；页面加载进度条（pageProgress 1~99）+ 下载进度条（**官方页保持挂载**） | L543-L636 |
-| — Browse 步·WebView | 官方页 AndroidView：**UA 不覆盖（设备默认）** + JS/DOM 存储/第三方 Cookie/混合内容/内置缩放 + **免责 cookie 预置**；onPageStarted 置 pageProgress=0；**shouldInterceptRequest 按 IMSLP_AD_HOSTS 拦截广告/统计资源**；shouldOverrideUrlLoading **拦截 /images/*.pdf 与 Special:Redirect/file/*.pdf → 应用内下载、外链跳系统浏览器**；**onPageFinished 记录 currentBrowseUrl + 注入 IMSLP_PAGE_JS**；onProgressChanged 更新加载进度；onCreateWindow 接管弹窗；DownloadListener 兜底；**onRelease 移除并 destroy()**；**factory loadUrl(currentBrowseUrl ?: s.url) 恢复浏览位置**；**pageProgress<100 时"加载中…"覆盖层** | L638-L752 |
-| — Browse 步·门禁轮询 | LaunchedEffect 每 1200ms 读 body innerText，检出 "Bot Check Passed" → **自动重试下载（≤2 次，UA 取自 WebView）** | L754-L794 |
-| — IMSLP 首次免责声明 | 弹窗打开且未确认 → AlertDialog 强调 IMSLP 版权法规（公有领域因国而异/遵守当地版权法/IMSLP 条款）；"我已阅读并同意"持久化，"暂不使用"关闭弹窗 | L383-L385 + L796-L828 |
+| — Search 步 | 胶囊搜索框 + **最近搜索横向卡片（LazyRow，点击直接搜索 / 清空）**+ 说明文案；**内容整体可滚动（状态行出现不再遮挡灰字）** | L489-L545 |
+| — Results 步 | **4 列瀑布流（FullLine 分组头）：👤作曲家组前置（优先显示）**，📄作品组在后（相关度排序）；卡片紧凑 | L546-L645 |
+| — Browse 步·搜索框+进度区 | **顶部搜索框默认收起为小胶囊（省空间），点击展开输入行（AnimatedVisibility 过渡 + 自动聚焦），提交后收起**；**搜索中覆盖层（busy 即时反馈）**；页面加载进度条（pageProgress 1~99）+ 下载进度条（**官方页保持挂载**） | L647-L717 |
+| — Browse 步·WebView | 官方页 AndroidView：**UA 不覆盖（设备默认）** + JS/DOM 存储/第三方 Cookie/混合内容/内置缩放 + **免责 cookie 预置**；onPageStarted 置 pageProgress=0 并清 pageError；**shouldInterceptRequest 按 IMSLP_AD_HOSTS 拦截广告/统计资源**；shouldOverrideUrlLoading **拦截 /images/*.pdf 与 Special:Redirect/file/*.pdf → 应用内下载、外链跳系统浏览器**；**onPageFinished 记录 currentBrowseUrl + 注入 IMSLP_PAGE_JS**；onProgressChanged 更新加载进度；**onReceivedError 主文档失败 → pageError 错误覆盖层 + 重试按钮**；onCreateWindow 接管弹窗；DownloadListener 兜底；**onRelease 移除并 destroy()**；**factory loadUrl(currentBrowseUrl ?: s.url) 恢复浏览位置**；**pageProgress<100 时"加载中…"覆盖层** | L719-L880 |
+| — Browse 步·门禁轮询 | LaunchedEffect 每 1200ms 读 body innerText，检出 "Bot Check Passed" → **自动重试下载（≤2 次，UA 取自 WebView）** | L882-L900+ |
+| — IMSLP 首次免责声明 | 弹窗打开且未确认 → AlertDialog 强调 IMSLP 版权法规（公有领域因国而异/遵守当地版权法/IMSLP 条款）；"我已阅读并同意"持久化，"暂不使用"关闭弹窗 | L395-L397 + L902-L929+ |
 
 | Element | Type | Lines |
 |---|---|---|
