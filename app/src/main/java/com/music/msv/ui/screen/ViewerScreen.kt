@@ -27,10 +27,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -51,6 +49,9 @@ import com.music.msv.data.model.ViewerEvent
 import com.music.msv.ui.components.EmptyView
 import com.music.msv.ui.components.ImslpDialog
 import com.music.msv.ui.components.LoadingOverlay
+import com.music.msv.ui.components.MsvAlertDialog
+import com.music.msv.ui.theme.Msv
+import com.music.msv.ui.theme.MsvSpacing
 import com.music.msv.ui.components.BottomFooter
 import com.music.msv.ui.components.SettingsPanel
 import com.music.msv.ui.components.ShelfPanel
@@ -298,10 +299,10 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
         }
 
         if (showPageDialog) {
-            AlertDialog(
+            MsvAlertDialog(
                 onDismissRequest = { showPageDialog = false },
-                title = { Text("跳转页码") },
-                text = {
+                title = "跳转页码",
+                content = {
                     OutlinedTextField(
                         value = pageInput,
                         onValueChange = {
@@ -312,59 +313,54 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                         placeholder = { Text("1 - ${state.pageCount}") }
                     )
                 },
-                confirmButton = {
-                    TextButton(onClick = {
-                        val page = pageInput.toIntOrNull()
-                        if (page != null && page in 1..state.pageCount) {
-                            viewModel.onEvent(ViewerEvent.GoToPage(page - 1))
-                        }
-                        showPageDialog = false
-                    }) { Text("确定") }
+                confirmText = "确定",
+                onConfirm = {
+                    val page = pageInput.toIntOrNull()
+                    if (page != null && page in 1..state.pageCount) {
+                        viewModel.onEvent(ViewerEvent.GoToPage(page - 1))
+                    }
+                    showPageDialog = false
                 },
-                dismissButton = {
-                    TextButton(onClick = { showPageDialog = false }) { Text("取消") }
-                }
+                dismissText = "取消",
             )
         }
 
         if (showResetDialog) {
-            AlertDialog(
+            MsvAlertDialog(
                 onDismissRequest = { showResetDialog = false },
-                title = { Text("操作") },
-                text = { Text("选择要执行的操作") },
-                confirmButton = {
-                    TextButton(onClick = {
-                        viewModel.onEvent(ViewerEvent.Reload)
-                        showResetDialog = false
-                    }) { Text("重新加载") }
+                title = "操作",
+                text = "选择要执行的操作",
+                confirmText = "重新加载",
+                onConfirm = {
+                    viewModel.onEvent(ViewerEvent.Reload)
+                    showResetDialog = false
                 },
-                dismissButton = {
-                    TextButton(onClick = {
-                        viewModel.onEvent(ViewerEvent.Reset)
-                        showResetDialog = false
-                    }) { Text("重置关闭") }
-                }
+                dismissText = "重置关闭",
+                onDismiss = {
+                    viewModel.onEvent(ViewerEvent.Reset)
+                    showResetDialog = false
+                },
             )
         }
 
         if (state.showUpdateDialog) {
             state.updateInfo?.let { info ->
                 var logExpanded by remember { mutableStateOf(false) }
-                AlertDialog(
+                MsvAlertDialog(
                     onDismissRequest = { viewModel.onEvent(ViewerEvent.DismissUpdateDialog) },
-                    title = { Text("发现新版本 v${info.tag}") },
-                    text = {
+                    title = "发现新版本 v${info.tag}",
+                    content = {
                         Column {
                             Text(
                                 if (logExpanded) "更新日志 ▾" else "更新日志 ▸",
-                                color = if (isDark) Color(0xFF8CC8FF) else Color(0xFF2F6AD9),
+                                color = Msv.colors.accent,
                                 fontSize = 13.sp,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable { logExpanded = !logExpanded }
                             )
                             if (logExpanded) {
-                                Spacer(Modifier.height(8.dp))
+                                Spacer(Modifier.height(MsvSpacing.sm))
                                 Column(
                                     modifier = Modifier
                                         .heightIn(max = 300.dp)
@@ -372,50 +368,38 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                                 ) {
                                     Text(
                                         if (info.notes.isBlank()) "暂无更新日志" else info.notes,
-                                        color = if (isDark) Color(0xFFF5F7FF) else Color(0xFF1B2230),
+                                        color = Msv.colors.text,
                                         fontSize = 13.sp,
                                         lineHeight = 18.sp
                                     )
                                 }
                             }
-                            Spacer(Modifier.height(10.dp))
+                            Spacer(Modifier.height(MsvSpacing.sm))
                             Text(
                                 "来源：${info.source}",
-                                color = if (isDark) Color(0xFF8CC8FF) else Color(0xFF2F6AD9),
+                                color = Msv.colors.accent,
                                 fontSize = 12.sp
                             )
                         }
                     },
-                    confirmButton = {
-                        TextButton(onClick = {
-                            viewModel.onEvent(ViewerEvent.DownloadUpdate)
-                        }) { Text("立即更新") }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = {
-                            viewModel.onEvent(ViewerEvent.DismissUpdateDialog)
-                        }) { Text("以后再说") }
-                    }
+                    confirmText = "立即更新",
+                    onConfirm = { viewModel.onEvent(ViewerEvent.DownloadUpdate) },
+                    dismissText = "以后再说",
                 )
             }
         }
 
         if (state.showDownloadFailDialog) {
-            AlertDialog(
+            MsvAlertDialog(
                 onDismissRequest = { viewModel.onEvent(ViewerEvent.DismissDownloadFailDialog) },
-                title = { Text("下载失败") },
-                text = {
-                    Text("Gitee 与 GitHub 两个下载源均未能完成下载。\n\n可能原因：\n• Gitee 对匿名下载有限流/配额，短时间内多次下载会触发\n• 当前 Wi-Fi 对 Gitee 或 GitHub 的访问被阻断\n\n建议：\n• 切换到移动流量后重试\n• 稍后再试（已保留下载进度，可直接续传）")
+                title = "下载失败",
+                text = "Gitee 与 GitHub 两个下载源均未能完成下载。\n\n可能原因：\n• Gitee 对匿名下载有限流/配额，短时间内多次下载会触发\n• 当前 Wi-Fi 对 Gitee 或 GitHub 的访问被阻断\n\n建议：\n• 切换到移动流量后重试\n• 稍后再试（已保留下载进度，可直接续传）",
+                confirmText = "重试",
+                onConfirm = {
+                    viewModel.onEvent(ViewerEvent.DismissDownloadFailDialog)
+                    viewModel.onEvent(ViewerEvent.DownloadUpdate)
                 },
-                confirmButton = {
-                    TextButton(onClick = {
-                        viewModel.onEvent(ViewerEvent.DismissDownloadFailDialog)
-                        viewModel.onEvent(ViewerEvent.DownloadUpdate)
-                    }) { Text("重试") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { viewModel.onEvent(ViewerEvent.DismissDownloadFailDialog) }) { Text("知道了") }
-                }
+                dismissText = "知道了",
             )
         }
 

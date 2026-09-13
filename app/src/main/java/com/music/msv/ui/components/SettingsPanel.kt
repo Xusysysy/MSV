@@ -20,9 +20,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,6 +40,7 @@ import com.music.msv.R
 import com.music.msv.data.model.UpdateInfo
 import com.music.msv.data.model.UpdateStatus
 import com.music.msv.ui.theme.ButtonShape
+import com.music.msv.ui.theme.Msv
 
 private val openSourceProjects = listOf(
     "Kotlin" to "Apache License 2.0",
@@ -91,17 +90,17 @@ fun SettingsPanel(
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val panelBg = if (isDark) Color(0xF00F121C) else Color(0xF2FFFFFF)
+    val panelBg = Msv.colors.surface
     var licenseOpen by remember { mutableStateOf(false) }
     var supportOpen by remember { mutableStateOf(false) }
-    val panelBorder = if (isDark) Color(0x1AFFFFFF) else Color(0x141A2230)
-    val text = if (isDark) Color(0xFFF5F7FF) else Color(0xFF1B2230)
-    val muted = if (isDark) Color(0xB8F5F7FF) else Color(0xD11B2230)
-    val divider = if (isDark) Color(0x1FFFFFFF) else Color(0x1F1A2230)
-    val ctrlBg = if (isDark) Color(0x0FFFFFFF) else Color(0x0A1A2230)
-    val ctrlBorder = if (isDark) Color(0x24FFFFFF) else Color(0x1A1A2230)
-    val accent = if (isDark) Color(0xFF8CC8FF) else Color(0xFF2F6AD9)
-    val onAccent = if (isDark) Color(0xFF0F1220) else Color.White
+    val panelBorder = Msv.colors.surfaceBorder
+    val text = Msv.colors.text
+    val muted = Msv.colors.textMuted
+    val divider = Msv.colors.divider
+    val ctrlBg = Msv.colors.controlBg
+    val ctrlBorder = Msv.colors.controlBorder
+    val accent = Msv.colors.accent
+    val onAccent = Msv.colors.onAccent
 
     Column(
         modifier = modifier
@@ -300,10 +299,10 @@ fun SettingsPanel(
     }
 
     if (licenseOpen) {
-        AlertDialog(
+        MsvAlertDialog(
             onDismissRequest = { licenseOpen = false },
-            title = { Text("开源许可") },
-            text = {
+            title = "开源许可",
+            content = {
                 Column(
                     modifier = Modifier
                         .heightIn(max = 380.dp)
@@ -323,17 +322,16 @@ fun SettingsPanel(
                     Text("以上开源项目为本应用所使用，感谢原作者与开源社区。", color = muted, fontSize = 11.sp)
                 }
             },
-            confirmButton = {
-                TextButton(onClick = { licenseOpen = false }) { Text("关闭") }
-            }
+            confirmText = "关闭",
+            onConfirm = { licenseOpen = false },
         )
     }
 
     if (supportOpen) {
-        AlertDialog(
+        MsvAlertDialog(
             onDismissRequest = { supportOpen = false },
-            title = { Text("支持开发者") },
-            text = {
+            title = "支持开发者",
+            content = {
                 Row(Modifier.heightIn(max = 420.dp)) {
                     Image(
                         painter = painterResource(R.drawable.support_qr),
@@ -356,9 +354,8 @@ fun SettingsPanel(
                     }
                 }
             },
-            confirmButton = {
-                TextButton(onClick = { supportOpen = false }) { Text("关闭") }
-            }
+            confirmText = "关闭",
+            onConfirm = { supportOpen = false },
         )
     }
 }

@@ -7,11 +7,13 @@ app/src/main/java/com/music/msv/
 ├── MainActivity.kt              ← Entry point, edge-to-edge, Intent routing
 ├── ui/
 │   ├── theme/
-│   │   ├── Color.kt             ← Glassmorphism color tokens (dark + light)
-│   │   ├── Theme.kt             ← MSVTheme composable
+│   │   ├── Color.kt             ← 原始色板（62 值，dark + light）—— 仅供 Tokens.kt 引用
+│   │   ├── Tokens.kt            ← ★ 语义设计令牌：MsvColors（Msv.colors）+ MsvSpacing + LocalMsvColors
+│   │   ├── Theme.kt             ← MSVTheme：colorScheme + MsvShapes + LocalMsvColors 注入
 │   │   ├── Type.kt              ← Type scale
-│   │   └── Shape.kt             ← Rounded shapes
+│   │   └── Shape.kt             ← MsvShapes 语义圆角标度 + 历史命名形状
 │   ├── components/
+│   │   ├── MsvComponents.kt     ← ★ 统一组件库（弹窗/按钮/图标按钮/面板头/卡片/芯片/分隔线）
 │   │   ├── Stage.kt             ← Main viewport + gestures + page rendering
 │   │   ├── TopBar.kt            ← Top control bar (shelf, page nav, thumbnails, face, reset, settings)
 │   │   ├── Footer.kt            ← Status footer
@@ -101,17 +103,18 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 3. ui/theme/Theme.kt (L1-L73)
+### 3. ui/theme/Theme.kt (L1-L64)
 
 | Element | Type | Lines |
 |---|---|---|
-| Package + imports | — | L1-L15 |
-| `DarkColorScheme` | private val darkColorScheme() | L17-L32 |
-| `LightColorScheme` | private val lightColorScheme() | L34-L49 |
-| `MSVTheme` | @Composable fun | L51-L73 |
-| — `darkTheme: Boolean` | param (default: isSystemInDarkTheme) | L53 |
-| — `forceDark: Boolean?` | param (default: null) | L54 |
-| — `content: @Composable () -> Unit` | param | L55 |
+| Package + imports | — | L1-L8 |
+| `DarkColorScheme` | private val darkColorScheme() | L10-L25 |
+| `LightColorScheme` | private val lightColorScheme() | L27-L42 |
+| `MSVTheme` | @Composable fun | L44-L64 |
+| — `darkTheme: Boolean` | param (default: isSystemInDarkTheme) | L46 |
+| — `forceDark: Boolean?` | param (default: null) | L47 |
+| — `content: @Composable () -> Unit` | param | L48 |
+| — 行为（**v2.4.7 改造**） | 移除 `dynamicColorScheme` 分支（曾静默覆盖自定义色板）；`MaterialTheme(shapes = MsvShapes)` 接线圆角；`CompositionLocalProvider(LocalMsvColors provides …)` 提供语义令牌 | L50-L63 |
 
 ---
 
@@ -131,12 +134,13 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 5. ui/theme/Shape.kt (L1-L14)
+### 5. ui/theme/Shape.kt (L1-L24)
 
 | Element | Type | Lines |
 |---|---|---|
-| Package + imports | — | L1-L4 |
-| `ShellShape` | val RoundedCornerShape(28.dp) | L6 |
+| Package + imports | — | L1-L5 |
+| `MsvShapes` | val Shapes — **语义圆角标度**（extraSmall 8 / small 12 / medium 16 / large 22 / extraLarge 28），已接入 `MaterialTheme.shapes` | L8-L14 |
+| `ShellShape` | val RoundedCornerShape(28.dp) | L16 |
 | `ShellFullscreenShape` | val RoundedCornerShape(0.dp) | L7 |
 | `TopbarShape` | val RoundedCornerShape(20.dp) | L8 |
 | `ButtonShape` | val RoundedCornerShape(50) | L9 |
@@ -148,7 +152,39 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 6. ui/screen/ViewerScreen.kt (L1-L392)
+### 5b. ui/theme/Tokens.kt (L1-L153)
+
+| Element | Type | Lines |
+|---|---|---|
+| `MsvColors` | @Immutable data class — **24 个语义颜色角色**（appBg / shellBg / stageBg / barBg / barBorder / surface / surfaceBorder / surfaceElevated / controlBg / controlBgHover / controlBorder / controlBorderHover / text / textMuted / accent / onAccent / danger / success / divider / scrim / itemBg / itemBorder / itemActiveBg / itemActiveBorder / thumbBg / spinnerTrack） | L20-L72 |
+| `DarkMsvColors` / `LightMsvColors` | internal val MsvColors — 取值来自 Color.kt 既有色板的**权威值**（修复漂移：浮层统一 `0xF00F121C`/`0xF2FFFFFF`；抬升面统一 Dark/LightSurfaceVariant；菜单 `0xFF1A1E2E`→surfaceElevated） | L75-L130 |
+| `LocalMsvColors` | staticCompositionLocalOf\<MsvColors\> | L133 |
+| `Msv` | object — `Msv.colors` 访问器（@Composable @ReadOnlyComposable） | L136-L143 |
+| `MsvSpacing` | object — 间距标度 xs4 / sm8 / md12 / lg16 / xl24 / xxl32（取代此前 16 种 padding 取值） | L146-L153 |
+
+---
+
+### 5c. ui/components/MsvComponents.kt (L1-L358)
+
+**★ 全应用弹窗与控件的唯一实现** —— 弹窗/按钮/面板头必须走这里，不得再自建。
+
+| Element | Type | Lines |
+|---|---|---|
+| `MsvAlertDialog` | @Composable — 统一确认式弹窗（shape=shapes.large、containerColor=surface、`danger` 危险态、可选 `content` 槽），取代散落的 11 处原生 `AlertDialog` | L58-L121 |
+| `MsvDialogSurface` | @Composable — 统一自定义弹窗容器（与 MsvAlertDialog 共享同一圆角/底色/描边） | L126-L143 |
+| `Modifier.msvSurface(shape)` | @Composable 修饰符 — 浮层表面（clip + surface 底色 + border），用于不便重构的既有 Dialog（IMSLP） | L151-L156 |
+| `MsvTextButton` | @Composable — 弹窗内文本按钮 | L159-L178 |
+| `MsvButtonVariant` | enum — Primary / Ghost / Outline / Danger | L181 |
+| `MsvButton` | @Composable — 统一按钮（4 变体、全胶囊、40dp），取代此前 5 种按钮处理 | L188-L240 |
+| `MsvIconButton` | @Composable — 统一图标按钮（方角/圆形可切、active 态） | L243-L274 |
+| `MsvPanelHeader` | @Composable — 统一侧栏头部（标题 + 圆形关闭按钮） | L277-L306 |
+| `MsvCard` | @Composable — 统一卡片/列表项（选中态用 itemActive* 令牌） | L309-L324 |
+| `MsvDivider` | @Composable — 统一分隔线 | L327-L329 |
+| `MsvChip` | @Composable — 统一可选芯片 | L333-L358 |
+
+---
+
+### 6. ui/screen/ViewerScreen.kt (L1-L429)
 
 | Element | Type | Lines |
 |---|---|---|
@@ -203,7 +239,7 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 8. ui/components/TopBar.kt (L1-L189)
+### 8. ui/components/TopBar.kt (L1-L190)
 
 | Element | Type | Lines |
 |---|---|---|
@@ -223,7 +259,7 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 9. ui/components/Footer.kt (L1-L39)
+### 9. ui/components/Footer.kt (L1-L40)
 
 | Element | Type | Lines |
 |---|---|---|
@@ -235,7 +271,7 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 10. ui/components/EmptyView.kt (L1-L89)
+### 10. ui/components/EmptyView.kt (L1-L86)
 
 | Element | Type | Lines |
 |---|---|---|
@@ -251,7 +287,7 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 11. ui/components/ThumbnailPanel.kt (L1-L381)
+### 11. ui/components/ThumbnailPanel.kt (L1-L372)
 
 | Element | Type | Lines |
 |---|---|---|
@@ -275,7 +311,7 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 11b. ui/components/ShelfPanel.kt (L1-L354)
+### 11b. ui/components/ShelfPanel.kt (L1-L351)
 
 | Element | Type | Lines |
 |---|---|---|
@@ -300,7 +336,7 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 11c. ui/components/SettingsPanel.kt (L1-L377)
+### 11c. ui/components/SettingsPanel.kt (L1-L382)
 
 | Element | Type | Lines |
 |---|---|---|
@@ -598,7 +634,7 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 21. facer/FaceRecognitionOverlay.kt (L1-L177)
+### 21. facer/FaceRecognitionOverlay.kt (L1-L190)
 
 | Element | Type | Lines |
 |---|---|---|
@@ -716,7 +752,7 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 27b. ui/components/ImslpPanel.kt (L1-L932)
+### 27b. ui/components/ImslpPanel.kt (L1-L920)
 
 | Element | Type | Lines |
 |---|---|---|

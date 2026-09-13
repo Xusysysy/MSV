@@ -23,10 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.music.msv.ui.theme.DarkAccent
-import com.music.msv.ui.theme.DarkMuted
-import com.music.msv.ui.theme.LightAccent
-import com.music.msv.ui.theme.LightMuted
+import com.music.msv.ui.theme.Msv
 
 @Composable
 fun EmptyView(
@@ -34,11 +31,11 @@ fun EmptyView(
     onShelfClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val muted = if (isDark) DarkMuted else LightMuted
-    val accent = if (isDark) DarkAccent else LightAccent
-    val text = if (isDark) Color(0xFFF5F7FF) else Color(0xFF1B2230)
-    val bg = if (isDark) Color(0xFF1B1F2E) else Color(0xFFFFFFFF)
-    val border = if (isDark) Color(0x1AFFFFFF) else Color(0x1A1A2230)
+    val muted = Msv.colors.textMuted
+    val accent = Msv.colors.accent
+    val text = Msv.colors.text
+    val bg = Msv.colors.surfaceElevated
+    val border = Msv.colors.surfaceBorder
 
     Box(
         modifier = modifier.fillMaxSize(),

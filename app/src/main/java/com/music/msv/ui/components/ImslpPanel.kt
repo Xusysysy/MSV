@@ -46,13 +46,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -81,6 +79,8 @@ import com.music.msv.data.model.ImslpSearchResult
 import com.music.msv.data.repository.FileRepository
 import com.music.msv.data.repository.ImslpRepository
 import com.music.msv.ui.theme.ButtonShape
+import com.music.msv.ui.theme.Msv
+import com.music.msv.ui.theme.MsvSpacing
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -269,14 +269,12 @@ fun ImslpDialog(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val panelBg = if (isDark) Color(0xF00F121C) else Color(0xF2FFFFFF)
-    val panelBorder = if (isDark) Color(0x24FFFFFF) else Color(0x1A1A2230)
-    val itemBg = if (isDark) Color(0x14FFFFFF) else Color(0x141A2230)
-    val itemBorder = if (isDark) Color(0x1AFFFFFF) else Color(0x141A2230)
-    val muted = if (isDark) Color(0x99FFFFFF) else Color(0x991A2230)
-    val accent = if (isDark) Color(0xFF8CC8FF) else Color(0xFF2F6AD9)
-    val text = if (isDark) Color.White else Color(0xFF1B2230)
-    val onAccent = if (isDark) Color(0xFF0F1220) else Color.White
+    val itemBg = Msv.colors.itemBg
+    val itemBorder = Msv.colors.itemBorder
+    val muted = Msv.colors.textMuted
+    val accent = Msv.colors.accent
+    val text = Msv.colors.text
+    val onAccent = Msv.colors.onAccent
 
     val repo = remember { ImslpRepository() }
     val fileRepo = remember { FileRepository(context) }
@@ -423,10 +421,8 @@ fun ImslpDialog(
             modifier
                 .width(dialogW)
                 .height(dialogH)
-                .clip(RoundedCornerShape(16.dp))
-                .background(panelBg)
-                .border(1.dp, panelBorder, RoundedCornerShape(16.dp))
-                .padding(12.dp)
+                .msvSurface()
+                .padding(MsvSpacing.md)
         ) {
             // 顶栏
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -897,36 +893,28 @@ fun ImslpDialog(
     }
 
     if (state.showDisclaimer && !state.disclaimerAccepted) {
-        AlertDialog(
+        MsvAlertDialog(
             onDismissRequest = {
                 state.showDisclaimer = false
                 state.showDialog = false // 未同意 = 暂不使用，关闭整个 IMSLP 弹窗
             },
-            title = { Text("使用 IMSLP 前请阅读", fontWeight = FontWeight.Bold) },
-            text = {
-                Text(
-                    "本应用通过 IMSLP (imslp.org) 搜索与下载乐谱。请务必了解：\n\n" +
-                        "• IMSLP 上的乐谱在各国/地区的公有领域状态不同，是否可合法下载与使用需由你自行确认；\n" +
-                        "• 部分乐谱或其版本可能在你所在的国家/地区仍受版权保护；\n" +
-                        "• 使用本应用下载乐谱即表示你已阅读并同意 IMSLP 的使用条款与免责声明（IMSLP:Copyright、General disclaimer），并承诺遵守你所在国家/地区的版权法规；\n" +
-                        "• 本应用仅提供浏览与下载工具，不存储、不转售任何乐谱内容。",
-                    fontSize = 13.sp,
-                    lineHeight = 19.sp
-                )
+            title = "使用 IMSLP 前请阅读",
+            text = "本应用通过 IMSLP (imslp.org) 搜索与下载乐谱。请务必了解：\n\n" +
+                "• IMSLP 上的乐谱在各国/地区的公有领域状态不同，是否可合法下载与使用需由你自行确认；\n" +
+                "• 部分乐谱或其版本可能在你所在的国家/地区仍受版权保护；\n" +
+                "• 使用本应用下载乐谱即表示你已阅读并同意 IMSLP 的使用条款与免责声明（IMSLP:Copyright、General disclaimer），并承诺遵守你所在国家/地区的版权法规；\n" +
+                "• 本应用仅提供浏览与下载工具，不存储、不转售任何乐谱内容。",
+            confirmText = "我已阅读并同意",
+            onConfirm = {
+                state.disclaimerAccepted = true
+                state.showDisclaimer = false
+                onAckImslpDisclaimer()
             },
-            confirmButton = {
-                TextButton(onClick = {
-                    state.disclaimerAccepted = true
-                    state.showDisclaimer = false
-                    onAckImslpDisclaimer()
-                }) { Text("我已阅读并同意") }
+            dismissText = "暂不使用",
+            onDismiss = {
+                state.showDisclaimer = false
+                state.showDialog = false
             },
-            dismissButton = {
-                TextButton(onClick = {
-                    state.showDisclaimer = false
-                    state.showDialog = false
-                }) { Text("暂不使用") }
-            }
         )
     }
 }

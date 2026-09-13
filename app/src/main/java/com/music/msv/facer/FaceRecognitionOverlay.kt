@@ -26,6 +26,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Slider
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -46,6 +47,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.music.msv.ui.theme.Msv
 
 @Composable
 fun FaceRecognitionOverlay(visible: Boolean, faceEnabled: Boolean, onDismiss: () -> Unit, onToggle: (Boolean) -> Unit, manager: FaceRecognitionManager, isDark: Boolean, modifier: Modifier = Modifier) {
@@ -63,18 +65,22 @@ fun FaceRecognitionOverlay(visible: Boolean, faceEnabled: Boolean, onDismiss: ()
         return
     }
 
-    val bg = if (isDark) Color(0xF0121628) else Color(0xF8FFFFFF); val card = if (isDark) Color(0xFF1A1E2E) else Color(0x141A2230)
-    val b = if (isDark) Color(0x24FFFFFF) else Color(0x1A1A2230); val t = if (isDark) Color.White else Color(0xFF1B2230)
-    val t2 = if (isDark) Color(0xCCFFFFFF) else Color(0xCC1B2230); val ac = if (isDark) Color(0xFF8CC8FF) else Color(0xFF2F6AD9)
-    val dn = if (isDark) Color(0xFFFF9AA8) else Color(0xFFD9455D); val gr = Color(0xFF4ADE80)
+    val bg = Msv.colors.surface
+    val card = Msv.colors.surfaceElevated
+    val b = Msv.colors.surfaceBorder
+    val t = Msv.colors.text
+    val t2 = Msv.colors.textMuted
+    val ac = Msv.colors.accent
+    val dn = Msv.colors.danger
+    val gr = Msv.colors.success
     val sc = state.scores
 
-    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)).clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { onDismiss() }, contentAlignment = Alignment.Center) {
+    Box(Modifier.fillMaxSize().background(Msv.colors.scrim).clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { onDismiss() }, contentAlignment = Alignment.Center) {
         val maxH = cfg.screenHeightDp.dp * 0.9f
-        if (isLand) Row(Modifier.fillMaxWidth(0.92f).heightIn(max = maxH).clip(RoundedCornerShape(16.dp)).background(bg).border(1.dp, b, RoundedCornerShape(16.dp)).clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) {}.padding(10.dp), Arrangement.spacedBy(10.dp)) {
+        if (isLand) Row(Modifier.fillMaxWidth(0.92f).heightIn(max = maxH).clip(MaterialTheme.shapes.large).background(bg).border(1.dp, b, MaterialTheme.shapes.large).clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) {}.padding(10.dp), Arrangement.spacedBy(10.dp)) {
             Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), Arrangement.spacedBy(6.dp)) {
                 Header(state, manager, gr, card, b, t, t2, onToggle)
-                Box(Modifier.fillMaxWidth().aspectRatio(4f / 3f).clip(RoundedCornerShape(12.dp)).border(1.dp, b, RoundedCornerShape(12.dp))) {
+                Box(Modifier.fillMaxWidth().aspectRatio(4f / 3f).clip(MaterialTheme.shapes.small).border(1.dp, b, MaterialTheme.shapes.small)) {
                     FaceCamera(manager = manager, visible = true, Modifier.fillMaxSize())
                 }
                 AR(sc, ac, dn, card, b, t)
@@ -90,9 +96,9 @@ fun FaceRecognitionOverlay(visible: Boolean, faceEnabled: Boolean, onDismiss: ()
                 Debug(manager, hasPerm, state, card, b, t, t2, ac)
             }
         }
-        else Column(Modifier.fillMaxWidth(0.9f).heightIn(max = maxH).clip(RoundedCornerShape(16.dp)).background(bg).border(1.dp, b, RoundedCornerShape(16.dp)).clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) {}.verticalScroll(rememberScrollState()).padding(12.dp), Arrangement.spacedBy(8.dp)) {
+        else Column(Modifier.fillMaxWidth(0.9f).heightIn(max = maxH).clip(MaterialTheme.shapes.large).background(bg).border(1.dp, b, MaterialTheme.shapes.large).clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) {}.verticalScroll(rememberScrollState()).padding(12.dp), Arrangement.spacedBy(8.dp)) {
             Header(state, manager, gr, card, b, t, t2, onToggle)
-            Box(Modifier.fillMaxWidth().aspectRatio(4f / 3f).clip(RoundedCornerShape(12.dp)).border(1.dp, b, RoundedCornerShape(12.dp))) {
+            Box(Modifier.fillMaxWidth().aspectRatio(4f / 3f).clip(MaterialTheme.shapes.small).border(1.dp, b, MaterialTheme.shapes.small)) {
                 FaceCamera(manager = manager, visible = true, Modifier.fillMaxSize())
             }
             AR(sc, ac, dn, card, b, t)

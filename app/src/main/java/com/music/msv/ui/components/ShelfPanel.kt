@@ -23,12 +23,10 @@ import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -53,6 +51,7 @@ import coil3.request.crossfade
 import com.music.msv.data.model.ShelfFile
 import com.music.msv.data.model.ShelfSort
 import com.music.msv.ui.theme.ButtonShape
+import com.music.msv.ui.theme.Msv
 
 private val invertColorMatrix = ColorMatrix(
     floatArrayOf(
@@ -78,14 +77,14 @@ fun ShelfPanel(
     onDelete: (Uri) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val panelBg = if (isDark) Color(0xF00F121C) else Color(0xF2FFFFFF)
-    val panelBorder = if (isDark) Color(0x1AFFFFFF) else Color(0x141A2230)
-    val itemBg = if (isDark) Color(0x08FFFFFF) else Color(0x0A1A2230)
-    val itemBorder = if (isDark) Color(0x14FFFFFF) else Color(0x1A1A2230)
-    val muted = if (isDark) Color(0xB8F5F7FF) else Color(0xD11B2230)
-    val accent = if (isDark) Color(0xFF8CC8FF) else Color(0xFF2F6AD9)
-    val text = if (isDark) Color(0xFFF5F7FF) else Color(0xFF1B2230)
-    val danger = if (isDark) Color(0xFFFF9AA8) else Color(0xFFD9455D)
+    val panelBg = Msv.colors.surface
+    val panelBorder = Msv.colors.surfaceBorder
+    val itemBg = Msv.colors.itemBg
+    val itemBorder = Msv.colors.itemBorder
+    val muted = Msv.colors.textMuted
+    val accent = Msv.colors.accent
+    val text = Msv.colors.text
+    val danger = Msv.colors.danger
     var renameTarget by remember { mutableStateOf<Uri?>(null) }
     var renameText by remember { mutableStateOf("") }
     var menuTarget by remember { mutableStateOf<ShelfFile?>(null) }
@@ -312,27 +311,25 @@ fun ShelfPanel(
     }
 
     if (deleteTarget != null) {
-        AlertDialog(
+        MsvAlertDialog(
             onDismissRequest = { deleteTarget = null },
-            title = { Text("删除乐谱") },
-            text = { Text("确定删除「${deleteTarget?.name}」吗？此操作不可恢复。") },
-            confirmButton = {
-                TextButton(onClick = {
-                    deleteTarget?.let { onDelete(it.uri) }
-                    deleteTarget = null
-                }) { Text("删除", color = danger) }
+            title = "删除乐谱",
+            text = "确定删除「${deleteTarget?.name}」吗？此操作不可恢复。",
+            confirmText = "删除",
+            onConfirm = {
+                deleteTarget?.let { onDelete(it.uri) }
+                deleteTarget = null
             },
-            dismissButton = {
-                TextButton(onClick = { deleteTarget = null }) { Text("取消") }
-            }
+            dismissText = "取消",
+            danger = true,
         )
     }
 
     if (renameTarget != null) {
-        AlertDialog(
+        MsvAlertDialog(
             onDismissRequest = { renameTarget = null },
-            title = { Text("重命名") },
-            text = {
+            title = "重命名",
+            content = {
                 OutlinedTextField(
                     value = renameText,
                     onValueChange = { renameText = it },
@@ -340,18 +337,15 @@ fun ShelfPanel(
                     placeholder = { Text("输入新文件名") }
                 )
             },
-            confirmButton = {
-                TextButton(onClick = {
-                    val uri = renameTarget
-                    if (uri != null && renameText.isNotBlank()) {
-                        onRename(uri, renameText)
-                    }
-                    renameTarget = null
-                }) { Text("确定") }
+            confirmText = "确定",
+            onConfirm = {
+                val uri = renameTarget
+                if (uri != null && renameText.isNotBlank()) {
+                    onRename(uri, renameText)
+                }
+                renameTarget = null
             },
-            dismissButton = {
-                TextButton(onClick = { renameTarget = null }) { Text("取消") }
-            }
+            dismissText = "取消",
         )
     }
 }

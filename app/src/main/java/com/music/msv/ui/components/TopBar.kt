@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.music.msv.ui.theme.TopbarShape
 import com.music.msv.ui.theme.ButtonShape
+import com.music.msv.ui.theme.Msv
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -48,14 +49,14 @@ fun TopBar(
     onSettingsClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val bg = if (isDark) Color(0x940A0E16) else Color(0xE0FFFFFF)
-    val border = if (isDark) Color(0x1FFFFFFF) else Color(0x141A2230)
-    val text = if (isDark) Color(0xFFF5F7FF) else Color(0xFF1B2230)
-    val muted = if (isDark) Color(0xB8F5F7FF) else Color(0xD11B2230)
-    val divider = if (isDark) Color(0x1FFFFFFF) else Color(0x1F1A2230)
-    val ctrlBg = if (isDark) Color(0x0FFFFFFF) else Color(0x0A1A2230)
-    val ctrlBorder = if (isDark) Color(0x24FFFFFF) else Color(0x1A1A2230)
-    val accent = if (isDark) Color(0xFF8CC8FF) else Color(0xFF2F6AD9)
+    val bg = Msv.colors.barBg
+    val border = Msv.colors.barBorder
+    val text = Msv.colors.text
+    val muted = Msv.colors.textMuted
+    val divider = Msv.colors.divider
+    val ctrlBg = Msv.colors.controlBg
+    val ctrlBorder = Msv.colors.controlBorder
+    val accent = Msv.colors.accent
 
     Row(
         modifier = modifier

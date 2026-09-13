@@ -32,12 +32,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -60,6 +58,7 @@ import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.music.msv.data.model.PageBookmark
+import com.music.msv.ui.theme.Msv
 import com.music.msv.ui.theme.ThumbnailItemShape
 import com.music.msv.ui.theme.ThumbnailThumbShape
 
@@ -94,16 +93,16 @@ fun ThumbnailPanel(
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val panelBg = if (isDark) Color(0xF00F121C) else Color(0xF2FFFFFF)
-    val panelBorder = if (isDark) Color(0x1AFFFFFF) else Color(0x141A2230)
-    val itemBg = if (isDark) Color(0x08FFFFFF) else Color(0x0A1A2230)
-    val itemBorder = if (isDark) Color(0x14FFFFFF) else Color(0x1A1A2230)
-    val itemActiveBg = if (isDark) Color(0x148CC8FF) else Color(0x1F2F6AD9)
-    val itemActiveBorder = if (isDark) Color(0x738CC8FF) else Color(0x662F6AD9)
-    val muted = if (isDark) Color(0xB8F5F7FF) else Color(0xD11B2230)
-    val text = if (isDark) Color(0xFFF5F7FF) else Color(0xFF1B2230)
-    val danger = if (isDark) Color(0xFFFF9AA8) else Color(0xFFD9455D)
-    val menuContainer = if (isDark) Color(0xFF1A1E2E) else Color.White
+    val panelBg = Msv.colors.surface
+    val panelBorder = Msv.colors.surfaceBorder
+    val itemBg = Msv.colors.itemBg
+    val itemBorder = Msv.colors.itemBorder
+    val itemActiveBg = Msv.colors.itemActiveBg
+    val itemActiveBorder = Msv.colors.itemActiveBorder
+    val muted = Msv.colors.textMuted
+    val text = Msv.colors.text
+    val danger = Msv.colors.danger
+    val menuContainer = Msv.colors.surfaceElevated
 
     var addPage by remember { mutableStateOf<Int?>(null) }
     var addTitle by remember { mutableStateOf("") }
@@ -329,10 +328,10 @@ private fun BookmarkDialog(
 ) {
     var name by remember { mutableStateOf(initialName) }
     var color by remember { mutableStateOf(initialColor) }
-    AlertDialog(
+    MsvAlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
+        title = title,
+        content = {
             Column {
                 OutlinedTextField(
                     value = name,
@@ -363,14 +362,11 @@ private fun BookmarkDialog(
                 }
             }
         },
-        confirmButton = {
-            TextButton(onClick = {
-                if (name.isNotBlank()) onConfirm(name.trim(), color)
-                onDismiss()
-            }) { Text(confirmText) }
+        confirmText = confirmText,
+        onConfirm = {
+            if (name.isNotBlank()) onConfirm(name.trim(), color)
+            onDismiss()
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
-        }
+        dismissText = "取消",
     )
 }

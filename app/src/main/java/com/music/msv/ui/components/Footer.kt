@@ -13,6 +13,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.music.msv.ui.theme.FooterShape
+import com.music.msv.ui.theme.Msv
 
 @Composable
 fun BottomFooter(
@@ -20,9 +21,9 @@ fun BottomFooter(
     statusMessage: String,
     modifier: Modifier = Modifier
 ) {
-    val bg = if (isDark) Color(0x52000000) else Color(0xB3FFFFFF)
-    val border = if (isDark) Color(0x1AFFFFFF) else Color(0x141A2230)
-    val text = if (isDark) Color(0xFFF5F7FF) else Color(0xFF1B2230)
+    val bg = Msv.colors.barBg
+    val border = Msv.colors.barBorder
+    val text = Msv.colors.text
 
     Text(
         text = statusMessage.ifEmpty { "\u00A0" },
