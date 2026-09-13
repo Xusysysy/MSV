@@ -49,7 +49,7 @@ app/src/main/java/com/music/msv/
 ```
 app/src/test/java/com/music/msv/
 ├── CompareVersionsTest.kt              ← compareVersions 版本比较（11 用例）
-└── data/repository/ImslpParsingTest.kt ← ImslpParsing 解析契约（18 用例）
+└── data/repository/ImslpParsingTest.kt ← ImslpParsing 解析契约（20 用例）
 ```
 
 ## Key Decisions
@@ -685,7 +685,7 @@ Single-screen app — no Navigation component. State-based content switching via
 | `resolveUrl(u)` | fun — 相对/协议相对地址 → 绝对地址 | L37-L45 |
 | `nextUrlFromHtml(body)` | fun — 门禁(Bot Check/Start Verification)→null；**等待页 data-id→真实下载直链**；meta refresh/location.href 兜底 | L47-L60 |
 
-单测：`app/src/test/java/com/music/msv/data/repository/ImslpParsingTest.kt`（18 用例，同时充当站点格式契约）
+单测：`app/src/test/java/com/music/msv/data/repository/ImslpParsingTest.kt`（20 用例，同时充当站点格式契约）
 
 ---
 
