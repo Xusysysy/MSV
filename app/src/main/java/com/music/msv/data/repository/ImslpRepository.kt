@@ -31,8 +31,7 @@ import kotlin.coroutines.coroutineContext
 class ImslpRepository {
 
     companion object {
-        private const val BASE = "https://imslp.org"
-        private const val API = "$BASE/api.php"
+        private const val API = "${ImslpParsing.BASE}/api.php"
         private const val TAG = "MSV_Imslp"
         private const val TIMEOUT_MS = 15000
         private const val READ_TIMEOUT_MS = 60000
@@ -44,9 +43,6 @@ class ImslpRepository {
         const val USER_AGENT =
             "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
         private val UA = USER_AGENT
-        private val NON_WORK_PREFIXES =
-            listOf("Category:", "Talk:", "File:", "User:", "Template:", "IMSLP:", "Portal:", "Help:", "Wishlist")
-
         /** 中文→西文音乐词映射（覆盖常见作曲家与曲式术语；拼音对国际站命中率有限，映射表是有效路径） */
         private val CN_MUSIC_MAP = mapOf(
             "贝多芬" to "Beethoven", "莫扎特" to "Mozart", "巴赫" to "Bach", "肖邦" to "Chopin",
@@ -98,24 +94,6 @@ class ImslpRepository {
         }
     }
 
-    private fun isNonWork(title: String): Boolean = NON_WORK_PREFIXES.any { title.startsWith(it) }
-
-    /**
-     * 搜索简介清洗：MediaWiki snippet 是 wiki 模板原文（如 "|Performer Categories=…" 参数行、{{模板}}、
-     * [[链接|文本]]、HTML 实体），直接展示会出现无效字符。过滤模板参数行/标记并解码实体；
-     * 清洗后为空则返回空串（UI 侧 isNotEmpty 判断自动不渲染灰字区）。
-     */
-    private fun cleanSnippet(raw: String): String = raw
-        .replace(Regex("<[^>]+>"), "")                                  // 去 searchmatch 高亮等标签
-        .lines()
-        .filter { it.isNotBlank() && !it.trimStart().startsWith("|") }   // 丢弃模板参数行（|Field=Value 无效信息）
-        .joinToString(" ")
-        .replace(Regex("\\{\\{[^{}]*\\}\\}"), "")                        // {{模板}}
-        .replace(Regex("\\[\\[([^]|]*\\|)?([^]]*)\\]\\]"), "$2")         // [[链接|文本]]→文本
-        .replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
-        .replace("&quot;", "\"").replace(Regex("&#0?39;"), "'").replace("&nbsp;", " ")
-        .replace(Regex("\\s+"), " ").trim()
-
     /**
      * 搜索：原词（作品+作曲家并行）为主；含中文时自动并行补充拼音与常见音乐词英文译名，
      * 结果合并去重（原词相关度优先）。拼音对国际站命中率有限，内置映射表才是有效路径，拼音兜底满足联想。
@@ -150,8 +128,8 @@ class ImslpRepository {
                 if (arr != null) for (i in 0 until arr.length()) {
                     val o = arr.getJSONObject(i)
                     val title = o.optString("title")
-                    if (isNonWork(title)) continue
-                    out.add(ImslpSearchResult(title, o.optLong("pageid"), false, cleanSnippet(o.optString("snippet"))))
+                    if (ImslpParsing.isNonWork(title)) continue
+                    out.add(ImslpSearchResult(title, o.optLong("pageid"), false, ImslpParsing.cleanSnippet(o.optString("snippet"))))
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "search parse failed", e)
@@ -199,32 +177,8 @@ class ImslpRepository {
             readTimeout = READ_TIMEOUT_MS
             setRequestProperty("User-Agent", userAgent)
             setRequestProperty("Cookie", cookieHeader(url))
-            setRequestProperty("Referer", "$BASE/")
+            setRequestProperty("Referer", "${ImslpParsing.BASE}/")
         }
-
-    /** 相对地址解析为绝对地址（data-id/meta refresh 目标可能是相对/协议相对形式） */
-    private fun resolveUrl(u: String): String = when {
-        u.startsWith("http") -> u
-        u.startsWith("//") -> "https:$u"
-        u.startsWith("/") -> "$BASE$u"
-        else -> u
-    }
-
-    /** 非 PDF HTML 响应分类：等待页取 data-id（真实下载地址，倒计时纯前端）；门禁页返回 null 交 WebView 人工验证 */
-    private fun nextUrlFromHtml(body: String): String? {
-        if (body.contains("Bot Check") || body.contains("Start Verification")) return null
-        // 等待页：#sm_dl_wait 的 data-id 即真实下载地址
-        Regex("""data-id=["']([^"']+)["']""").findAll(body)
-            .map { it.groupValues[1] }
-            .firstOrNull { it.contains(".pdf", ignoreCase = true) || it.startsWith("http") || it.startsWith("//") }
-            ?.let { return resolveUrl(it) }
-        // 兜底：meta refresh / location.href
-        Regex("""content=["']\d+\s*;\s*url=([^"']+)["']""", RegexOption.IGNORE_CASE).find(body)
-            ?.let { return resolveUrl(it.groupValues[1]) }
-        Regex("""location(?:\.href)?\s*=\s*["']([^"']+)["']""").find(body)
-            ?.let { return resolveUrl(it.groupValues[1]) }
-        return null
-    }
 
     /** 下载 URL（官方页拦截到的 PDF 直链或等待页 data-id）到 dest；进度回调 + 协作式取消 */
     suspend fun downloadUrl(
@@ -317,7 +271,7 @@ class ImslpRepository {
                     val gated = body.contains("Bot Check") || body.contains("Start Verification")
                     if (gated) Log.i(TAG, "downloadUrl hit Bot Check gate for $current")
                     else Log.i(TAG, "downloadUrl got non-PDF 200 ($ctype) for $current")
-                    val next = nextUrlFromHtml(body)
+                    val next = ImslpParsing.nextUrlFromHtml(body)
                     if (next == null) return DownloadResult.BotCheck
                     current = next
                 }

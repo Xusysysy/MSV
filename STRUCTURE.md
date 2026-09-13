@@ -20,6 +20,7 @@ app/src/main/java/com/music/msv/
 │   │   ├── ShelfPanel.kt        ← Slide-in shelf panel (left), lists saved scores with thumbnails
 │   │   ├── SettingsPanel.kt     ← Slide-in settings panel (right): version, copyright, check-update
 │   │   ├── ImslpPanel.kt        ← IMSLP 搜索弹窗：搜索 → 结果 → 官方页 WebView 浏览（拦截 PDF 应用内下载）
+│   │   ├── ImslpDialogState.kt  ← IMSLP 弹窗状态机（ImslpStep）+ 状态 holder（ImslpDialogState，ViewerViewModel 持有）
 │   │   └── LoadingOverlay.kt    ← Spinner overlay
 │   └── screen/
 │       └── ViewerScreen.kt      ← Root orchestrator, wires ViewModel → components
@@ -33,7 +34,8 @@ app/src/main/java/com/music/msv/
 │   │   ├── FileRepository.kt    ← SAF file access, local copy, MIME detection
 │   │   ├── SessionRepository.kt ← DataStore persistence (session + per-file page map)
 │   │   ├── UpdateRepository.kt  ← OTA: release query (Gitee+GitHub), version compare, APK download/install
-│   │   └── ImslpRepository.kt   ← IMSLP 搜索（MediaWiki API）+ 官方页直链应用内下载（免责/等待/门禁处理）
+│   │   ├── ImslpParsing.kt      ← IMSLP 页面 HTML/链接纯解析（等待页 data-id / 门禁关键词 / 相对地址 / snippet 清洗；无 Android 依赖，可单测）
+│   │   └── ImslpRepository.kt   ← IMSLP 搜索（MediaWiki API）+ 官方页直链应用内下载（解析委托 ImslpParsing）
 │   └── pdf/
 │       └── PdfPageRenderer.kt   ← Android PdfRenderer wrapper, LRU bitmap cache
 ├── facer/
@@ -42,6 +44,12 @@ app/src/main/java/com/music/msv/
 │   ├── FaceRecognitionManager.kt ← MediaPipe FaceLandmarker pipeline + gesture state machine
 │   ├── FaceRecognitionOverlay.kt ← Face settings fullscreen overlay (portrait/landscape)
 │   └── FaceRecognitionRepository.kt ← DataStore persistence of face prefs ("face_prefs")
+```
+
+```
+app/src/test/java/com/music/msv/
+├── CompareVersionsTest.kt              ← compareVersions 版本比较（11 用例）
+└── data/repository/ImslpParsingTest.kt ← ImslpParsing 解析契约（18 用例）
 ```
 
 ## Key Decisions
@@ -665,49 +673,68 @@ Single-screen app — no Navigation component. State-based content switching via
 |---|---|---|
 | `ImslpSearchResult` | data class — title/pageid/isComposer/snippet | L3-L9 |
 
-### 26. data/repository/ImslpRepository.kt (L1-L318)
+### 26. data/repository/ImslpParsing.kt (L1-L61)
 
 | Element | Type | Lines |
 |---|---|---|
-| `ImslpRepository` | class — IMSLP 搜索 + 官方页 WebView 下载仓库（2026-09 实测：免责 cookie 门 / 等待页 data-id / Bot Check 门禁） | L23-L317 |
-| **CN_MUSIC_MAP** | private val — **中文→西文音乐词映射表**（50+ 条：作曲家/曲式/乐器），中文搜索的有效扩展路径 | L46-L61 |
-| **toPinyin(q)** | private fun — pinyin4j 全拼转换（去声调数字，非汉字跳过，异常静默） | L63-L71 |
-| companion | BASE/API/TAG/超时/**WAIT_BUDGET_MS(16s 等待页轮询预算)**/USER_AGENT(仅 api.php 搜索用)/NON_WORK_PREFIXES | L25-L41 |
-| `DownloadResult` | sealed class — Success(file)/BotCheck/Error(msg) | L43-L47 |
-| `httpGetString(url)` | private fun — api.php GET + 免责 cookie | L49-L65 |
-| `isNonWork(title)` | private fun | L67 |
-| `cleanSnippet(raw)` | private fun — **搜索简介清洗**：丢模板参数行(\|Field=)/{{模板}}/[[链接]]、解码 HTML 实体；为空则 UI 不显示灰字区 | L69-L81 |
-| `search(query)` | suspend — **原词 works+composers 并行；含中文时并行补充拼音与映射英文词（最多 2 个）各一路查询，合并去重（原词相关度优先）** | L107-L130 |
-| `searchWorks(q)` | private suspend — 作品搜索（主命名空间全文，相关度排序，cleanSnippet 清洗） | L132-L150 |
-| `searchComposers(q)` | private suspend — 作曲家分类搜索（Category 命名空间标题匹配） | L152-L170 |
-| `cookieHeader(url)` | private fun — **CookieManager 全量会话 cookie**（验证放行绑定会话）+ 免责 cookie 兜底 | L126-L136 |
-| `openConn(url, ua)` | private fun — HttpURLConnection（UA/Cookie/Referer） | L138-L146 |
-| `resolveUrl(u)` | private fun — 相对/协议相对地址 → 绝对地址 | L148-L154 |
-| `nextUrlFromHtml(body)` | private fun — 非 PDF HTML 分类：门禁(Bot Check/Start Verification)→null 交 WebView 验证；**等待页 #sm_dl_wait data-id→真实下载直链（倒计时纯前端）**；meta refresh/location.href 兜底 | L156-L170 |
-| `downloadUrl(url, ua, dest, onProgress)` | suspend — withContext(IO) 委托 downloadLoop（独立函数规避 K2 lambda 推断问题） | L172-L180 |
-| `downloadLoop(url, ua, dest, onProgress)` | private suspend — **流式下载 + %PDF- 魔数校验**；非 PDF→分类跟进（重复 URL 按 2s 轮询至 16s 预算，覆盖站点匿名等待间隔）；进度回调 + 协作式取消（内层 lambda 用捕获的 Job.ensureActive） | L182-L274 |
+| `ImslpParsing` | internal object — **纯解析层，无 Android 依赖，可单测；IMSLP 改版时唯一改动点** | L9-L61 |
+| `BASE` | internal const "https://imslp.org"（供 ImslpRepository 复用，单一来源） | L11 |
+| `NON_WORK_PREFIXES` | private val — 非作品命名空间前缀清单 | L14-L15 |
+| `isNonWork(title)` | fun — 非作品命名空间判定 | L18 |
+| `cleanSnippet(raw)` | fun — snippet 清洗：丢模板参数行(\|Field=)/{{模板}}/[[链接]]、解码 HTML 实体、折叠空白 | L25-L35 |
+| `resolveUrl(u)` | fun — 相对/协议相对地址 → 绝对地址 | L37-L45 |
+| `nextUrlFromHtml(body)` | fun — 门禁(Bot Check/Start Verification)→null；**等待页 data-id→真实下载直链**；meta refresh/location.href 兜底 | L47-L60 |
 
-### 27. ui/components/ImslpPanel.kt (L1-L950)
+单测：`app/src/test/java/com/music/msv/data/repository/ImslpParsingTest.kt`（18 用例，同时充当站点格式契约）
+
+---
+
+### 26b. data/repository/ImslpRepository.kt (L1-L288)
 
 | Element | Type | Lines |
 |---|---|---|
-| `ImslpStep` | sealed interface — Search/Results(works,composers)/**Browse(url)** 步骤状态机 | L76-L80 |
-| `pdfDisplayName(filename)` | private fun — 去 PMLP 编号前缀展示 | L83-L84 |
-| `ImslpSearchField(...)` | private @Composable — **胶囊搜索框（BasicTextField 自绘 42dp，文字垂直居中；替代 OutlinedTextField 矮高度时文字被压出一半的问题）** | L91-L137 |
-| `ImslpDialogState` | **class（ViewerViewModel 持有，冷启动重置）** — showDialog/step/lastResults/query/busy/statusText/downloadJob/webViewRef + 下载与门禁状态（downloadingUrl/downloadProgress/gateWait/gatePassed/gateFileUrl/gateRetry）+ pageProgress + **currentBrowseUrl（onPageFinished 实时记录，重开恢复最后浏览页）** + **resultsFromBrowse（Results 返回去向）** + **searchHistory（持久化历史）** + **disclaimerAccepted/showDisclaimer（IMSLP 首次免责声明）** | L88-L121 |
-| `IMSLP_PAGE_JS` | private const — onPageFinished 注入脚本：**.pld 蜜罐清空 + #sm_dl_wait data-id 立即导航（跳过等待）并隐藏倒计时弹窗 + View 预览兜底（捕获点击 View → 2s 未渲染官方组件时用 www.peachnote.com 图片接口自绘可翻页预览，官方组件渲染后自动移除）** | L112-L206 |
-| `IMSLP_AD_HOSTS` | private val — **广告/统计第三方域名清单**（gtag/Clarity/广告网络等），shouldInterceptRequest 拦截提速 | L208-L219 |
-| `ImslpDialog(state, isDark, onImported, onSearchCommit, onClearHistory)` | @Composable Dialog — **响应式尺寸**：宽 Search 0.70/其余 0.94 屏宽，高 Search 随历史+状态行动态(封顶 0.5 屏)/Results 按结果数分档(0.35/0.60/0.88)/Browse 恒 0.88 屏高，**animateDpAsState(tween 300) 过渡** | L225-L785 |
-| — goBack() | 取消下载/清理门禁态；**Results → resultsFromBrowse 时回 Browse(currentBrowseUrl)，否则回 Search（修复返回失效）**；Browse 内优先 WebView 历史回退 | L282-L311 |
-| — doSearch(q, fromBrowse) | 搜索（仓库层并行）；有结果时 onSearchCommit 记录历史 | L314-L328 |
-| — openComposer/openWork | 点击结果 → Browse 步（官方 Category 页 / 官方作品页，URL 编码，同步 currentBrowseUrl） | L330-L340 |
-| — startInterceptedDownload(fileUrl, ua, isAutoRetry) | 拦截下载入口：末段解码文件名（仅 .pdf）→ downloadUrl 应用内下载（进度回调）；**BotCheck → gateFileUrl 记录 + WebView 加载门禁页（mtcaptcha）**；Success → onImported 导入谱架 | L343-L375 |
-| — Search 步 | 胶囊搜索框 + **最近搜索横向卡片（LazyRow，点击直接搜索 / 清空）**+ 说明文案；**内容整体可滚动（状态行出现不再遮挡灰字）** | L489-L545 |
-| — Results 步 | **4 列瀑布流（FullLine 分组头）：👤作曲家组前置（优先显示）**，📄作品组在后（相关度排序）；卡片紧凑 | L546-L645 |
-| — Browse 步·搜索框+进度区 | **顶部搜索框默认收起为小胶囊（省空间），点击展开输入行（AnimatedVisibility 过渡 + 自动聚焦），提交后收起**；**搜索中覆盖层（busy 即时反馈）**；页面加载进度条（pageProgress 1~99）+ 下载进度条（**官方页保持挂载**） | L647-L717 |
-| — Browse 步·WebView | 官方页 AndroidView：**UA 不覆盖（设备默认）** + JS/DOM 存储/第三方 Cookie/混合内容/内置缩放 + **免责 cookie 预置**；onPageStarted 置 pageProgress=0 并清 pageError；**shouldInterceptRequest 按 IMSLP_AD_HOSTS 拦截广告/统计资源**；shouldOverrideUrlLoading **拦截 /images/*.pdf 与 Special:Redirect/file/*.pdf → 应用内下载、外链跳系统浏览器**；**onPageFinished 记录 currentBrowseUrl + 注入 IMSLP_PAGE_JS**；onProgressChanged 更新加载进度；**onReceivedError 主文档失败 → pageError 错误覆盖层 + 重试按钮**；onCreateWindow 接管弹窗；DownloadListener 兜底；**onRelease 移除并 destroy()**；**factory loadUrl(currentBrowseUrl ?: s.url) 恢复浏览位置**；**pageProgress<100 时"加载中…"覆盖层** | L719-L880 |
-| — Browse 步·门禁轮询 | LaunchedEffect 每 1200ms 读 body innerText，检出 "Bot Check Passed" → **自动重试下载（≤2 次，UA 取自 WebView）** | L882-L900+ |
-| — IMSLP 首次免责声明 | 弹窗打开且未确认 → AlertDialog 强调 IMSLP 版权法规（公有领域因国而异/遵守当地版权法/IMSLP 条款）；"我已阅读并同意"持久化，"暂不使用"关闭弹窗 | L395-L397 + L902-L929+ |
+| `ImslpRepository` | class — IMSLP 搜索（MediaWiki API）+ 官方页 WebView 下载仓库；**HTML/链接解析全部委托 ImslpParsing** | L31-L288 |
+| companion | API(=`${ImslpParsing.BASE}/api.php`)/TAG/超时/**WAIT_BUDGET_MS(16s 等待页轮询预算)**/USER_AGENT(仅 api.php 搜索用)/UA | L33-L45 |
+| **CN_MUSIC_MAP** | private val — **中文→西文音乐词映射表**（50+ 条：作曲家/曲式/乐器），中文搜索的有效扩展路径 | L47-L61 |
+| **toPinyin(q)** | private fun — pinyin4j 全拼转换（去声调数字，非汉字跳过，异常静默） | L64-L70 |
+| `DownloadResult` | sealed class — Success(file)/BotCheck/Error(msg) | L73-L77 |
+| `httpGetString(url)` | private fun — api.php GET + 免责 cookie | L79-L99 |
+| `search(query)` | suspend — **原词 works+composers 并行；含中文时并行补充拼音与映射英文词（最多 2 个）各一路查询，合并去重（原词相关度优先）** | L101-L120 |
+| `searchWorks(q)` | private suspend — 作品搜索（主命名空间全文，相关度排序，ImslpParsing.cleanSnippet 清洗） | L122-L140 |
+| `searchComposers(q)` | private suspend — 作曲家分类搜索（Category 命名空间标题匹配） | L142-L160 |
+| `cookieHeader(url)` | private fun — **CookieManager 全量会话 cookie**（验证放行绑定会话）+ 免责 cookie 兜底 | L162-L172 |
+| `openConn(url, ua)` | private fun — HttpURLConnection（UA/Cookie/Referer） | L174-L182 |
+| `downloadUrl(url, ua, dest, onProgress)` | suspend — withContext(IO) 委托 downloadLoop（独立函数规避 K2 lambda 推断问题） | L184-L192 |
+| `downloadLoop(url, ua, dest, onProgress)` | private suspend — **流式下载 + %PDF- 魔数校验**；非 PDF→**ImslpParsing.nextUrlFromHtml** 分类跟进（重复 URL 按 2s 轮询至 16s 预算）；进度回调 + 协作式取消 | L194-L287 |
+
+### 27. ui/components/ImslpDialogState.kt (L1-L51)
+
+| Element | Type | Lines |
+|---|---|---|
+| `ImslpStep` | sealed interface — Search/Results(works,composers)/**Browse(url)** 步骤状态机 | L11-L16 |
+| `ImslpDialogState` | **class（ViewerViewModel 持有，冷启动重置）** — showDialog/step/lastResults/query/busy/statusText/downloadJob/webViewRef + 下载与门禁状态（downloadingUrl/downloadProgress/gateWait/gatePassed/gateFileUrl/gateRetry）+ pageProgress + **pageError** + **currentBrowseUrl（onPageFinished 实时记录，重开恢复最后浏览页）** + **resultsFromBrowse** + **searchHistory** + **disclaimerAccepted/showDisclaimer** | L22-L51 |
+
+---
+
+### 27b. ui/components/ImslpPanel.kt (L1-L932)
+
+| Element | Type | Lines |
+|---|---|---|
+| `pdfDisplayName(filename)` | private fun — 去 PMLP 编号前缀展示 | L92-L93 |
+| `ImslpSearchField(...)` | private @Composable — **胶囊搜索框（BasicTextField 自绘 42dp，文字垂直居中；替代 OutlinedTextField 矮高度时文字被压出一半的问题）** | L99-L149 |
+| `IMSLP_PAGE_JS` | private const — onPageFinished 注入脚本：**.pld 蜜罐清空 + #sm_dl_wait data-id 立即导航（跳过等待）并隐藏倒计时弹窗 + View 预览兜底（捕获点击 View → 2s 未渲染官方组件时用 www.peachnote.com 图片接口自绘可翻页预览，官方组件渲染后自动移除）** | L150-L244 |
+| `IMSLP_AD_HOSTS` | private val — **广告/统计第三方域名清单**（gtag/Clarity/广告网络等），shouldInterceptRequest 拦截提速 | L245-L259 |
+| `ImslpDialog(state, isDark, onImported, onSearchCommit, onClearHistory)` | @Composable Dialog — **响应式尺寸**：宽 Search 0.70/其余 0.94 屏宽，高 Search 随历史+状态行动态(封顶 0.5 屏)/Results 按结果数分档(0.35/0.60/0.88)/Browse 恒 0.88 屏高，**animateDpAsState(tween 300) 过渡** | L261-L931 |
+| — goBack() | 取消下载/清理门禁态；**Results → resultsFromBrowse 时回 Browse(currentBrowseUrl)，否则回 Search（修复返回失效）**；Browse 内优先 WebView 历史回退 | L314-L345 |
+| — doSearch(q, fromBrowse) | 搜索（仓库层并行）；有结果时 onSearchCommit 记录历史 | L346-L361 |
+| — openComposer/openWork | 点击结果 → Browse 步（官方 Category 页 / 官方作品页，URL 编码，同步 currentBrowseUrl） | L362-L374 |
+| — startInterceptedDownload(fileUrl, ua, isAutoRetry) | 拦截下载入口：末段解码文件名（仅 .pdf）→ downloadUrl 应用内下载（进度回调）；**BotCheck → gateFileUrl 记录 + WebView 加载门禁页（mtcaptcha）**；Success → onImported 导入谱架 | L375-L408 |
+| — Search 步 | 胶囊搜索框 + **最近搜索横向卡片（LazyRow L513，点击直接搜索 / 清空）**+ 说明文案；**内容整体可滚动（状态行出现不再遮挡灰字）** | L453-L541 |
+| — Results 步 | **4 列瀑布流（FullLine 分组头，LazyVerticalStaggeredGrid L542）：👤作曲家组前置（优先显示）**，📄作品组在后（相关度排序）；卡片紧凑 | L542-L655 |
+| — Browse 步·搜索框+进度区 | **顶部搜索框默认收起为小胶囊（省空间），点击展开输入行（AnimatedVisibility 过渡 + 自动聚焦），提交后收起**；**搜索中覆盖层（busy 即时反馈）**；页面加载进度条（pageProgress 1~99）+ 下载进度条（**官方页保持挂载**） | L656-L692 |
+| — Browse 步·WebView | 官方页 AndroidView（L693）：**UA 不覆盖（设备默认）** + JS/DOM 存储/第三方 Cookie/混合内容/内置缩放 + **免责 cookie 预置**；onPageStarted **L717**；onReceivedError **L724**；shouldInterceptRequest **L732**（按 IMSLP_AD_HOSTS 拦截广告/统计）；shouldOverrideUrlLoading **L741**（拦截 /images/*.pdf 与 Special:Redirect/file/*.pdf → 应用内下载、外链跳系统浏览器）；onPageFinished **L765**（记录 currentBrowseUrl + 注入 IMSLP_PAGE_JS）；onProgressChanged **L773**；onCreateWindow **L778**；onRelease destroy() | L693-L865 |
+| — Browse 步·门禁轮询 | LaunchedEffect(Unit) **L867** + LaunchedEffect(gatePassed) **L879**：读 body innerText，检出 "Bot Check Passed" → **自动重试下载（≤2 次，UA 取自 WebView）** | L866-L898 |
+| — IMSLP 首次免责声明 | 触发 LaunchedEffect **L410**；弹窗打开且未确认 → AlertDialog（**L900**）强调 IMSLP 版权法规（公有领域因国而异/遵守当地版权法/IMSLP 条款）；"我已阅读并同意"持久化，"暂不使用"关闭弹窗 | L410-L414 + L899-L931 |
 
 | Element | Type | Lines |
 |---|---|---|

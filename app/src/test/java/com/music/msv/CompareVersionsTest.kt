@@ -41,4 +41,24 @@ class CompareVersionsTest {
     fun test_major_bump_detected() {
         assertEquals(-1, compareVersions("2.1", "3.0").coerceIn(-1, 1))
     }
+
+    @Test
+    fun test_empty_string_treated_as_zero() {
+        assertEquals(-1, compareVersions("", "1.0").coerceIn(-1, 1))
+    }
+
+    @Test
+    fun test_non_numeric_segment_treated_as_zero() {
+        assertEquals(0, compareVersions("2.x", "2.0"))
+    }
+
+    @Test
+    fun test_uppercase_v_prefix_tolerated() {
+        assertEquals(0, compareVersions("V2.1", "2.1.0"))
+    }
+
+    @Test
+    fun test_surrounding_whitespace_trimmed() {
+        assertEquals(0, compareVersions(" 2.1 ", "2.1"))
+    }
 }
