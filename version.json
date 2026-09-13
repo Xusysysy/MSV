@@ -1,7 +1,7 @@
 {
-    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.4.8/MSV-ScoreViewer-v2.4.8-release.apk",
-    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.4.8/MSV-ScoreViewer-v2.4.8-release.apk",
-    "versionCode":  51,
-    "versionName":  "2.4.8",
-    "notes":  "# MSV 乐谱查看器 v2.4.8\n\n## 优化\n\n- **IMSLP 乐谱库搜索页不再需要滚动**：搜索页（搜索框 +「最近搜索」卡片 + 说明文案）的弹窗高度改为**随内容自适应**。此前用的是固定高度估算，在窄屏或系统字体放大时估算偏低，内容会被挤出可视区而需要滚动；现在打开即可看全\n- **「最近搜索」卡片更紧凑**：卡片圆角与内边距收窄，单卡最大宽度由 120dp 调整为 104dp，同屏可容纳更多历史记录\n\n\u003e 搜索结果页与官方页浏览的尺寸策略、交互均未改动。\n\nversionCode=51, versionName=2.4.8\n"
+    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.4.9/MSV-ScoreViewer-v2.4.9-release.apk",
+    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.4.9/MSV-ScoreViewer-v2.4.9-release.apk",
+    "versionCode":  52,
+    "versionName":  "2.4.9",
+    "notes":  "# MSV 乐谱查看器 v2.4.9\n\n## 修复：IMSLP 乐曲详情页的「预览」恢复\n\n- **预览失效的原因不是应用删掉了功能，而是 IMSLP 近期改版**：站点不再使用旧的文件按钮标识，导致应用内预览脚本取不到乐谱文件编号，于是静默跳过（表现就是\"预览没了\"）。\n- **文件编号改为读取稳定的条目标识**（改版后的新位置），旧的读取方式保留为兼容分支，两种页面结构都能取到编号。\n\n## 改进：预览入口改为应用自带\n\n- 每个乐谱条目旁新增一个 **「📖 预览」按钮**，点击即在该条目下展开可翻页预览。\n- 该入口**不再依赖 IMSLP 自身的 View 按钮，也不依赖其官方预览组件是否可用**（官方组件在部分网络下不可达）——站点后续再改版也不会让预览消失。\n- 点击 IMSLP 自带的 View 仍然兼容：官方预览组件可用时优先使用官方组件，不可用时才接管。\n\n\u003e 预览图片仍来自公开的乐谱预览图片接口，不在本地存储任何乐谱内容。\n\nversionCode=52, versionName=2.4.9\n"
 }
