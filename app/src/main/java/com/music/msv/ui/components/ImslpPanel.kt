@@ -153,6 +153,19 @@ private const val IMSLP_PAGE_JS = """(function(){
     window.__msvInjected = 1;
     document.addEventListener('click', function(e){
         var el = e.target;
+        // ① 本应用自带的预览入口：强制显示预览（不依赖 IMSLP 的 View 按钮与官方组件是否可用）
+        var own = el && el.closest ? el.closest('.msv-preview-btn') : null;
+        if (own) {
+            var oe = own.closest ? own.closest('.we_file, .we_file_first') : null;
+            if (oe) {
+                var ex = oe.querySelector('.msv-view-fallback');
+                if (ex) { ex.remove(); oe.__msvForce = 0; }
+                else { oe.__msvForce = 1; oe.__msvViewClicked = Date.now(); }
+            }
+            e.preventDefault(); e.stopPropagation();
+            return;
+        }
+        // ② 兼容 IMSLP 自带的 View 按钮
         while (el && el !== document.body) {
             var txt = el.textContent ? el.textContent.trim() : '';
             if (txt.indexOf('View') === 0 && txt.length < 12) {
@@ -177,12 +190,32 @@ private const val IMSLP_PAGE_JS = """(function(){
         var entries = document.querySelectorAll('.we_file, .we_file_first');
         for (var k = 0; k < entries.length; k++) {
             (function(entry){
+                // 文件 id：优先容器自身稳定 id（当前站点为 id="IMSLP<n>"），其次兼容旧的 fileButton_<id>
+                var fid = '';
+                var em = /^IMSLP(\d+)$/.exec(entry.id || '');
+                if (em) fid = em[1];
+                if (!fid) {
+                    var bt1 = entry.querySelector('[id^="fileButton_"]');
+                    if (bt1) { var s1 = bt1.id.replace('fileButton_', ''); if (/^\d+$/.test(s1)) fid = s1; }
+                }
+                if (!fid) {
+                    var dn = entry.querySelector('[id^="IMSLP"]');
+                    if (dn) { var m1 = /(\d+)/.exec(dn.id); if (m1) fid = m1[1]; }
+                }
+                // 注入本应用自带的预览入口（幂等）
+                if (fid && !entry.querySelector('.msv-preview-btn')) {
+                    var pb = document.createElement('button');
+                    pb.className = 'msv-preview-btn';
+                    pb.textContent = '📖 预览';
+                    pb.style.cssText = 'margin:2px 0 2px 6px;padding:2px 10px;border:1px solid #9aa0a6;border-radius:12px;background:#fff;color:#1b2230;cursor:pointer;font-size:12px;vertical-align:middle;';
+                    entry.appendChild(pb);
+                }
                 var t = entry.__msvViewClicked;
-                if (!t) return;
+                if (!t || !fid) return;
                 var dt = Date.now() - t;
-                if (dt < 2000) return;
+                if (!entry.__msvForce && dt < 1200) return;
                 if (dt > 20000) {
-                    entry.__msvViewClicked = 0;
+                    entry.__msvViewClicked = 0; entry.__msvForce = 0;
                     var stale = entry.querySelector('.msv-view-fallback');
                     if (stale) stale.remove();
                     return;
@@ -192,12 +225,9 @@ private const val IMSLP_PAGE_JS = """(function(){
                 var pnOk = pn && entry.contains(pn) && pn.offsetHeight > 0;
                 var nvOk = nv && entry.contains(nv) && nv.offsetHeight > 0;
                 var fb = entry.querySelector('.msv-view-fallback');
-                if (pnOk || nvOk) { if (fb) fb.remove(); return; }
+                // 自有点击 → 始终用本应用预览；IMSLP 的 View → 官方组件可用时让位
+                if (!entry.__msvForce && (pnOk || nvOk)) { if (fb) fb.remove(); return; }
                 if (fb) return;
-                var bt = entry.querySelector('[id^="fileButton_"]');
-                if (!bt) return;
-                var fid = bt.id.replace('fileButton_', '');
-                if (!/^\d+$/.test(fid)) return;
                 var wImg = Math.max(300, Math.min((entry.clientWidth || 700) - 24, 1400));
                 var base = 'https://www.peachnote.com/rest/api/v1/image?sid=IMSLP' + fid + '&w=' + wImg + '&page=';
                 var panel = document.createElement('div');
@@ -226,7 +256,7 @@ private const val IMSLP_PAGE_JS = """(function(){
                 };
                 prev.onclick = function(){ if (page > 1) loadPage(page - 1); };
                 next.onclick = function(){ loadPage(page + 1); };
-                close.onclick = function(){ panel.remove(); entry.__msvViewClicked = 0; };
+                close.onclick = function(){ panel.remove(); entry.__msvViewClicked = 0; entry.__msvForce = 0; };
                 panel.appendChild(img);
                 var bar = document.createElement('div');
                 bar.style.cssText = 'margin-top:6px;';

@@ -752,15 +752,15 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 27b. ui/components/ImslpPanel.kt (L1-L925)
+### 27b. ui/components/ImslpPanel.kt (L1-L955)
 
 | Element | Type | Lines |
 |---|---|---|
 | `pdfDisplayName(filename)` | private fun — 去 PMLP 编号前缀展示 | L92-L93 |
 | `ImslpSearchField(...)` | private @Composable — **胶囊搜索框（BasicTextField 自绘 42dp，文字垂直居中；替代 OutlinedTextField 矮高度时文字被压出一半的问题）** | L99-L149 |
-| `IMSLP_PAGE_JS` | private const — onPageFinished 注入脚本：**.pld 蜜罐清空 + #sm_dl_wait data-id 立即导航（跳过等待）并隐藏倒计时弹窗 + View 预览兜底（捕获点击 View → 2s 未渲染官方组件时用 www.peachnote.com 图片接口自绘可翻页预览，官方组件渲染后自动移除）** | L150-L244 |
-| `IMSLP_AD_HOSTS` | private val — **广告/统计第三方域名清单**（gtag/Clarity/广告网络等），shouldInterceptRequest 拦截提速 | L245-L259 |
-| `ImslpDialog(state, isDark, onImported, onSearchCommit, onClearHistory)` | @Composable Dialog — **响应式尺寸**：宽 Search 0.70/其余 0.94 屏宽，高 **Search 内容自适应(封顶 0.92 屏)**/Results 按结果数分档(0.35/0.60/0.88)/Browse 恒 0.88 屏高，**animateDpAsState(tween 300) 过渡** | L263-L925 |
+| `IMSLP_PAGE_JS` | private const — onPageFinished 注入脚本：**.pld 蜜罐清空 + #sm_dl_wait data-id 立即导航（跳过等待）并隐藏倒计时弹窗 + 预览兜底**。**v2.4.9 修复（站点改版导致预览消失）**：① 文件 id 改为优先读条目容器稳定 id `id="IMSLP<n>"`（改版后静态页 `fileButton_<id>` 为 0，旧写法取不到 id 直接 return），依次兼容 `[id^="fileButton_"]` 与后代 `[id^="IMSLP"]`；② **为每个条目注入自有的「📖 预览」按钮**（`.msv-preview-btn` + `__msvForce`），不依赖 IMSLP 的 View 按钮与官方组件是否可用；IMSLP 的 View 点击仍兼容（官方组件可用时让位，自有点击则强制）。图片源 `www.peachnote.com/rest/api/v1/image?sid=IMSLP{id}`。**该脚本已用 `node --check` 做语法校验** | L151-L270 |
+| `IMSLP_AD_HOSTS` | private val — **广告/统计第三方域名清单**（gtag/Clarity/广告网络等），shouldInterceptRequest 拦截提速 | L276-L290 |
+| `ImslpDialog(state, isDark, onImported, onSearchCommit, onClearHistory)` | @Composable Dialog — **响应式尺寸**：宽 Search 0.70/其余 0.94 屏宽，高 **Search 内容自适应(封顶 0.92 屏)**/Results 按结果数分档(0.35/0.60/0.88)/Browse 恒 0.88 屏高，**animateDpAsState(tween 300) 过渡** | L263-L955 |
 | — goBack() | 取消下载/清理门禁态；**Results → resultsFromBrowse 时回 Browse(currentBrowseUrl)，否则回 Search（修复返回失效）**；Browse 内优先 WebView 历史回退 | L314-L345 |
 | — doSearch(q, fromBrowse) | 搜索（仓库层并行）；有结果时 onSearchCommit 记录历史 | L346-L361 |
 | — openComposer/openWork | 点击结果 → Browse 步（官方 Category 页 / 官方作品页，URL 编码，同步 currentBrowseUrl） | L362-L374 |
