@@ -752,7 +752,7 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 27b. ui/components/ImslpPanel.kt (L1-L920)
+### 27b. ui/components/ImslpPanel.kt (L1-L925)
 
 | Element | Type | Lines |
 |---|---|---|
@@ -760,12 +760,12 @@ Single-screen app — no Navigation component. State-based content switching via
 | `ImslpSearchField(...)` | private @Composable — **胶囊搜索框（BasicTextField 自绘 42dp，文字垂直居中；替代 OutlinedTextField 矮高度时文字被压出一半的问题）** | L99-L149 |
 | `IMSLP_PAGE_JS` | private const — onPageFinished 注入脚本：**.pld 蜜罐清空 + #sm_dl_wait data-id 立即导航（跳过等待）并隐藏倒计时弹窗 + View 预览兜底（捕获点击 View → 2s 未渲染官方组件时用 www.peachnote.com 图片接口自绘可翻页预览，官方组件渲染后自动移除）** | L150-L244 |
 | `IMSLP_AD_HOSTS` | private val — **广告/统计第三方域名清单**（gtag/Clarity/广告网络等），shouldInterceptRequest 拦截提速 | L245-L259 |
-| `ImslpDialog(state, isDark, onImported, onSearchCommit, onClearHistory)` | @Composable Dialog — **响应式尺寸**：宽 Search 0.70/其余 0.94 屏宽，高 Search 随历史+状态行动态(封顶 0.5 屏)/Results 按结果数分档(0.35/0.60/0.88)/Browse 恒 0.88 屏高，**animateDpAsState(tween 300) 过渡** | L261-L931 |
+| `ImslpDialog(state, isDark, onImported, onSearchCommit, onClearHistory)` | @Composable Dialog — **响应式尺寸**：宽 Search 0.70/其余 0.94 屏宽，高 **Search 内容自适应(封顶 0.92 屏)**/Results 按结果数分档(0.35/0.60/0.88)/Browse 恒 0.88 屏高，**animateDpAsState(tween 300) 过渡** | L263-L925 |
 | — goBack() | 取消下载/清理门禁态；**Results → resultsFromBrowse 时回 Browse(currentBrowseUrl)，否则回 Search（修复返回失效）**；Browse 内优先 WebView 历史回退 | L314-L345 |
 | — doSearch(q, fromBrowse) | 搜索（仓库层并行）；有结果时 onSearchCommit 记录历史 | L346-L361 |
 | — openComposer/openWork | 点击结果 → Browse 步（官方 Category 页 / 官方作品页，URL 编码，同步 currentBrowseUrl） | L362-L374 |
 | — startInterceptedDownload(fileUrl, ua, isAutoRetry) | 拦截下载入口：末段解码文件名（仅 .pdf）→ downloadUrl 应用内下载（进度回调）；**BotCheck → gateFileUrl 记录 + WebView 加载门禁页（mtcaptcha）**；Success → onImported 导入谱架 | L375-L408 |
-| — Search 步 | 胶囊搜索框 + **最近搜索横向卡片（LazyRow L513，点击直接搜索 / 清空）**+ 说明文案；**内容整体可滚动（状态行出现不再遮挡灰字）** | L453-L541 |
+| — Search 步 | 胶囊搜索框 + **最近搜索横向卡片（LazyRow L514，紧凑 8dp 圆角 / 4dp 内边距 / 最大 104dp，点击直接搜索 / 清空）** + 说明文案；**搜索步高度随内容自适应（Modifier.heightIn max 0.92 屏高）→ 卡片与文案完整可见、无需滚动**（滚动仅作超小屏/横屏兜底） | L464-L540 |
 | — Results 步 | **4 列瀑布流（FullLine 分组头，LazyVerticalStaggeredGrid L542）：👤作曲家组前置（优先显示）**，📄作品组在后（相关度排序）；卡片紧凑 | L542-L655 |
 | — Browse 步·搜索框+进度区 | **顶部搜索框默认收起为小胶囊（省空间），点击展开输入行（AnimatedVisibility 过渡 + 自动聚焦），提交后收起**；**搜索中覆盖层（busy 即时反馈）**；页面加载进度条（pageProgress 1~99）+ 下载进度条（**官方页保持挂载**） | L656-L692 |
 | — Browse 步·WebView | 官方页 AndroidView（L693）：**UA 不覆盖（设备默认）** + JS/DOM 存储/第三方 Cookie/混合内容/内置缩放 + **免责 cookie 预置**；onPageStarted **L717**；onReceivedError **L724**；shouldInterceptRequest **L732**（按 IMSLP_AD_HOSTS 拦截广告/统计）；shouldOverrideUrlLoading **L741**（拦截 /images/*.pdf 与 Special:Redirect/file/*.pdf → 应用内下载、外链跳系统浏览器）；onPageFinished **L765**（记录 currentBrowseUrl + 注入 IMSLP_PAGE_JS）；onProgressChanged **L773**；onCreateWindow **L778**；onRelease destroy() | L693-L865 |

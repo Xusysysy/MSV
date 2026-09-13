@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -420,7 +421,11 @@ fun ImslpDialog(
         Column(
             modifier
                 .width(dialogW)
-                .height(dialogH)
+                .then(
+                    // 搜索页高度随内容自适应：卡片与说明完整可见、无需滚动（超小屏/横屏时封顶并保留滚动兜底）
+                    if (state.step is ImslpStep.Search) Modifier.heightIn(max = screenH * 0.92f)
+                    else Modifier.height(dialogH)
+                )
                 .msvSurface()
                 .padding(MsvSpacing.md)
         ) {
@@ -506,24 +511,24 @@ fun ImslpDialog(
                             )
                         }
                         Spacer(Modifier.height(4.dp))
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             items(state.searchHistory) { h ->
                                 Box(
                                     Modifier
-                                        .clip(RoundedCornerShape(10.dp))
+                                        .clip(RoundedCornerShape(8.dp))
                                         .background(itemBg)
-                                        .border(1.dp, itemBorder, RoundedCornerShape(10.dp))
+                                        .border(1.dp, itemBorder, RoundedCornerShape(8.dp))
                                         .clickable {
                                             state.query = h
                                             doSearch(h)
                                         }
-                                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
                                 ) {
-                                    Text(h, color = text, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 120.dp))
+                                    Text(h, color = text, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 104.dp))
                                 }
                             }
                         }
-                        Spacer(Modifier.height(6.dp))
+                        Spacer(Modifier.height(4.dp))
                     }
 
                     Text(
