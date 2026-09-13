@@ -1,7 +1,7 @@
 {
-    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.4.7/MSV-ScoreViewer-v2.4.7-release.apk",
-    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.4.7/MSV-ScoreViewer-v2.4.7-release.apk",
-    "versionCode":  50,
-    "versionName":  "2.4.7",
-    "notes":  "# MSV 乐谱查看器 v2.4.7\n\n## 本次主题：全应用设计语言统一\n\n此前各弹窗与界面各自实现视觉规范，圆角、底色、描边、按钮样式互不一致。本次建立统一设计系统并全量改造。\n\n### 新增：统一设计系统\n\n- **语义颜色令牌**：新增 `Msv.colors` —— 深/浅色各 24 个语义角色（浮层、工具栏、控件、列表项、危险/成功等），成为全应用唯一取色来源\n- **统一圆角标度**：新增 `MsvShapes`（8 / 12 / 16 / 22 / 28），并接入 `MaterialTheme.shapes`，原生 Material 组件同步生效\n- **统一组件库**：新增 `MsvAlertDialog`、`MsvButton`、`MsvIconButton`、`MsvPanelHeader`、`MsvCard`、`MsvChip` 等，弹窗与控件只有一个实现\n\n### 全量改造\n\n- **弹窗全部统一**：页跳转、重置、发现新版本、下载失败、开源许可、支持开发者、删除乐谱、重命名、书签编辑、IMSLP 使用须知，以及 IMSLP 主弹窗与人脸调节面板，共享同一圆角 / 玻璃底色 / 描边 / 标题排版 / 按钮排版\n- **界面全部统一**：顶栏、底栏、空态页、谱架、缩略图、设置面板的私有 `if (isDark)` 调色板改为统一令牌，消除此前的取值漂移（如菜单底色、面板透明度、控件描边深浅不一）\n- **修复**：深/浅主题此前会被系统“动态取色”静默覆盖，现严格使用应用自有色板\n\n### 效果\n\n- 组件内硬编码颜色由约 98 处降至 35 处；`if (isDark)` 颜色分支由 84 处降至 35 处\n- 深色与浅色下，弹窗与侧栏的圆角、玻璃质感、描边、按钮样式完全一致\n\n\u003e 功能与交互逻辑未改动，本版本为视觉一致性改造。\n\nversionCode=50, versionName=2.4.7\n"
+    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.4.8/MSV-ScoreViewer-v2.4.8-release.apk",
+    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.4.8/MSV-ScoreViewer-v2.4.8-release.apk",
+    "versionCode":  51,
+    "versionName":  "2.4.8",
+    "notes":  "# MSV 乐谱查看器 v2.4.8\n\n## 优化\n\n- **IMSLP 乐谱库搜索页不再需要滚动**：搜索页（搜索框 +「最近搜索」卡片 + 说明文案）的弹窗高度改为**随内容自适应**。此前用的是固定高度估算，在窄屏或系统字体放大时估算偏低，内容会被挤出可视区而需要滚动；现在打开即可看全\n- **「最近搜索」卡片更紧凑**：卡片圆角与内边距收窄，单卡最大宽度由 120dp 调整为 104dp，同屏可容纳更多历史记录\n\n\u003e 搜索结果页与官方页浏览的尺寸策略、交互均未改动。\n\nversionCode=51, versionName=2.4.8\n"
 }
