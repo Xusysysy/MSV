@@ -1,7 +1,7 @@
 {
-    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.5.0/MSV-ScoreViewer-v2.5.0-release.apk",
-    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.5.0/MSV-ScoreViewer-v2.5.0-release.apk",
-    "versionCode":  53,
-    "versionName":  "2.5.0",
-    "notes":  "# MSV 乐谱查看器 v2.5.0\n\n## 全新应用图标\n\n- 从「沿用 Material 字形位图」改为**专门设计**的图标：深空蓝底 + 五线谱线上的一枚四分音符（符头强调蓝、符杆前景白），与应用自身色板一致\n- 采用**矢量自适应图标**：方形 / 圆形 / 圆角各遮罩下都完整不被裁切；并附带**单色层**，支持 Android 13+ 的「主题图标」（随系统主题着色）\n- 因最低支持 Android 8.0，图标全为矢量，任何分辨率都清晰，不再需要位图\n\n## 全新应用内图标\n\n- 新增 **18 个手绘线性图标**（统一 24dp、2px 圆头描边），替换原先用 emoji / 文字符号充当图标的做法：谱架、缩略图、翻谱手势、重置、设置、关闭、返回、展开/收起、已选、搜索、排序、支持、作曲家、作品、加载失败、乐谱库、应用标志\n- **不引入任何图标依赖库**，APK 体积无额外增长\n- 顶部工具栏、空态页、谱架、缩略图、设置面板、IMSLP 弹窗的图标风格现已完全统一\n\n## 体验修复\n\n- **修复文字不可见**：人脸调节面板的「触发模式」标题此前用纯黑色画在深色卡片上，深色主题下完全看不见\n- **修复深色/浅色主题串色**：该面板残留的写死颜色改为语义令牌，浅色主题下不再失效\n- **触控区域放大**：面板关闭按钮 34 → 40dp；IMSLP 弹窗的关闭与返回此前只有约 18dp 的可点区域，现放大到 34dp 起\n- **补上操作提示**：空态页新增手势说明（左右点按翻页 / 双击放大 / 拖动快速翻页 / 长按工具按钮切换主题），此前这些手势只能靠猜\n- **修复过小字号**：人脸面板 9sp 文字提升到 11sp；展开/收起统一为箭头图标，不再用 ▴▾/▸▾ 两套符号\n\nversionCode=53, versionName=2.5.0\n"
+    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.5.1/MSV-ScoreViewer-v2.5.1-release.apk",
+    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.5.1/MSV-ScoreViewer-v2.5.1-release.apk",
+    "versionCode":  54,
+    "versionName":  "2.5.1",
+    "notes":  "# MSV 乐谱查看器 v2.5.1\n\n## 应用图标调整\n\n- **音符明显变大**：占图标面积从约 28×40 提升到约 59×46 单位，48dp 尺寸下更有分量、更容易一眼认出\n- **改为「上行双音符 + 倾斜符杠」**：从单枚四分音符（较平淡）换成被符杠连在一起的两枚八分音符，两音一低一高、符杠向上倾斜，带出「翻页向前」的动感，比通用音乐图标更有记忆点\n- **双色更有辨识度**：符杆与符杠为前景白、两枚符头为应用强调蓝，深浅对比比单色更醒目\n- 依旧为矢量自适应图标（含单色主题图标层），已用脚本按圆形遮罩实测内容全部落在安全区内，各遮罩下不裁切\n\n\u003e 功能无变化，仅图标视觉调整。\n\nversionCode=54, versionName=2.5.1\n"
 }
