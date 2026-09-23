@@ -14,17 +14,20 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.music.msv.R
 import com.music.msv.ui.theme.TopbarShape
 import com.music.msv.ui.theme.ButtonShape
 import com.music.msv.ui.theme.Msv
@@ -79,8 +82,13 @@ fun TopBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Text("📂", color = if (isDark) Color(0xFF0F1220) else Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            Text("谱架", color = if (isDark) Color(0xFF0F1220) else Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Icon(
+                painter = painterResource(R.drawable.ic_msv_shelf),
+                contentDescription = null,
+                tint = Msv.colors.onAccent,
+                modifier = Modifier.size(17.dp)
+            )
+            Text("谱架", color = Msv.colors.onAccent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
         }
 
         if (showPageNav) {
@@ -123,7 +131,12 @@ fun TopBar(
                     .clickable { onThumbnailsClick() },
                 contentAlignment = Alignment.Center
             ) {
-                Text("▦", color = text, fontSize = 16.sp, textAlign = TextAlign.Center)
+                Icon(
+                    painter = painterResource(R.drawable.ic_msv_grid),
+                    contentDescription = "缩略图",
+                    tint = text,
+                    modifier = Modifier.size(20.dp)
+                )
             }
 
             // Face recognition button
@@ -149,11 +162,11 @@ fun TopBar(
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    "👁",
-                    color = faceColor,
-                    fontSize = 16.sp,
-                    textAlign = TextAlign.Center
+                Icon(
+                    painter = painterResource(R.drawable.ic_msv_face),
+                    contentDescription = "翻谱手势",
+                    tint = faceColor,
+                    modifier = Modifier.size(21.dp)
                 )
             }
 
@@ -170,7 +183,12 @@ fun TopBar(
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                Text("↺", color = text, fontSize = 16.sp, textAlign = TextAlign.Center)
+                Icon(
+                    painter = painterResource(R.drawable.ic_msv_reset),
+                    contentDescription = "重置",
+                    tint = text,
+                    modifier = Modifier.size(20.dp)
+                )
             }
 
             // Settings button
@@ -183,7 +201,12 @@ fun TopBar(
                     .clickable { onSettingsClick() },
                 contentAlignment = Alignment.Center
             ) {
-                Text("⚙", color = text, fontSize = 16.sp, textAlign = TextAlign.Center)
+                Icon(
+                    painter = painterResource(R.drawable.ic_msv_settings),
+                    contentDescription = "设置",
+                    tint = text,
+                    modifier = Modifier.size(20.dp)
+                )
             }
         }
     }

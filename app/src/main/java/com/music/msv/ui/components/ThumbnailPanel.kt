@@ -35,6 +35,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -57,6 +58,8 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
+import androidx.compose.ui.res.painterResource
+import com.music.msv.R
 import com.music.msv.data.model.PageBookmark
 import com.music.msv.ui.theme.Msv
 import com.music.msv.ui.theme.ThumbnailItemShape
@@ -191,13 +194,18 @@ fun ThumbnailPanel(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(34.dp)
+                        .size(40.dp)
                         .clip(CircleShape)
-                        .background(if (isDark) Color.White.copy(alpha = 0.08f) else Color(0xFF1B2230).copy(alpha = 0.08f))
+                        .background(Msv.colors.controlBg)
                         .clickable { onClose() },
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("✕", color = if (isDark) Color.White else Color(0xFF1B2230), fontSize = 14.sp)
+                    Icon(
+                        painter = painterResource(R.drawable.ic_msv_close),
+                        contentDescription = "关闭",
+                        tint = Msv.colors.text,
+                        modifier = Modifier.size(17.dp)
+                    )
                 }
             }
 

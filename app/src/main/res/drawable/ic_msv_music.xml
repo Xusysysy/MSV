@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 应用标志（乐谱）：四分音符。24dp 下不叠谱线，否则线与音符互相挤压而读不出乐谱 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:pathData="M15.3,16L15.3,5.4" />
+    <group
+        android:pivotX="11.5"
+        android:pivotY="17.2"
+        android:rotation="-20">
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M7.7,17.2a3.8,2.8 0 1,0 7.6,0a3.8,2.8 0 1,0 -7.6,0z" />
+    </group>
+</vector>

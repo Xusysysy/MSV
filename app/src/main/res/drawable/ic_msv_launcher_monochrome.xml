@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- MSV 应用图标 · 单色层（Android 13+ 主题图标）
+     系统按当前主题着色；此处用透明度区分主次：音符 100%，谱线 38%。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#61FFFFFF"
+        android:pathData="M0,38h108v3.4h-108zM0,46.5h108v3.4h-108zM0,55h108v3.4h-108zM0,63.5h108v3.4h-108zM0,72h108v3.4h-108z" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="7.5"
+        android:strokeLineCap="round"
+        android:pathData="M63,63L63,33" />
+    <group
+        android:pivotX="51"
+        android:pivotY="65.5"
+        android:rotation="-20">
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M39.5,65.5a11.5,8.3 0 1,0 23,0a11.5,8.3 0 1,0 -23,0z" />
+    </group>
+</vector>

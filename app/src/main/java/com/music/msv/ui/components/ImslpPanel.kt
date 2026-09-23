@@ -51,6 +51,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -76,6 +77,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.res.painterResource
+import com.music.msv.R
 import com.music.msv.data.model.ImslpSearchResult
 import com.music.msv.data.repository.FileRepository
 import com.music.msv.data.repository.ImslpRepository
@@ -206,7 +209,7 @@ private const val IMSLP_PAGE_JS = """(function(){
                 if (fid && !entry.querySelector('.msv-preview-btn')) {
                     var pb = document.createElement('button');
                     pb.className = 'msv-preview-btn';
-                    pb.textContent = '📖 预览';
+                    pb.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#1b2230" stroke-width="2" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M12,6.6C9.9,5 7.4,4.4 4,4.4v13.2c3.4,0 5.9,0.6 8,2.2c2.1,-1.6 4.6,-2.2 8,-2.2V4.4c-3.4,0 -5.9,0.6 -8,2.2z"/><path d="M12,6.6V19.8"/></svg>预览';
                     pb.style.cssText = 'margin:2px 0 2px 6px;padding:2px 10px;border:1px solid #9aa0a6;border-radius:12px;background:#fff;color:#1b2230;cursor:pointer;font-size:12px;vertical-align:middle;';
                     entry.appendChild(pb);
                 }
@@ -461,26 +464,53 @@ fun ImslpDialog(
         ) {
             // 顶栏
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("IMSLP 乐谱库", color = text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                Text(
-                    "✕", color = muted, fontSize = 14.sp,
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_msv_book),
+                        contentDescription = null,
+                        tint = accent,
+                        modifier = Modifier.width(20.dp).height(20.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("IMSLP 乐谱库", color = text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
+                Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable { state.showDialog = false }
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                )
+                        .width(34.dp)
+                        .height(34.dp)
+                        .clip(ButtonShape)
+                        .background(Msv.colors.controlBg)
+                        .clickable { state.showDialog = false },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_msv_close),
+                        contentDescription = "关闭",
+                        tint = text,
+                        modifier = Modifier.width(16.dp).height(16.dp)
+                    )
+                }
             }
             Spacer(Modifier.height(8.dp))
 
             // 返回行（非首步显示）
             if (state.step !is ImslpStep.Search) {
-                Text(
-                    "← 返回", color = accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
                         .clickable { goBack() }
-                        .padding(vertical = 2.dp)
-                )
+                        .padding(vertical = 6.dp, horizontal = 4.dp)
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_msv_back),
+                        contentDescription = null,
+                        tint = accent,
+                        modifier = Modifier.width(17.dp).height(17.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text("返回", color = accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                }
                 Spacer(Modifier.height(6.dp))
             }
 
@@ -579,7 +609,16 @@ fun ImslpDialog(
                     ) {
                         if (s.composers.isNotEmpty()) {
                             item(span = StaggeredGridItemSpan.FullLine) {
-                                Text("👤 作曲家 (${s.composers.size})", color = accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.ic_msv_person),
+                                        contentDescription = null,
+                                        tint = accent,
+                                        modifier = Modifier.width(14.dp).height(14.dp)
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("作曲家 (${s.composers.size})", color = accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
                         items(s.composers, key = { "c" + it.pageid + it.title }) { c ->
@@ -596,7 +635,16 @@ fun ImslpDialog(
                         }
                         if (s.works.isNotEmpty()) {
                             item(span = StaggeredGridItemSpan.FullLine) {
-                                Text("📄 作品 (${s.works.size}) · 按相关度", color = accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.ic_msv_doc),
+                                        contentDescription = null,
+                                        tint = accent,
+                                        modifier = Modifier.width(14.dp).height(14.dp)
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("作品 (${s.works.size}) · 按相关度", color = accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
                         items(s.works, key = { "w" + it.pageid + it.title }) { w ->
@@ -843,7 +891,16 @@ fun ImslpDialog(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(16.dp)) {
-                                    Text("⚠️ 页面加载失败", color = text, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.ic_msv_warn),
+                                            contentDescription = null,
+                                            tint = Msv.colors.danger,
+                                            modifier = Modifier.width(16.dp).height(16.dp)
+                                        )
+                                        Spacer(Modifier.width(6.dp))
+                                        Text("页面加载失败", color = text, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                    }
                                     Spacer(Modifier.height(6.dp))
                                     Text(state.pageError ?: "", color = muted, fontSize = 11.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                                     Spacer(Modifier.height(12.dp))

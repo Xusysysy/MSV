@@ -54,6 +54,13 @@ app/src/test/java/com/music/msv/
 └── data/repository/ImslpParsingTest.kt ← ImslpParsing 解析契约（20 用例）
 ```
 
+```
+app/src/main/res/
+├── drawable/ic_msv_*.xml              ← ★ 应用内线性图标集（18 个，见 §5d）
+├── drawable/ic_msv_launcher_*.xml     ← ★ 应用图标三层（背景 / 前景 / 单色，见 §5e）
+└── mipmap-anydpi-v26/icon1(_round).xml ← 自适应图标清单，引用上面三层
+```
+
 ## Key Decisions
 
 | Decision | Choice | Reason |
@@ -184,7 +191,48 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 6. ui/screen/ViewerScreen.kt (L1-L429)
+### 5d. res/drawable/ic_msv_*.xml — 应用内线性图标集
+
+**统一规范**：24dp / viewport 24、1.8–2.4px 圆头描边、单一填充色（交由 `Icon(tint = …)` 着色）。全部为手绘矢量，**不引入任何图标依赖库**（material3 1.4.0 已不再传递 `material-icons-core`）。
+
+| 文件 | 语义 | 取代的字符 |
+|---|---|---|
+| `ic_msv_shelf` | 谱架 / 乐谱库（书架） | 📂 |
+| `ic_msv_grid` | 缩略图网格 | ▦ |
+| `ic_msv_face` | 翻谱手势（笑脸） | 👁 |
+| `ic_msv_reset` | 重置（环形箭头） | ↺ |
+| `ic_msv_settings` | 设置（双滑杆，语义等同「调节」） | ⚙ |
+| `ic_msv_close` | 关闭 | ✕ |
+| `ic_msv_back` | 返回 | ← |
+| `ic_msv_chevron_down` / `_right` | 展开 / 收起 | ▾ / ▸ |
+| `ic_msv_check` | 已选 | ✓ |
+| `ic_msv_search` | 搜索 | 🔍 |
+| `ic_msv_sort` | 排序 | ↓ / A |
+| `ic_msv_heart` | 支持开发者 | ❤ |
+| `ic_msv_person` | 作曲家 | 👤 |
+| `ic_msv_doc` | 作品 | 📄 |
+| `ic_msv_warn` | 页面加载失败 | ⚠️ |
+| `ic_msv_book` | IMSLP 弹窗标题 | — |
+| `ic_msv_music` | 应用标志（四分音符） | 🎼 |
+
+**校验工具**：`.design/iconsheet.js` 从这些 XML 提取 `pathData` 渲染为 `.design/icons.png`，用真实发布的矢量资源出图供人工核对（`NODE_PATH=<MIMO_NODE_MODULES> node .design/iconsheet.js`）。
+
+---
+
+### 5e. 应用图标（自适应图标 + 单色主题图标，minSdk=26 故无需位图 mipmap）
+
+| 资源 | 作用 |
+|---|---|
+| `drawable/ic_msv_launcher_background.xml` | 背景层：`#0F1220` 满幅底 + 5 条谱线 `#2E3856`（y=38/46.5/55/63.5/72，高 3.4） |
+| `drawable/ic_msv_launcher_foreground.xml` | 前景层：四分音符（符头 `#8CC8FF` 绕 (51,65.5) 旋转 −20°、符杆 `#F5F7FF` 宽 7.5），内容全落在 108 画布安全区内（x 39.5–66.8 / y 33–73.8） |
+| `drawable/ic_msv_launcher_monochrome.xml` | 单色层（Android 13+ 主题图标）：音符 100% / 谱线 38% 透明度 |
+| `mipmap-anydpi-v26/icon1.xml`、`icon1_round.xml` | 引用上述三层（替换原先引用 `icon1_*.webp` 位图的写法） |
+
+**设计源与预览**：`.design/appicon.svg`；`NODE_PATH=<MIMO_NODE_MODULES> node .design/render.js .design/appicon.svg .design/appicon.png 300`
+
+---
+
+### 6. ui/screen/ViewerScreen.kt (L1-L441)
 
 | Element | Type | Lines |
 |---|---|---|
@@ -239,7 +287,7 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 8. ui/components/TopBar.kt (L1-L190)
+### 8. ui/components/TopBar.kt (L1-L213)
 
 | Element | Type | Lines |
 |---|---|---|
@@ -271,7 +319,7 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 10. ui/components/EmptyView.kt (L1-L86)
+### 10. ui/components/EmptyView.kt (L1-L105)
 
 | Element | Type | Lines |
 |---|---|---|
@@ -287,7 +335,7 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 11. ui/components/ThumbnailPanel.kt (L1-L372)
+### 11. ui/components/ThumbnailPanel.kt (L1-L380)
 
 | Element | Type | Lines |
 |---|---|---|
@@ -311,7 +359,7 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 11b. ui/components/ShelfPanel.kt (L1-L351)
+### 11b. ui/components/ShelfPanel.kt (L1-L361)
 
 | Element | Type | Lines |
 |---|---|---|
@@ -336,7 +384,7 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 11c. ui/components/SettingsPanel.kt (L1-L382)
+### 11c. ui/components/SettingsPanel.kt (L1-L427)
 
 | Element | Type | Lines |
 |---|---|---|
@@ -752,7 +800,7 @@ Single-screen app — no Navigation component. State-based content switching via
 
 ---
 
-### 27b. ui/components/ImslpPanel.kt (L1-L955)
+### 27b. ui/components/ImslpPanel.kt (L1-L1012)
 
 | Element | Type | Lines |
 |---|---|---|

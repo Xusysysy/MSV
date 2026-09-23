@@ -16,6 +16,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -27,6 +29,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -44,6 +47,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.painterResource
+import com.music.msv.R
 import com.music.msv.data.model.Mode
 import com.music.msv.data.model.ViewerEvent
 import com.music.msv.ui.components.EmptyView
@@ -351,14 +356,21 @@ fun ViewerScreen(viewModel: ViewerViewModel) {
                     title = "发现新版本 v${info.tag}",
                     content = {
                         Column {
-                            Text(
-                                if (logExpanded) "更新日志 ▾" else "更新日志 ▸",
-                                color = Msv.colors.accent,
-                                fontSize = 13.sp,
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable { logExpanded = !logExpanded }
-                            )
+                            ) {
+                                Icon(
+                                    painter = painterResource(if (logExpanded) R.drawable.ic_msv_chevron_down else R.drawable.ic_msv_chevron_right),
+                                    contentDescription = null,
+                                    tint = Msv.colors.accent,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(Modifier.size(MsvSpacing.sm))
+                                Text("更新日志", color = Msv.colors.accent, fontSize = 13.sp)
+                            }
                             if (logExpanded) {
                                 Spacer(Modifier.height(MsvSpacing.sm))
                                 Column(

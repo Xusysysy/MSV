@@ -4,6 +4,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,6 +21,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -118,13 +120,18 @@ fun SettingsPanel(
         ) {
             Box(
                 modifier = Modifier
-                    .size(34.dp)
+                    .size(40.dp)
                     .clip(CircleShape)
-                    .background(if (isDark) Color.White.copy(alpha = 0.08f) else Color(0xFF1B2230).copy(alpha = 0.08f))
+                    .background(Msv.colors.controlBg)
                     .clickable { onClose() },
                 contentAlignment = Alignment.Center
             ) {
-                Text("✕", color = if (isDark) Color.White else Color(0xFF1B2230), fontSize = 14.sp)
+                Icon(
+                    painter = painterResource(R.drawable.ic_msv_close),
+                    contentDescription = "关闭",
+                    tint = Msv.colors.text,
+                    modifier = Modifier.size(17.dp)
+                )
             }
         }
 
@@ -133,16 +140,36 @@ fun SettingsPanel(
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
         ) {
-            Text("🎼 MSV 乐谱查看器", color = text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_msv_music),
+                    contentDescription = null,
+                    tint = accent,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text("MSV 乐谱查看器", color = text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            }
             Spacer(Modifier.height(4.dp))
             Text("版本 $versionName ($versionCode)", color = muted, fontSize = 13.sp)
             Spacer(Modifier.height(4.dp))
-            Text(
-                if (showVersionLog) "收起本版本更新日志 ▴" else "查看本版本更新日志 ▾",
-                color = accent,
-                fontSize = 12.sp,
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.clickable { onToggleVersionLog() }
-            )
+            ) {
+                Icon(
+                    painter = painterResource(if (showVersionLog) R.drawable.ic_msv_chevron_down else R.drawable.ic_msv_chevron_right),
+                    contentDescription = null,
+                    tint = accent,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    if (showVersionLog) "收起本版本更新日志" else "查看本版本更新日志",
+                    color = accent,
+                    fontSize = 12.sp
+                )
+            }
             if (showVersionLog) {
                 Column(
                     modifier = Modifier
@@ -235,14 +262,25 @@ fun SettingsPanel(
                         Spacer(Modifier.height(6.dp))
                         Text(info.notes, color = muted, fontSize = 12.sp, lineHeight = 17.sp)
                         var showFullLog by remember { mutableStateOf(false) }
-                        Text(
-                            if (showFullLog) "收起更新日志 ▴" else "查看更新日志 ▾",
-                            color = accent,
-                            fontSize = 12.sp,
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .padding(top = 6.dp)
                                 .clickable { showFullLog = !showFullLog }
-                        )
+                        ) {
+                            Icon(
+                                painter = painterResource(if (showFullLog) R.drawable.ic_msv_chevron_down else R.drawable.ic_msv_chevron_right),
+                                contentDescription = null,
+                                tint = accent,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                if (showFullLog) "收起更新日志" else "查看更新日志",
+                                color = accent,
+                                fontSize = 12.sp
+                            )
+                        }
                         if (showFullLog) {
                             Column(
                                 modifier = Modifier
@@ -276,15 +314,22 @@ fun SettingsPanel(
                 color = muted,
                 fontSize = 11.sp
             )
-            Text(
-                "支持开发者 ❤",
+            Row(
                 modifier = Modifier
                     .weight(1f)
                     .clickable { supportOpen = true },
-                textAlign = TextAlign.Center,
-                color = accent,
-                fontSize = 11.sp
-            )
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_msv_heart),
+                    contentDescription = null,
+                    tint = accent,
+                    modifier = Modifier.size(14.dp)
+                )
+                Spacer(Modifier.width(4.dp))
+                Text("支持开发者", color = accent, fontSize = 11.sp)
+            }
         }
         Spacer(Modifier.height(6.dp))
         Text(

@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -40,6 +41,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -48,6 +50,7 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
+import com.music.msv.R
 import com.music.msv.data.model.ShelfFile
 import com.music.msv.data.model.ShelfSort
 import com.music.msv.ui.theme.ButtonShape
@@ -114,13 +117,18 @@ fun ShelfPanel(
         ) {
             Box(
                 modifier = Modifier
-                    .size(34.dp)
+                    .size(40.dp)
                     .clip(CircleShape)
-                    .background(if (isDark) Color.White.copy(alpha = 0.08f) else Color(0xFF1B2230).copy(alpha = 0.08f))
+                    .background(Msv.colors.controlBg)
                     .clickable { onClose() },
                 contentAlignment = Alignment.Center
             ) {
-                Text("✕", color = if (isDark) Color.White else Color(0xFF1B2230), fontSize = 14.sp)
+                Icon(
+                    painter = painterResource(R.drawable.ic_msv_close),
+                    contentDescription = "关闭",
+                    tint = Msv.colors.text,
+                    modifier = Modifier.size(17.dp)
+                )
             }
         }
 
@@ -170,16 +178,16 @@ fun ShelfPanel(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(ButtonShape)
-                    .background(if (isDark) Color(0x0FFFFFFF) else Color(0x0A1A2230))
-                    .border(1.dp, if (isDark) Color(0x24FFFFFF) else Color(0x1A1A2230), ButtonShape)
+                    .background(Msv.colors.controlBg)
+                    .border(1.dp, Msv.colors.controlBorder, ButtonShape)
                     .clickable { sortMenuOpen = !sortMenuOpen },
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    if (shelfSortBy == ShelfSort.DATE) "↓" else "A",
-                    color = text,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold
+                Icon(
+                    painter = painterResource(R.drawable.ic_msv_sort),
+                    contentDescription = "排序",
+                    tint = text,
+                    modifier = Modifier.size(18.dp)
                 )
                 DropdownMenu(
                     expanded = sortMenuOpen,
@@ -195,7 +203,7 @@ fun ShelfPanel(
                                 fontWeight = if (shelfSortBy == ShelfSort.DATE) FontWeight.Bold else FontWeight.Normal
                             )
                         },
-                        trailingIcon = { if (shelfSortBy == ShelfSort.DATE) Text("✓", color = accent) },
+                        trailingIcon = { if (shelfSortBy == ShelfSort.DATE) Icon(painterResource(R.drawable.ic_msv_check), contentDescription = null, tint = accent, modifier = Modifier.size(18.dp)) },
                         onClick = { sortMenuOpen = false; onSortSelected(ShelfSort.DATE) }
                     )
                     DropdownMenuItem(
@@ -206,7 +214,7 @@ fun ShelfPanel(
                                 fontWeight = if (shelfSortBy == ShelfSort.NAME) FontWeight.Bold else FontWeight.Normal
                             )
                         },
-                        trailingIcon = { if (shelfSortBy == ShelfSort.NAME) Text("✓", color = accent) },
+                        trailingIcon = { if (shelfSortBy == ShelfSort.NAME) Icon(painterResource(R.drawable.ic_msv_check), contentDescription = null, tint = accent, modifier = Modifier.size(18.dp)) },
                         onClick = { sortMenuOpen = false; onSortSelected(ShelfSort.NAME) }
                     )
                 }
@@ -267,9 +275,11 @@ fun ShelfPanel(
                                     modifier = Modifier.fillMaxSize()
                                 )
                             } else {
-                                Text(
-                                    "🎼",
-                                    fontSize = 24.sp
+                                Icon(
+                                    painter = painterResource(R.drawable.ic_msv_music),
+                                    contentDescription = null,
+                                    tint = muted,
+                                    modifier = Modifier.size(28.dp)
                                 )
                             }
                         }

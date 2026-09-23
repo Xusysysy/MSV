@@ -135,14 +135,14 @@ fun FaceRecognitionOverlay(visible: Boolean, faceEnabled: Boolean, onDismiss: ()
 
 @Composable private fun Card(mod: Modifier, e: String, l: String, score: Float, ac: Color, c: Color, b: Color, t: Color) {
     val on = score > 0.01f
-    Column(mod.clip(RoundedCornerShape(10.dp)).background(if (on) ac.copy(alpha = 0.15f) else c).border(1.dp, if (on) ac.copy(alpha = 0.5f) else b, RoundedCornerShape(10.dp)).padding(vertical = 6.dp, horizontal = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(e, fontSize = 16.sp); Spacer(Modifier.height(1.dp)); Text(l, color = t, fontSize = 9.sp); Text("${(score * 100).toInt()}%", color = if (on) ac else Color(0xFF888888), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+    Column(mod.clip(MaterialTheme.shapes.extraSmall).background(if (on) ac.copy(alpha = 0.15f) else c).border(1.dp, if (on) ac.copy(alpha = 0.5f) else b, MaterialTheme.shapes.extraSmall).padding(vertical = 6.dp, horizontal = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(e, fontSize = 16.sp); Spacer(Modifier.height(1.dp)); Text(l, color = t, fontSize = 11.sp); Text("${(score * 100).toInt()}%", color = if (on) ac else Msv.colors.textMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
     }
 }
 
 @Composable private fun Modes(state: FaceRecognitionManager.FaceState, manager: FaceRecognitionManager, card: Color, b: Color, ac: Color) {
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(card).border(1.dp, b, RoundedCornerShape(10.dp)).padding(8.dp), Arrangement.spacedBy(4.dp)) {
-        Text("触发模式", color = Color.Black, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+    Column(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.extraSmall).background(card).border(1.dp, b, MaterialTheme.shapes.extraSmall).padding(8.dp), Arrangement.spacedBy(4.dp)) {
+        Text("触发模式", color = Msv.colors.text, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(4.dp)) {
             MBtn(Modifier.weight(1f), "Wink", state.triggerMode == FaceRecognitionManager.TriggerMode.WINK) { if (!manager.isReady()) manager.init(); manager.updateState { it.copy(enabled = true, running = true, triggerMode = FaceRecognitionManager.TriggerMode.WINK) } }
             MBtn(Modifier.weight(1f), "撅嘴", state.triggerMode == FaceRecognitionManager.TriggerMode.PUCKER) { if (!manager.isReady()) manager.init(); manager.updateState { it.copy(enabled = true, running = true, triggerMode = FaceRecognitionManager.TriggerMode.PUCKER) } }
@@ -153,21 +153,21 @@ fun FaceRecognitionOverlay(visible: Boolean, faceEnabled: Boolean, onDismiss: ()
 
 @Composable private fun SliderCard(label: String, value: Float, range: ClosedFloatingPointRange<Float>, card: Color, b: Color, t: Color, ac: Color, onChange: (Float) -> Unit) {
     var v by remember(value) { mutableFloatStateOf(value) }
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(card).border(1.dp, b, RoundedCornerShape(10.dp)).padding(8.dp)) {
+    Column(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.extraSmall).background(card).border(1.dp, b, MaterialTheme.shapes.extraSmall).padding(8.dp)) {
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) { Text(label, color = t, fontSize = 11.sp); Text(String.format("%.1f", value), color = ac, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
         Slider(value = value, onValueChange = { v = it; onChange(it) }, valueRange = range, modifier = Modifier.fillMaxWidth(), colors = SliderDefaults.colors(thumbColor = ac, activeTrackColor = ac, inactiveTrackColor = b))
     }
 }
 
 @Composable private fun MirrorToggle(state: FaceRecognitionManager.FaceState, manager: FaceRecognitionManager, card: Color, b: Color, t: Color, t2: Color, ac: Color) {
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(card).border(1.dp, b, RoundedCornerShape(10.dp)).padding(8.dp), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.extraSmall).background(card).border(1.dp, b, MaterialTheme.shapes.extraSmall).padding(8.dp), Arrangement.SpaceBetween, Alignment.CenterVertically) {
         Text("镜像翻转", color = t, fontSize = 11.sp)
         Box(Modifier.clip(RoundedCornerShape(8.dp)).background(if (state.mirrored) ac.copy(alpha = 0.2f) else card).border(1.dp, if (state.mirrored) ac else b, RoundedCornerShape(8.dp)).clickable { manager.updateState { it.copy(mirrored = !it.mirrored) } }.padding(horizontal = 12.dp, vertical = 4.dp)) {
             Text(if (state.mirrored) "镜像" else "原始", color = if (state.mirrored) ac else t2, fontSize = 11.sp, fontWeight = FontWeight.Bold)
         }
     }
     // 仅显示叠加线条：隐藏相机画面，深色底上只画关键点连线（触发效果不受影响）
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(card).border(1.dp, b, RoundedCornerShape(10.dp)).padding(8.dp), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.extraSmall).background(card).border(1.dp, b, MaterialTheme.shapes.extraSmall).padding(8.dp), Arrangement.SpaceBetween, Alignment.CenterVertically) {
         Text("仅显示线条", color = t, fontSize = 11.sp)
         Box(Modifier.clip(RoundedCornerShape(8.dp)).background(if (state.skeletonOnly) ac.copy(alpha = 0.2f) else card).border(1.dp, if (state.skeletonOnly) ac else b, RoundedCornerShape(8.dp)).clickable { manager.updateState { it.copy(skeletonOnly = !it.skeletonOnly) } }.padding(horizontal = 12.dp, vertical = 4.dp)) {
             Text(if (state.skeletonOnly) "纯线条" else "画面", color = if (state.skeletonOnly) ac else t2, fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -176,7 +176,7 @@ fun FaceRecognitionOverlay(visible: Boolean, faceEnabled: Boolean, onDismiss: ()
 }
 
 @Composable private fun Debug(manager: FaceRecognitionManager, hasPerm: Boolean, state: FaceRecognitionManager.FaceState, card: Color, b: Color, t: Color, t2: Color, ac: Color) {
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(card).border(1.dp, b, RoundedCornerShape(10.dp)).padding(8.dp)) {
+    Column(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.extraSmall).background(card).border(1.dp, b, MaterialTheme.shapes.extraSmall).padding(8.dp)) {
         Text("诊断", color = t, fontSize = 11.sp, fontWeight = FontWeight.Bold); Spacer(Modifier.height(4.dp))
         Text("模型:${if (manager.isReady()) "✓" else "✗"} 相机:${if (hasPerm) "✓" else "✗"} 运行:${if (state.running) "✓" else "○"} FPS:${state.fps} 关键点:${state.landmarks?.size ?: 0}", color = t2, fontSize = 10.sp)
         Text(state.status, color = ac, fontSize = 10.sp)

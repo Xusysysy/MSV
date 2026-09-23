@@ -11,8 +11,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -21,8 +23,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.music.msv.R
 import com.music.msv.ui.theme.Msv
 
 @Composable
@@ -48,9 +52,11 @@ fun EmptyView(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(
-                text = "🎼",
-                fontSize = 48.sp
+            Icon(
+                painter = painterResource(R.drawable.ic_msv_music),
+                contentDescription = null,
+                tint = accent,
+                modifier = Modifier.size(60.dp)
             )
             Text(
                 text = "乐谱查看器",
@@ -64,6 +70,12 @@ fun EmptyView(
                 color = muted,
                 lineHeight = 22.sp
             )
+            Text(
+                text = "左右点按翻页 · 双击放大 · 拖动快速翻页\n长按右侧工具按钮可切换深浅主题",
+                style = MaterialTheme.typography.bodySmall,
+                color = muted,
+                lineHeight = 18.sp
+            )
             Spacer(modifier = Modifier.height(8.dp))
             Row(
                 modifier = Modifier
@@ -72,10 +84,17 @@ fun EmptyView(
                     .border(1.dp, accent, RoundedCornerShape(28.dp))
                     .clickable { onShelfClick() }
                     .padding(horizontal = 28.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_msv_shelf),
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(18.dp)
+                )
                 Text(
-                    text = "📂 谱架",
+                    text = "谱架",
                     color = Color.White,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold
