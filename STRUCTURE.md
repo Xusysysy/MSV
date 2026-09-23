@@ -223,8 +223,8 @@ Single-screen app — no Navigation component. State-based content switching via
 
 | 资源 | 作用 |
 |---|---|
-| `drawable/ic_msv_launcher_background.xml` | 背景层：`#0F1220` 满幅底 + 5 条谱线 `#2E3856`（y=38/46.5/55/63.5/72，高 3.4） |
-| `drawable/ic_msv_launcher_foreground.xml` | 前景层：**上行双音符 + 倾斜符杠**——符杠 `M47,40→L79,35` 宽 9.5、两根符杆宽 7、符头 `#8CC8FF`（rx 11 / ry 8，绕 (36,68) 与 (68,61) 旋转 −20°），符杆/符杠 `#F5F7FF`；内容在 108 画布安全区内（x 25–84 / y 30–76，圆形遮罩半径 36 内不被裁） |
+| `drawable/ic_msv_launcher_background.xml` | 背景层：`#0F1220` 满幅底 + 5 条谱线 `#2E3856`（y=38/46.5/55/63.5/72，**高 3.0**——收细以让音符主导） |
+| `drawable/ic_msv_launcher_foreground.xml` | 前景层：**上行双音符 + 倾斜符杠**——**符杠与符杆粗细统一为 10**（`M46,45→L80,37` / `M46,67→L46,45` / `M80,59→L80,37`，圆头）；**符头 `#8CC8FF` 放大右移**（rx 13.5 / ry 9.5，绕 (37,69) 与 (71,61) 旋转 −20°），**符杆中心线压进符头右缘约 4 单位（约 9 单位重叠）故不割裂**；内容 x 23.9–85 / y 32–79，**各角点到圆心 ≤35.4 < 安全半径 36**，圆形遮罩不裁切 |
 | `drawable/ic_msv_launcher_monochrome.xml` | 单色层（Android 13+ 主题图标）：音符 100% / 谱线 38% 透明度，几何与前景层完全一致 |
 | `mipmap-anydpi-v26/icon1.xml`、`icon1_round.xml` | 引用上述三层（替换原先引用 `icon1_*.webp` 位图的写法） |
 

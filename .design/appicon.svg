@@ -1,19 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 108 108">
   <rect width="108" height="108" fill="#0F1220"/>
+  <!-- 五线谱（略收细，让音符主导） -->
   <g fill="#2E3856">
-    <rect x="0" y="38" width="108" height="3.4"/>
-    <rect x="0" y="46.5" width="108" height="3.4"/>
-    <rect x="0" y="55" width="108" height="3.4"/>
-    <rect x="0" y="63.5" width="108" height="3.4"/>
-    <rect x="0" y="72" width="108" height="3.4"/>
+    <rect x="0" y="38" width="108" height="3"/>
+    <rect x="0" y="46.5" width="108" height="3"/>
+    <rect x="0" y="55" width="108" height="3"/>
+    <rect x="0" y="63.5" width="108" height="3"/>
+    <rect x="0" y="72" width="108" height="3"/>
   </g>
-  <!-- 倾斜符杠 -->
-  <line x1="47" y1="40" x2="79" y2="35" stroke="#F5F7FF" stroke-width="9.5" stroke-linecap="round"/>
-  <!-- 左音符（较低）符杆 -->
-  <line x1="47" y1="65" x2="47" y2="40" stroke="#F5F7FF" stroke-width="7" stroke-linecap="round"/>
-  <!-- 右音符（较高）符杆 -->
-  <line x1="79" y1="58" x2="79" y2="35" stroke="#F5F7FF" stroke-width="7" stroke-linecap="round"/>
-  <!-- 符头：强调蓝 -->
-  <ellipse cx="36" cy="68" rx="11" ry="8" fill="#8CC8FF" transform="rotate(-20 36 68)"/>
-  <ellipse cx="68" cy="61" rx="11" ry="8" fill="#8CC8FF" transform="rotate(-20 68 61)"/>
+  <!-- 符杆 + 符杠：统一粗细 10 -->
+  <line x1="46" y1="45" x2="80" y2="37" stroke="#F5F7FF" stroke-width="10" stroke-linecap="round"/>
+  <line x1="46" y1="67" x2="46" y2="45" stroke="#F5F7FF" stroke-width="10" stroke-linecap="round"/>
+  <line x1="80" y1="59" x2="80" y2="37" stroke="#F5F7FF" stroke-width="10" stroke-linecap="round"/>
+  <!-- 符头：放大 + 右移，使符杆压进符头右缘，不再割裂 -->
+  <ellipse cx="37" cy="69" rx="13.5" ry="9.5" fill="#8CC8FF" transform="rotate(-20 37 69)"/>
+  <ellipse cx="71" cy="61" rx="13.5" ry="9.5" fill="#8CC8FF" transform="rotate(-20 71 61)"/>
 </svg>
