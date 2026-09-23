@@ -224,8 +224,8 @@ Single-screen app — no Navigation component. State-based content switching via
 | 资源 | 作用 |
 |---|---|
 | `drawable/ic_msv_launcher_background.xml` | 背景层：`#0F1220` 满幅底 + 5 条谱线 `#2E3856`（y=38/46.5/55/63.5/72，高 3.4） |
-| `drawable/ic_msv_launcher_foreground.xml` | 前景层：四分音符（符头 `#8CC8FF` 绕 (51,65.5) 旋转 −20°、符杆 `#F5F7FF` 宽 7.5），内容全落在 108 画布安全区内（x 39.5–66.8 / y 33–73.8） |
-| `drawable/ic_msv_launcher_monochrome.xml` | 单色层（Android 13+ 主题图标）：音符 100% / 谱线 38% 透明度 |
+| `drawable/ic_msv_launcher_foreground.xml` | 前景层：**上行双音符 + 倾斜符杠**——符杠 `M47,40→L79,35` 宽 9.5、两根符杆宽 7、符头 `#8CC8FF`（rx 11 / ry 8，绕 (36,68) 与 (68,61) 旋转 −20°），符杆/符杠 `#F5F7FF`；内容在 108 画布安全区内（x 25–84 / y 30–76，圆形遮罩半径 36 内不被裁） |
+| `drawable/ic_msv_launcher_monochrome.xml` | 单色层（Android 13+ 主题图标）：音符 100% / 谱线 38% 透明度，几何与前景层完全一致 |
 | `mipmap-anydpi-v26/icon1.xml`、`icon1_round.xml` | 引用上述三层（替换原先引用 `icon1_*.webp` 位图的写法） |
 
 **设计源与预览**：`.design/appicon.svg`；`NODE_PATH=<MIMO_NODE_MODULES> node .design/render.js .design/appicon.svg .design/appicon.png 300`

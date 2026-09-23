@@ -1,24 +1,49 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- MSV 应用图标 · 前景层：四分音符（符头=强调蓝 #8CC8FF，符杆=前景白 #F5F7FF）
-     内容全部落在自适应图标 108dp 画布的中心安全区内（纵向 33-73.8，横向 39.5-66.8），
-     方形/圆形/圆角方形各遮罩下都不被裁切。 -->
+<!-- MSV 应用图标 · 前景层：上行双音符（倾斜符杠）
+     符杆/符杠=前景白 #F5F7FF，符头=强调蓝 #8CC8FF（旋转 −20°）。
+     内容全部落在 108 画布的自适应图标安全区内（实测圆形遮罩半径 36 单位内，不会被裁切）。 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- 倾斜符杠 -->
     <path
         android:fillColor="#00000000"
         android:strokeColor="#F5F7FF"
-        android:strokeWidth="7.5"
+        android:strokeWidth="9.5"
         android:strokeLineCap="round"
-        android:pathData="M63,63L63,33" />
+        android:pathData="M47,40L79,35" />
+    <!-- 左音符（较低）符杆 -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#F5F7FF"
+        android:strokeWidth="7"
+        android:strokeLineCap="round"
+        android:pathData="M47,65L47,40" />
+    <!-- 右音符（较高）符杆 -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#F5F7FF"
+        android:strokeWidth="7"
+        android:strokeLineCap="round"
+        android:pathData="M79,58L79,35" />
+    <!-- 左符头 -->
     <group
-        android:pivotX="51"
-        android:pivotY="65.5"
+        android:pivotX="36"
+        android:pivotY="68"
         android:rotation="-20">
         <path
             android:fillColor="#8CC8FF"
-            android:pathData="M39.5,65.5a11.5,8.3 0 1,0 23,0a11.5,8.3 0 1,0 -23,0z" />
+            android:pathData="M25,68a11,8 0 1,0 22,0a11,8 0 1,0 -22,0z" />
+    </group>
+    <!-- 右符头 -->
+    <group
+        android:pivotX="68"
+        android:pivotY="61"
+        android:rotation="-20">
+        <path
+            android:fillColor="#8CC8FF"
+            android:pathData="M57,61a11,8 0 1,0 22,0a11,8 0 1,0 -22,0z" />
     </group>
 </vector>
