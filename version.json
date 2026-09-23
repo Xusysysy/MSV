@@ -1,7 +1,7 @@
 {
-    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.4.9/MSV-ScoreViewer-v2.4.9-release.apk",
-    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.4.9/MSV-ScoreViewer-v2.4.9-release.apk",
-    "versionCode":  52,
-    "versionName":  "2.4.9",
-    "notes":  "# MSV 乐谱查看器 v2.4.9\n\n## 修复：IMSLP 乐曲详情页的「预览」恢复\n\n- **预览失效的原因不是应用删掉了功能，而是 IMSLP 近期改版**：站点不再使用旧的文件按钮标识，导致应用内预览脚本取不到乐谱文件编号，于是静默跳过（表现就是\"预览没了\"）。\n- **文件编号改为读取稳定的条目标识**（改版后的新位置），旧的读取方式保留为兼容分支，两种页面结构都能取到编号。\n\n## 改进：预览入口改为应用自带\n\n- 每个乐谱条目旁新增一个 **「📖 预览」按钮**，点击即在该条目下展开可翻页预览。\n- 该入口**不再依赖 IMSLP 自身的 View 按钮，也不依赖其官方预览组件是否可用**（官方组件在部分网络下不可达）——站点后续再改版也不会让预览消失。\n- 点击 IMSLP 自带的 View 仍然兼容：官方预览组件可用时优先使用官方组件，不可用时才接管。\n\n\u003e 预览图片仍来自公开的乐谱预览图片接口，不在本地存储任何乐谱内容。\n\nversionCode=52, versionName=2.4.9\n"
+    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.5.0/MSV-ScoreViewer-v2.5.0-release.apk",
+    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.5.0/MSV-ScoreViewer-v2.5.0-release.apk",
+    "versionCode":  53,
+    "versionName":  "2.5.0",
+    "notes":  "# MSV 乐谱查看器 v2.5.0\n\n## 全新应用图标\n\n- 从「沿用 Material 字形位图」改为**专门设计**的图标：深空蓝底 + 五线谱线上的一枚四分音符（符头强调蓝、符杆前景白），与应用自身色板一致\n- 采用**矢量自适应图标**：方形 / 圆形 / 圆角各遮罩下都完整不被裁切；并附带**单色层**，支持 Android 13+ 的「主题图标」（随系统主题着色）\n- 因最低支持 Android 8.0，图标全为矢量，任何分辨率都清晰，不再需要位图\n\n## 全新应用内图标\n\n- 新增 **18 个手绘线性图标**（统一 24dp、2px 圆头描边），替换原先用 emoji / 文字符号充当图标的做法：谱架、缩略图、翻谱手势、重置、设置、关闭、返回、展开/收起、已选、搜索、排序、支持、作曲家、作品、加载失败、乐谱库、应用标志\n- **不引入任何图标依赖库**，APK 体积无额外增长\n- 顶部工具栏、空态页、谱架、缩略图、设置面板、IMSLP 弹窗的图标风格现已完全统一\n\n## 体验修复\n\n- **修复文字不可见**：人脸调节面板的「触发模式」标题此前用纯黑色画在深色卡片上，深色主题下完全看不见\n- **修复深色/浅色主题串色**：该面板残留的写死颜色改为语义令牌，浅色主题下不再失效\n- **触控区域放大**：面板关闭按钮 34 → 40dp；IMSLP 弹窗的关闭与返回此前只有约 18dp 的可点区域，现放大到 34dp 起\n- **补上操作提示**：空态页新增手势说明（左右点按翻页 / 双击放大 / 拖动快速翻页 / 长按工具按钮切换主题），此前这些手势只能靠猜\n- **修复过小字号**：人脸面板 9sp 文字提升到 11sp；展开/收起统一为箭头图标，不再用 ▴▾/▸▾ 两套符号\n\nversionCode=53, versionName=2.5.0\n"
 }
