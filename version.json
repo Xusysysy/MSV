@@ -1,7 +1,7 @@
 {
-    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.5.2/MSV-ScoreViewer-v2.5.2-release.apk",
-    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.5.2/MSV-ScoreViewer-v2.5.2-release.apk",
-    "versionCode":  55,
-    "versionName":  "2.5.2",
-    "notes":  "# MSV 乐谱查看器 v2.5.2\n\n## 应用图标再次调整\n\n- **符杠与符杆粗细统一**：原先符杆 7、符杠 9.5 粗细不一致，现全部统一为 10\n- **音符椭圆向右移动并压进符杆**：符头由 rx 11 放大到 rx 13.5，且符杆中心线压进符头右缘约 4 单位（约 9 单位重叠），两者不再割裂\n- **整体占比更大**：符杆由 7 加粗到 10（+43%）、符头面积放大、谱线由 3.4 收细到 3.0 让音符更突出——放到移动设备上明显更饱满\n- 依然矢量自适应图标（含单色主题图标层）；已逐点验算所有内容到圆心 ≤35.4，小于安全半径 36，各遮罩下不裁切\n\n\u003e 功能无变化，仅图标视觉调整。\n\nversionCode=55, versionName=2.5.2\n"
+    "apkUrlGitee":  "https://gitee.com/lin-xiaochuan/msv/releases/download/2.5.3/MSV-ScoreViewer-v2.5.3-release.apk",
+    "apkUrlGitHub":  "https://github.com/Xusysysy/MSV/releases/download/2.5.3/MSV-ScoreViewer-v2.5.3-release.apk",
+    "versionCode":  56,
+    "versionName":  "2.5.3",
+    "notes":  "# MSV 乐谱查看器 v2.5.3\n\n## 应用图标：简化为纯黑白\n\n- **纯黑白**：底色改为纯黑 `#000000`，音符全部改为纯白，不再有强调蓝与暗蓝底\n- **去掉五线谱**：背景只保留纯黑，图形元素从「谱线 + 符杠 + 符杆 + 符头」精简为「符杠 + 符杆 + 符头」，明显更简洁\n- **整体缩小约 10%**：占幅由 61×47 收到 54×42、符杆由 10 收到 9，放到手机上不再显得过大\n- **保留辨识度**：仍用「上行双音符 + 微弧符杠」而非通用的单枚 ♪——单音符几乎每个音乐类应用都在用；微弧符杠（二次曲线）取代生硬直线，是这一版的识别特征\n\n\u003e 各角点到圆心 ≤30.4，远小于自适应图标安全半径 36，各形状遮罩下都不会裁切。功能无变化。\n\nversionCode=56, versionName=2.5.3\n"
 }
