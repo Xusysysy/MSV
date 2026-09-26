@@ -1,47 +1,44 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- MSV 应用图标 · 单色层（Android 13+ 主题图标）
-     系统按当前主题着色；音符 100% / 谱线 38% 透明度区分主次。
-     几何与 ic_msv_launcher_foreground 完全一致（粗细统一 10，符头放大右移防割裂）。 -->
+     几何与前景层完全一致，单色（系统着色）。
+     纯黑白方案后，单色层与前景层的形状一致，仅由系统统一染色。 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
     <path
-        android:fillColor="#61FFFFFF"
-        android:pathData="M0,38h108v3h-108zM0,46.5h108v3h-108zM0,55h108v3h-108zM0,63.5h108v3h-108zM0,72h108v3h-108z" />
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="9"
+        android:strokeLineCap="round"
+        android:pathData="M47,44Q62,40.5 77,37" />
     <path
         android:fillColor="#00000000"
         android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="10"
+        android:strokeWidth="9"
         android:strokeLineCap="round"
-        android:pathData="M46,45L80,37" />
+        android:pathData="M47,64L47,44" />
     <path
         android:fillColor="#00000000"
         android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="10"
+        android:strokeWidth="9"
         android:strokeLineCap="round"
-        android:pathData="M46,67L46,45" />
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="10"
-        android:strokeLineCap="round"
-        android:pathData="M80,59L80,37" />
+        android:pathData="M77,56L77,37" />
     <group
-        android:pivotX="37"
-        android:pivotY="69"
+        android:pivotX="39"
+        android:pivotY="66"
         android:rotation="-20">
         <path
             android:fillColor="#FFFFFFFF"
-            android:pathData="M23.5,69a13.5,9.5 0 1,0 27,0a13.5,9.5 0 1,0 -27,0z" />
+            android:pathData="M27,66a12,8.5 0 1,0 24,0a12,8.5 0 1,0 -24,0z" />
     </group>
     <group
-        android:pivotX="71"
-        android:pivotY="61"
+        android:pivotX="69"
+        android:pivotY="59"
         android:rotation="-20">
         <path
             android:fillColor="#FFFFFFFF"
-            android:pathData="M57.5,61a13.5,9.5 0 1,0 27,0a13.5,9.5 0 1,0 -27,0z" />
+            android:pathData="M57,59a12,8.5 0 1,0 24,0a12,8.5 0 1,0 -24,0z" />
     </group>
 </vector>

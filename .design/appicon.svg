@@ -1,18 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 108 108">
-  <rect width="108" height="108" fill="#0F1220"/>
-  <!-- 五线谱（略收细，让音符主导） -->
-  <g fill="#2E3856">
-    <rect x="0" y="38" width="108" height="3"/>
-    <rect x="0" y="46.5" width="108" height="3"/>
-    <rect x="0" y="55" width="108" height="3"/>
-    <rect x="0" y="63.5" width="108" height="3"/>
-    <rect x="0" y="72" width="108" height="3"/>
-  </g>
-  <!-- 符杆 + 符杠：统一粗细 10 -->
-  <line x1="46" y1="45" x2="80" y2="37" stroke="#F5F7FF" stroke-width="10" stroke-linecap="round"/>
-  <line x1="46" y1="67" x2="46" y2="45" stroke="#F5F7FF" stroke-width="10" stroke-linecap="round"/>
-  <line x1="80" y1="59" x2="80" y2="37" stroke="#F5F7FF" stroke-width="10" stroke-linecap="round"/>
-  <!-- 符头：放大 + 右移，使符杆压进符头右缘，不再割裂 -->
-  <ellipse cx="37" cy="69" rx="13.5" ry="9.5" fill="#8CC8FF" transform="rotate(-20 37 69)"/>
-  <ellipse cx="71" cy="61" rx="13.5" ry="9.5" fill="#8CC8FF" transform="rotate(-20 71 61)"/>
+  <rect width="108" height="108" fill="#000000"/>
+  <!-- 纯黑白 · 微弧符杠 · 无谱线 · 整体缩小 10% -->
+  <path d="M47,44 Q62,40.5 77,37" fill="none" stroke="#FFFFFF" stroke-width="9" stroke-linecap="round"/>
+  <line x1="47" y1="64" x2="47" y2="44" stroke="#FFFFFF" stroke-width="9" stroke-linecap="round"/>
+  <line x1="77" y1="56" x2="77" y2="37" stroke="#FFFFFF" stroke-width="9" stroke-linecap="round"/>
+  <ellipse cx="39" cy="66" rx="12" ry="8.5" fill="#FFFFFF" transform="rotate(-20 39 66)"/>
+  <ellipse cx="69" cy="59" rx="12" ry="8.5" fill="#FFFFFF" transform="rotate(-20 69 59)"/>
 </svg>

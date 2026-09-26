@@ -1,51 +1,51 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- MSV 应用图标 · 前景层：上行双音符 + 倾斜符杠
-     · 粗细统一：符杠与符杆均为 10（原先符杆 7 / 符杠 9.5 不一致）
-     · 符头放大右移：rx 13.5 / ry 9.5，符杆中心线压进符头右缘约 4 单位（约 9 单位重叠），不再割裂
-     · 内容全部落在 108 画布自适应图标安全区内（各角点到圆心 ≤35.4 < 36，圆形遮罩不裁切）
-     符杆/符杠=前景白 #F5F7FF，符头=强调蓝 #8CC8FF（旋转 −20°） -->
+<!-- MSV 应用图标 · 前景层：上行双音符（纯黑白）
+     · 去除五线谱线 → 更简洁；符头由强调蓝改为纯白 → 黑白方案
+     · 符杠改为微弧路径（Q 二次曲线），比直线更有流动感与辨识度
+     · 粗细统一 9；较上一版整体缩小约 10%（占幅 x 27.4-81.5 / y 32.5-75）
+     · 各角点到圆心 ≤30.4，远小于自适应图标安全半径 36，各遮罩下不裁切 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- 倾斜符杠 -->
+    <!-- 微弧符杠 -->
     <path
         android:fillColor="#00000000"
-        android:strokeColor="#F5F7FF"
-        android:strokeWidth="10"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="9"
         android:strokeLineCap="round"
-        android:pathData="M46,45L80,37" />
+        android:pathData="M47,44Q62,40.5 77,37" />
     <!-- 左音符（较低）符杆 -->
     <path
         android:fillColor="#00000000"
-        android:strokeColor="#F5F7FF"
-        android:strokeWidth="10"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="9"
         android:strokeLineCap="round"
-        android:pathData="M46,67L46,45" />
+        android:pathData="M47,64L47,44" />
     <!-- 右音符（较高）符杆 -->
     <path
         android:fillColor="#00000000"
-        android:strokeColor="#F5F7FF"
-        android:strokeWidth="10"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="9"
         android:strokeLineCap="round"
-        android:pathData="M80,59L80,37" />
-    <!-- 左符头 -->
+        android:pathData="M77,56L77,37" />
+    <!-- 左符头（纯白） -->
     <group
-        android:pivotX="37"
-        android:pivotY="69"
+        android:pivotX="39"
+        android:pivotY="66"
         android:rotation="-20">
         <path
-            android:fillColor="#8CC8FF"
-            android:pathData="M23.5,69a13.5,9.5 0 1,0 27,0a13.5,9.5 0 1,0 -27,0z" />
+            android:fillColor="#FFFFFF"
+            android:pathData="M27,66a12,8.5 0 1,0 24,0a12,8.5 0 1,0 -24,0z" />
     </group>
-    <!-- 右符头 -->
+    <!-- 右符头（纯白） -->
     <group
-        android:pivotX="71"
-        android:pivotY="61"
+        android:pivotX="69"
+        android:pivotY="59"
         android:rotation="-20">
         <path
-            android:fillColor="#8CC8FF"
-            android:pathData="M57.5,61a13.5,9.5 0 1,0 27,0a13.5,9.5 0 1,0 -27,0z" />
+            android:fillColor="#FFFFFF"
+            android:pathData="M57,59a12,8.5 0 1,0 24,0a12,8.5 0 1,0 -24,0z" />
     </group>
 </vector>

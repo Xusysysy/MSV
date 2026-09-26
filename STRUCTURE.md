@@ -223,9 +223,9 @@ Single-screen app — no Navigation component. State-based content switching via
 
 | 资源 | 作用 |
 |---|---|
-| `drawable/ic_msv_launcher_background.xml` | 背景层：`#0F1220` 满幅底 + 5 条谱线 `#2E3856`（y=38/46.5/55/63.5/72，**高 3.0**——收细以让音符主导） |
-| `drawable/ic_msv_launcher_foreground.xml` | 前景层：**上行双音符 + 倾斜符杠**——**符杠与符杆粗细统一为 10**（`M46,45→L80,37` / `M46,67→L46,45` / `M80,59→L80,37`，圆头）；**符头 `#8CC8FF` 放大右移**（rx 13.5 / ry 9.5，绕 (37,69) 与 (71,61) 旋转 −20°），**符杆中心线压进符头右缘约 4 单位（约 9 单位重叠）故不割裂**；内容 x 23.9–85 / y 32–79，**各角点到圆心 ≤35.4 < 安全半径 36**，圆形遮罩不裁切 |
-| `drawable/ic_msv_launcher_monochrome.xml` | 单色层（Android 13+ 主题图标）：音符 100% / 谱线 38% 透明度，几何与前景层完全一致 |
+| `drawable/ic_msv_launcher_background.xml` | 背景层：**纯黑 `#000000` 满幅**（v2.5.3 起纯黑白方案，五线谱线已全部移除以求简洁） |
+| `drawable/ic_msv_launcher_foreground.xml` | 前景层：**上行双音符（纯白 `#FFFFFF`）**——**符杠为微弧** `M47,44Q62,40.5 77,37`（二次曲线，比直线更有流动感与辨识度），两根符杆 `M47,64→47,44` / `M77,56→77,37`，**粗细统一 9、圆头**；两个符头 rx 12 / ry 8.5，绕 (39,66) 与 (69,59) 旋转 −20°，**符杆中心线压进符头右缘约 3 单位故不割裂**；占幅 x 27.4–81.5 / y 32.5–75（较上一版缩小约 10%），**各角点到圆心 ≤30.4 < 安全半径 36** |
+| `drawable/ic_msv_launcher_monochrome.xml` | 单色层（Android 13+ 主题图标）：几何与前景层完全一致；纯黑白方案下与前景层同形，由系统统一着色 |
 | `mipmap-anydpi-v26/icon1.xml`、`icon1_round.xml` | 引用上述三层（替换原先引用 `icon1_*.webp` 位图的写法） |
 
 **设计源与预览**：`.design/appicon.svg`；`NODE_PATH=<MIMO_NODE_MODULES> node .design/render.js .design/appicon.svg .design/appicon.png 300`
